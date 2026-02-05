@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -26,7 +26,7 @@ import { useFirestore } from '@/firebase';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import type { Release } from '@/lib/types';
+import type { Release, Organization } from '@/lib/types';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import {
@@ -40,18 +40,25 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { AiHeadlineGenerator } from './ai-headline-generator';
+import { AiToneEnhancer } from './ai-tone-enhancer';
 
 type ReleaseEditFormProps = {
   release: Release;
   orgId: string;
+  organization?: Organization | null;
 };
 
-export function ReleaseEditForm({ release, orgId }: ReleaseEditFormProps) {
+export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFormProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const headlineInputRef = useRef<HTMLInputElement>(null);
+  const bodyCopyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [currentHeadline, setCurrentHeadline] = useState(release.headline);
+  const [currentBodyCopy, setCurrentBodyCopy] = useState(release.bodyCopy || '');
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -120,6 +127,20 @@ export function ReleaseEditForm({ release, orgId }: ReleaseEditFormProps) {
     }
   };
 
+  const handleApplyHeadline = (headline: string) => {
+    setCurrentHeadline(headline);
+    if (headlineInputRef.current) {
+      headlineInputRef.current.value = headline;
+    }
+  };
+
+  const handleApplyEnhancedCopy = (enhancedCopy: string) => {
+    setCurrentBodyCopy(enhancedCopy);
+    if (bodyCopyTextareaRef.current) {
+      bodyCopyTextareaRef.current.value = enhancedCopy;
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit}>
       <div className="grid gap-6">
@@ -159,7 +180,9 @@ export function ReleaseEditForm({ release, orgId }: ReleaseEditFormProps) {
               <Input
                 id="headline"
                 name="headline"
+                ref={headlineInputRef}
                 defaultValue={release.headline}
+                onChange={(e) => setCurrentHeadline(e.target.value)}
                 placeholder="e.g., New Culinary Trail Launches in Canterbury"
                 required
               />
@@ -250,13 +273,32 @@ export function ReleaseEditForm({ release, orgId }: ReleaseEditFormProps) {
               <Textarea
                 id="bodyCopy"
                 name="bodyCopy"
+                ref={bodyCopyTextareaRef}
                 defaultValue={release.bodyCopy || ''}
+                onChange={(e) => setCurrentBodyCopy(e.target.value)}
                 placeholder="Write your press release content here..."
                 className="min-h-[400px] font-mono text-sm"
               />
             </div>
           </CardContent>
         </Card>
+
+        {/* AI Assistance Section */}
+        {organization && (
+          <>
+            <AiHeadlineGenerator
+              bodyCopy={currentBodyCopy}
+              targetMarket={release.targetMarket}
+              toneNotes={organization.brandToneNotes}
+              onSelectHeadline={handleApplyHeadline}
+            />
+            <AiToneEnhancer
+              bodyCopy={currentBodyCopy}
+              brandToneNotes={organization.brandToneNotes}
+              onApplyEnhancement={handleApplyEnhancedCopy}
+            />
+          </>
+        )}
 
         {/* Stats Card (if sent) */}
         {release.status === 'Sent' && (

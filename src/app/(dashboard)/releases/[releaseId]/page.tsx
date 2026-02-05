@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { useUserData } from '@/hooks/use-user-data';
+import { useOrganization } from '@/hooks/use-organization';
 import { doc } from 'firebase/firestore';
 import type { Release } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ export default function ReleaseDetailPage() {
   const router = useRouter();
   const { firestore } = useFirebase();
   const { orgId, isLoading: isUserDataLoading } = useUserData();
+  const { organization, isLoading: isOrgLoading } = useOrganization(orgId);
   const releaseId = params.releaseId as string;
 
   const releaseDoc = useDoc<Release>(
@@ -23,7 +25,7 @@ export default function ReleaseDetailPage() {
     }, [firestore, orgId, releaseId])
   );
 
-  if (isUserDataLoading || releaseDoc.isLoading) {
+  if (isUserDataLoading || releaseDoc.isLoading || isOrgLoading) {
     return (
       <div className="flex flex-col gap-6">
         <div>
@@ -70,7 +72,11 @@ export default function ReleaseDetailPage() {
           Update your press release details and content.
         </p>
       </div>
-      <ReleaseEditForm release={releaseDoc.data} orgId={orgId!} />
+      <ReleaseEditForm
+        release={releaseDoc.data}
+        orgId={orgId!}
+        organization={organization}
+      />
     </div>
   );
 }
