@@ -99,7 +99,8 @@ service cloud.firestore {
      * @principle Enforces role-based access for user management; Admins manage all users, while individuals can manage their own profile.
      */
     match /orgs/{orgId}/users/{userId} {
-      allow get: if isOrgMember(orgId);
+      // Allow users to read their own document (needed for isOrgMember checks)
+      allow get: if isSignedIn() && request.auth.uid == userId;
       allow list: if isOrgMember(orgId);
       allow create: if isOrgAdmin(orgId) && hasCorrectOrgIdOnCreate(orgId) && request.resource.data.id == userId;
       allow update: if (isOrgAdmin(orgId) || isOwner(userId)) && resource != null && isOrgIdImmutable() && request.resource.data.id == resource.data.id;
