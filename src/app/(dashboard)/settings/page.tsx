@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import SettingsForm from '@/components/settings/settings-form';
 import { useUserData } from '@/hooks/use-user-data';

@@ -8,6 +8,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 
+// Disable static generation for this page since it uses Firebase
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();

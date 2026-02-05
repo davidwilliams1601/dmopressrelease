@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import ReleasesTable from '@/components/releases/releases-table';
 import { NewReleaseDialog } from '@/components/releases/new-release-dialog';

@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useUser } from '@/firebase';

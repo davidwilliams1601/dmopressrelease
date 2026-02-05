@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import AiInsights from '@/components/dashboard/ai-insights';
 import StatCard from '@/components/dashboard/stat-card';

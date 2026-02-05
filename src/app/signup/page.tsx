@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import SignupForm from '@/components/auth/signup-form';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useUser } from '@/firebase';
