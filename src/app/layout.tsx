@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   description: 'SaaS for Destination Marketing Organisations',
 };
 
+// Disable static generation since app uses Firebase
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: Readonly<{
