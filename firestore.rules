@@ -169,16 +169,14 @@ service cloud.firestore {
     /**
      * @description Rules for analytics Event documents within an organization.
      * @path /orgs/{orgId}/events/{eventId}
-     * @allow (create) An authenticated member of `acme-corp` creating a new event document.
-     * @deny (list) An anonymous user trying to list events.
-     * @principle Grants full read/write access to all members of the same organization, enforcing the multi-tenant boundary.
+     * @allow (get, list) Authenticated members can read events for their organization.
+     * @deny (create, update, delete) All write operations are denied from clients; only Cloud Functions can write events.
+     * @principle Read-only access for clients ensures data integrity. Events are created exclusively via SendGrid webhooks processed by Cloud Functions.
      */
     match /orgs/{orgId}/events/{eventId} {
       allow get: if isOrgMember(orgId);
       allow list: if isOrgMember(orgId);
-      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
-      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable();
-      allow delete: if isOrgMember(orgId) && resource != null;
+      allow create, update, delete: if false; // Only Cloud Functions can write events
     }
   }
 }

@@ -9,6 +9,7 @@ import type { Release } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { ReleaseEditForm } from '@/components/releases/release-edit-form';
+import { ReleaseAnalytics } from '@/components/releases/release-analytics';
 
 export default function ReleaseDetailPage() {
   const params = useParams();
@@ -77,6 +78,14 @@ export default function ReleaseDetailPage() {
         orgId={orgId!}
         organization={organization}
       />
+
+      {/* Analytics Section - Only show for sent releases */}
+      {releaseDoc.data.status === 'Sent' && (
+        <div>
+          <h2 className="text-2xl font-headline font-bold mb-4">Analytics</h2>
+          <ReleaseAnalytics orgId={orgId!} releaseId={releaseId} />
+        </div>
+      )}
     </div>
   );
 }
