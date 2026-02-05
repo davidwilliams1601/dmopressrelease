@@ -1,9 +1,20 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import * as sgMail from '@sendgrid/mail';
 
 admin.initializeApp();
 
 const db = admin.firestore();
+
+// Initialize SendGrid
+// The API key will be set from environment variables
+const sendgridApiKey = functions.config().sendgrid?.key || process.env.SENDGRID_API_KEY;
+if (sendgridApiKey) {
+  sgMail.setApiKey(sendgridApiKey);
+  console.log('SendGrid initialized');
+} else {
+  console.warn('SendGrid API key not configured. Emails will not be sent.');
+}
 
 /**
  * Cloud Function to process send jobs
@@ -92,39 +103,43 @@ export const processSendJob = functions.firestore
   });
 
 /**
- * Send email to a recipient
- * TODO: Integrate with your email service provider (SendGrid, Mailgun, etc.)
+ * Send email to a recipient using SendGrid
  */
 async function sendEmail(recipient: any, release: any, orgId: string) {
-  // TODO: Replace with actual email sending logic
-  // Example with SendGrid:
-  // const sgMail = require('@sendgrid/mail');
-  // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-  //
-  // const msg = {
-  //   to: recipient.email,
-  //   from: 'press@yourorg.com',
-  //   subject: release.headline,
-  //   text: release.bodyCopy,
-  //   html: formatEmailHtml(release, recipient),
-  // };
-  //
-  // await sgMail.send(msg);
+  if (!sendgridApiKey) {
+    console.log(`[MOCK] Would send email to ${recipient.email}`);
+    console.log(`Subject: ${release.headline}`);
+    return;
+  }
 
-  console.log(`[MOCK] Sending email to ${recipient.email}`);
-  console.log(`Subject: ${release.headline}`);
+  // Fetch organization data for sender info
+  const orgDoc = await db.collection('orgs').doc(orgId).get();
+  const org = orgDoc.data();
 
-  // Simulate email sending delay
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  // Configure from email - use your verified sender
+  const fromEmail = functions.config().sendgrid?.from_email ||
+                    process.env.SENDGRID_FROM_EMAIL ||
+                    'noreply@yourdomain.com';
 
-  // For testing, you can uncomment the line below to simulate failures
-  // if (Math.random() < 0.1) throw new Error('Random failure for testing');
+  const msg = {
+    to: recipient.email,
+    from: {
+      email: fromEmail,
+      name: org?.name || 'Press Release',
+    },
+    subject: release.headline,
+    text: release.bodyCopy || 'No content',
+    html: formatEmailHtml(release, recipient, org),
+  };
+
+  await sgMail.send(msg);
+  console.log(`Email sent successfully to ${recipient.email}`);
 }
 
 /**
  * Format release content as HTML email
  */
-function formatEmailHtml(release: any, recipient: any): string {
+function formatEmailHtml(release: any, recipient: any, org?: any): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -143,10 +158,10 @@ function formatEmailHtml(release: any, recipient: any): string {
           ${release.bodyCopy || ''}
         </div>
 
-        ${release.boilerplate ? `
+        ${org?.boilerplate ? `
           <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; margin-top: 20px; font-size: 14px; color: #666;">
-            <strong>About the Organization:</strong><br>
-            ${release.boilerplate}
+            <strong>About ${org.name}:</strong><br>
+            ${org.boilerplate}
           </div>
         ` : ''}
       </div>

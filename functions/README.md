@@ -1,5 +1,9 @@
 # Cloud Functions for DMO Press Release
 
+## Quick Start with SendGrid
+
+**👉 See [SENDGRID_SETUP.md](./SENDGRID_SETUP.md) for complete setup instructions**
+
 ## Setup
 
 1. Install dependencies:
@@ -8,14 +12,20 @@
    npm install
    ```
 
-2. Build the functions:
+2. Configure SendGrid (see SENDGRID_SETUP.md):
+   - Create SendGrid account
+   - Get API key
+   - Verify sender email
+   - Set environment variables
+
+3. Build the functions:
    ```bash
    npm run build
    ```
 
-## Email Service Provider Setup
+## Email Service Provider
 
-The `sendEmail` function in `src/index.ts` needs to be configured with your email service provider.
+SendGrid is pre-configured and ready to use. The `sendEmail` function will automatically use SendGrid when configured.
 
 ### Option 1: SendGrid
 
