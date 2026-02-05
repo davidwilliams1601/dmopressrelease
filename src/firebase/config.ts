@@ -1,10 +1,10 @@
 'use client';
 
 export const firebaseConfig = {
-  "projectId": "studio-8269195331-387d9",
-  "appId": "1:9115510322:web:577d14caf6f1d86ad87e2b",
-  "apiKey": "AIzaSyBx5xCP6o7Ga0lG2_IEedRubINaAcfrSrM",
-  "authDomain": "studio-8269195331-387d9.firebaseapp.com",
-  "measurementId": "",
-  "messagingSenderId": "9115510322"
+  apiKey: "AIzaSyCEQji1lRBsREmY7Vt5l8_XDyTY0Pp_Oqc",
+  authDomain: "dmo-press-release.firebaseapp.com",
+  projectId: "dmo-press-release",
+  storageBucket: "dmo-press-release.firebasestorage.app",
+  messagingSenderId: "959287689887",
+  appId: "1:959287689887:web:4af709961507f1790ad8aa"
 };
