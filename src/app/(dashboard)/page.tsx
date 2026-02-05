@@ -11,8 +11,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 import type { Release } from '@/lib/types';
+import { useUserData } from '@/hooks/use-user-data';
 import {
   FileText,
   Mail,
@@ -22,24 +23,8 @@ import {
 import { useMemo } from 'react';
 
 export default function DashboardPage() {
-  const { firestore, user, isUserLoading } = useFirebase();
-
-  // Fetch user's organization
-  const userOrgsQuery = useCollection(
-    useMemoFirebase(() => {
-      if (!user) return null;
-      // Query organizations where the user is a member
-      // For now, we'll get the user's document which contains orgId
-      return query(
-        collection(firestore, 'orgs', 'visit-kent', 'users'),
-        where('__name__', '==', user.uid),
-        limit(1)
-      );
-    }, [firestore, user])
-  );
-
-  // Get orgId from user data
-  const orgId = 'visit-kent'; // Hardcoded for now - we'll improve this
+  const { firestore } = useFirebase();
+  const { orgId, isLoading: isUserDataLoading } = useUserData();
 
   // Fetch recent releases
   const releasesQuery = useCollection<Release>(
@@ -88,7 +73,7 @@ export default function DashboardPage() {
 
   const recentReleases = releasesQuery.data || [];
 
-  if (isUserLoading || releasesQuery.isLoading || allReleasesQuery.isLoading) {
+  if (isUserDataLoading || releasesQuery.isLoading || allReleasesQuery.isLoading) {
     return (
       <div className="flex flex-col gap-6">
         <div>

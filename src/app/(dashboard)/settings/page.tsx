@@ -1,23 +1,14 @@
 'use client';
 
 import SettingsForm from '@/components/settings/settings-form';
-import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUserData } from '@/hooks/use-user-data';
+import { useOrganization } from '@/hooks/use-organization';
 
 export default function SettingsPage() {
-  const { firestore, isUserLoading } = useFirebase();
+  const { orgId, isLoading: isUserDataLoading } = useUserData();
+  const { organization, isLoading: isOrgLoading } = useOrganization(orgId);
 
-  const orgId = 'visit-kent'; // Hardcoded for now
-
-  // Fetch organization document
-  const orgDoc = useDoc(
-    useMemoFirebase(() => {
-      if (!orgId) return null;
-      return doc(firestore, 'orgs', orgId);
-    }, [firestore, orgId])
-  );
-
-  if (isUserLoading || orgDoc.isLoading) {
+  if (isUserDataLoading || isOrgLoading) {
     return (
       <div className="flex flex-col gap-6">
         <div>
@@ -28,7 +19,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (!orgDoc.data) {
+  if (!organization) {
     return (
       <div className="flex flex-col gap-6">
         <div>
@@ -49,7 +40,7 @@ export default function SettingsPage() {
           Manage your organization details and preferences.
         </p>
       </div>
-      <SettingsForm organization={orgDoc.data} />
+      <SettingsForm organization={organization} />
     </div>
   );
 }

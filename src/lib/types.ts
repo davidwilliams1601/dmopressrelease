@@ -3,11 +3,12 @@ export type Organization = {
   name: string;
   slug: string;
   boilerplate: string;
-  pressContact: {
+  brandToneNotes: string;
+  createdAt?: any;
+  pressContact?: {
     name: string;
     email: string;
   };
-  brandToneNotes: string;
 };
 
 export type User = {
