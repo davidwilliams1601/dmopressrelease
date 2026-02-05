@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 
 import AiInsights from '@/components/dashboard/ai-insights';
 import StatCard from '@/components/dashboard/stat-card';
@@ -22,6 +21,8 @@ import {
   View,
 } from 'lucide-react';
 import { useMemo } from 'react';
+
+export const dynamic = 'force-dynamic';
 
 export default function DashboardPage() {
   const { firestore } = useFirebase();

@@ -11,6 +11,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
+export const dynamic = 'force-dynamic';
+
 export default function DashboardLayout({
   children,
 }: {
