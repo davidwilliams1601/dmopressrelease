@@ -43,3 +43,25 @@ export type EngagementStats = {
   clicks: number;
   pageViews: number;
 };
+
+export type OutletList = {
+  id: string;
+  orgId: string;
+  name: string;
+  description?: string;
+  recipientCount?: number;
+  createdAt: Date | any;
+  updatedAt?: Date | any;
+};
+
+export type Recipient = {
+  id: string;
+  orgId: string;
+  outletListId: string;
+  name: string;
+  email: string;
+  outlet: string;
+  position?: string;
+  notes?: string;
+  createdAt: Date | any;
+};
