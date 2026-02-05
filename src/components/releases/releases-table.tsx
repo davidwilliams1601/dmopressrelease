@@ -60,7 +60,10 @@ export default function ReleasesTable({ releases }: ReleasesTableProps) {
             </TableCell>
             <TableCell className="font-medium">{release.headline}</TableCell>
             <TableCell className="hidden text-right md:table-cell">
-              {format(release.createdAt, 'dd MMM, yyyy')}
+              {format(
+                release.createdAt?.toDate ? release.createdAt.toDate() : new Date(release.createdAt),
+                'dd MMM, yyyy'
+              )}
             </TableCell>
           </TableRow>
         ))}

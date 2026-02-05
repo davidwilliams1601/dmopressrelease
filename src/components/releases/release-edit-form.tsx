@@ -227,7 +227,10 @@ export function ReleaseEditForm({ release, orgId }: ReleaseEditFormProps) {
 
             <div className="grid gap-2">
               <p className="text-sm text-muted-foreground">
-                Created: {format(release.createdAt, 'dd MMM yyyy, HH:mm')}
+                Created: {format(
+                  release.createdAt?.toDate ? release.createdAt.toDate() : new Date(release.createdAt),
+                  'dd MMM yyyy, HH:mm'
+                )}
               </p>
             </div>
           </CardContent>

@@ -29,7 +29,8 @@ export type Release = {
   slug: string;
   bodyCopy?: string;
   status: 'Draft' | 'Ready' | 'Sent';
-  createdAt: Date;
+  createdAt: Date | any; // Can be Date or Firestore Timestamp
+  updatedAt?: Date | any; // Can be Date or Firestore Timestamp
   sends?: number;
   opens?: number;
   clicks?: number;
