@@ -27,6 +27,7 @@ export type Release = {
   audience: 'Travel Trade' | 'Consumer' | 'Hybrid';
   headline: string;
   slug: string;
+  bodyCopy?: string;
   status: 'Draft' | 'Ready' | 'Sent';
   createdAt: Date;
   sends?: number;

@@ -1,16 +1,15 @@
 'use client';
 
 import ReleasesTable from '@/components/releases/releases-table';
-import { Button } from '@/components/ui/button';
+import { NewReleaseDialog } from '@/components/releases/new-release-dialog';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUserData } from '@/hooks/use-user-data';
 import { collection, query, orderBy } from 'firebase/firestore';
 import type { Release } from '@/lib/types';
-import { PlusCircle } from 'lucide-react';
 
 export default function ReleasesPage() {
-  const { firestore, user, isUserLoading } = useFirebase();
-
-  const orgId = 'visit-kent'; // Hardcoded for now
+  const { firestore } = useFirebase();
+  const { orgId, isLoading: isUserDataLoading } = useUserData();
 
   // Fetch all releases for this organization
   const releasesQuery = useCollection<Release>(
@@ -25,7 +24,7 @@ export default function ReleasesPage() {
 
   const releases = releasesQuery.data || [];
 
-  if (isUserLoading || releasesQuery.isLoading) {
+  if (isUserDataLoading || releasesQuery.isLoading) {
     return (
       <div className="flex flex-col gap-6">
         <div>
@@ -45,10 +44,7 @@ export default function ReleasesPage() {
             Manage your campaigns and communications.
           </p>
         </div>
-        <Button>
-          <PlusCircle />
-          <span>New Release</span>
-        </Button>
+        {orgId && <NewReleaseDialog orgId={orgId} />}
       </div>
       <ReleasesTable releases={releases} />
       {releases.length === 0 && (
