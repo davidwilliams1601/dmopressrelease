@@ -65,3 +65,17 @@ export type Recipient = {
   notes?: string;
   createdAt: Date | any;
 };
+
+export type SendJob = {
+  id: string;
+  orgId: string;
+  releaseId: string;
+  outletListIds: string[];
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  totalRecipients: number;
+  sentCount: number;
+  failedCount: number;
+  createdAt: Date | any;
+  completedAt?: Date | any;
+  error?: string;
+};

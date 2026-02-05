@@ -42,6 +42,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AiHeadlineGenerator } from './ai-headline-generator';
 import { AiToneEnhancer } from './ai-tone-enhancer';
+import { SendReleaseDialog } from './send-release-dialog';
+import { SendJobsCard } from './send-jobs-card';
 
 type ReleaseEditFormProps = {
   release: Release;
@@ -328,6 +330,9 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
           </Card>
         )}
 
+        {/* Send History */}
+        <SendJobsCard orgId={orgId} releaseId={release.id} />
+
         {/* Action Buttons */}
         <div className="flex items-center justify-between">
           <AlertDialog>
@@ -358,10 +363,13 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
             </AlertDialogContent>
           </AlertDialog>
 
-          <Button type="submit" disabled={isSaving}>
-            <Save />
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </Button>
+          <div className="flex gap-2">
+            <SendReleaseDialog release={release} orgId={orgId} />
+            <Button type="submit" disabled={isSaving}>
+              <Save />
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </div>
       </div>
     </form>
