@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Table,
   TableBody,
@@ -10,12 +12,15 @@ import { Badge } from '@/components/ui/badge';
 import type { Release } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
 
 type ReleasesTableProps = {
   releases: Release[];
 };
 
 export default function ReleasesTable({ releases }: ReleasesTableProps) {
+  const router = useRouter();
+
   return (
     <Table>
       <TableHeader>
@@ -29,7 +34,11 @@ export default function ReleasesTable({ releases }: ReleasesTableProps) {
       </TableHeader>
       <TableBody>
         {releases.map((release) => (
-          <TableRow key={release.id}>
+          <TableRow
+            key={release.id}
+            className="cursor-pointer hover:bg-muted/50"
+            onClick={() => router.push(`/releases/${release.id}`)}
+          >
             <TableCell>
               <Badge
                 variant={
