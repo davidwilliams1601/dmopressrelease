@@ -1,8 +1,12 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as sgMail from '@sendgrid/mail';
+import { getStorage } from 'firebase-admin/storage';
 
 admin.initializeApp();
+
+// Export webhook handlers
+export * from './webhooks';
 
 const db = admin.firestore();
 
@@ -130,6 +134,18 @@ async function sendEmail(recipient: any, release: any, orgId: string) {
     subject: release.headline,
     text: release.bodyCopy || 'No content',
     html: formatEmailHtml(release, recipient, org),
+    customArgs: {
+      orgId: orgId,
+      releaseId: release.id || '',
+    },
+    trackingSettings: {
+      clickTracking: {
+        enable: true,
+      },
+      openTracking: {
+        enable: true,
+      },
+    },
   };
 
   await sgMail.send(msg);
@@ -154,6 +170,13 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
       </div>
 
       <div style="background-color: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb;">
+        ${release.imageUrl ? `
+          <div style="margin-bottom: 20px;">
+            <img src="${release.imageUrl}" alt="${release.headline}"
+                 style="max-width: 100%; height: auto; border-radius: 8px; display: block;" />
+          </div>
+        ` : ''}
+
         <div style="white-space: pre-wrap; margin-bottom: 20px;">
           ${release.bodyCopy || ''}
         </div>
@@ -174,3 +197,37 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
     </html>
   `;
 }
+
+/**
+ * Cloud Function to clean up release images from Storage
+ * Triggered when a release document is deleted
+ */
+export const cleanupReleaseImages = functions.firestore
+  .document('orgs/{orgId}/releases/{releaseId}')
+  .onDelete(async (snap, context) => {
+    const release = snap.data();
+
+    // Check if the release had an image
+    if (!release.imageStoragePath) {
+      console.log('No image to clean up');
+      return;
+    }
+
+    try {
+      const storage = getStorage();
+      const bucket = storage.bucket();
+      const file = bucket.file(release.imageStoragePath);
+
+      // Delete the file
+      await file.delete();
+      console.log(`Successfully deleted image: ${release.imageStoragePath}`);
+    } catch (error: any) {
+      // If the file doesn't exist (404), that's fine - it's already deleted
+      if (error.code === 404) {
+        console.log(`Image already deleted: ${release.imageStoragePath}`);
+      } else {
+        console.error('Error deleting image:', error);
+        // Don't throw - we don't want to fail the release deletion if image cleanup fails
+      }
+    }
+  });

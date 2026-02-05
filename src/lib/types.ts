@@ -34,6 +34,14 @@ export type Release = {
   sends?: number;
   opens?: number;
   clicks?: number;
+  imageUrl?: string;
+  imageStoragePath?: string;
+  imageMetadata?: {
+    fileName: string;
+    size: number;
+    mimeType: string;
+    uploadedAt: Date | any;
+  };
 };
 
 export type EngagementStats = {
@@ -78,4 +86,19 @@ export type SendJob = {
   createdAt: Date | any;
   completedAt?: Date | any;
   error?: string;
+};
+
+export type EmailEvent = {
+  id: string;
+  orgId: string;
+  releaseId: string;
+  recipientEmail: string;
+  eventType: 'delivered' | 'open' | 'click' | 'bounce' | 'spam_report' | 'unsubscribe';
+  timestamp: Date | any;
+  metadata?: {
+    url?: string;
+    userAgent?: string;
+    ip?: string;
+    reason?: string;
+  };
 };

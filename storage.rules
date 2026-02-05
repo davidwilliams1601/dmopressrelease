@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules for DMO Press Release Platform
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper function to check if user is a member of the organization
+    function isOrgMember(orgId) {
+      return request.auth != null &&
+             exists(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid));
+    }
+
+    // Organization-based access control for release images
+    match /orgs/{orgId}/releases/{releaseId}/{allPaths=**} {
+      // Allow read access to authenticated users who are members of the organization
+      allow read: if isOrgMember(orgId);
+
+      // Allow write access to authenticated users who are members of the organization
+      // with additional validation:
+      // - File size must be less than 10MB
+      // - Content type must be an image
+      allow write: if isOrgMember(orgId) &&
+                      request.resource.size < 10 * 1024 * 1024 &&
+                      request.resource.contentType.matches('image/.*');
+    }
+
+    // Deny all other access by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

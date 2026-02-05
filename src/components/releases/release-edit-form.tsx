@@ -44,6 +44,7 @@ import { AiHeadlineGenerator } from './ai-headline-generator';
 import { AiToneEnhancer } from './ai-tone-enhancer';
 import { SendReleaseDialog } from './send-release-dialog';
 import { SendJobsCard } from './send-jobs-card';
+import { ImageUpload } from './image-upload';
 
 type ReleaseEditFormProps = {
   release: Release;
@@ -61,6 +62,9 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
   const bodyCopyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [currentHeadline, setCurrentHeadline] = useState(release.headline);
   const [currentBodyCopy, setCurrentBodyCopy] = useState(release.bodyCopy || '');
+  const [imageUrl, setImageUrl] = useState(release.imageUrl);
+  const [imageStoragePath, setImageStoragePath] = useState(release.imageStoragePath);
+  const [imageMetadata, setImageMetadata] = useState(release.imageMetadata);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -86,6 +90,9 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
         audience: formData.get('audience') as string,
         bodyCopy: formData.get('bodyCopy') as string || '',
         status: formData.get('status') as string,
+        imageUrl: imageUrl || null,
+        imageStoragePath: imageStoragePath || null,
+        imageMetadata: imageMetadata || null,
         updatedAt: serverTimestamp(),
       });
 
@@ -141,6 +148,22 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
     if (bodyCopyTextareaRef.current) {
       bodyCopyTextareaRef.current.value = enhancedCopy;
     }
+  };
+
+  const handleImageUpload = (
+    url: string,
+    storagePath: string,
+    metadata: { fileName: string; size: number; mimeType: string; uploadedAt: Date }
+  ) => {
+    setImageUrl(url);
+    setImageStoragePath(storagePath);
+    setImageMetadata(metadata);
+  };
+
+  const handleImageDelete = () => {
+    setImageUrl(undefined);
+    setImageStoragePath(undefined);
+    setImageMetadata(undefined);
   };
 
   return (
@@ -266,10 +289,22 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
           <CardHeader>
             <CardTitle className="font-headline">Content</CardTitle>
             <CardDescription>
-              The body copy of your press release.
+              The body copy and image for your press release.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6">
+            <div className="grid gap-2">
+              <Label>Featured Image</Label>
+              <ImageUpload
+                orgId={orgId}
+                releaseId={release.id}
+                currentImageUrl={imageUrl}
+                currentStoragePath={imageStoragePath}
+                onUploadComplete={handleImageUpload}
+                onDelete={handleImageDelete}
+              />
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="bodyCopy">Body Copy</Label>
               <Textarea
