@@ -1,0 +1,42 @@
+export type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  boilerplate: string;
+  pressContact: {
+    name: string;
+    email: string;
+  };
+  brandToneNotes: string;
+};
+
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  initials: string;
+  orgId: string;
+};
+
+export type Release = {
+  id: string;
+  orgId: string;
+  campaignType: string;
+  targetMarket: string;
+  audience: 'Travel Trade' | 'Consumer' | 'Hybrid';
+  headline: string;
+  slug: string;
+  status: 'Draft' | 'Ready' | 'Sent';
+  createdAt: Date;
+  sends?: number;
+  opens?: number;
+  clicks?: number;
+};
+
+export type EngagementStats = {
+  releases: number;
+  sends: number;
+  opens: number;
+  clicks: number;
+  pageViews: number;
+};

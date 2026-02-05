@@ -1,0 +1,450 @@
+{
+  "entities": {
+    "Organization": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Organization",
+      "type": "object",
+      "description": "Represents a Destination Marketing Organization (DMO).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the organization."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the organization."
+        },
+        "slug": {
+          "type": "string",
+          "description": "Slug for the organization, used in URLs."
+        },
+        "boilerplateText": {
+          "type": "string",
+          "description": "Boilerplate text for press releases."
+        },
+        "pressContactName": {
+          "type": "string",
+          "description": "Name of the press contact."
+        },
+        "pressContactEmail": {
+          "type": "string",
+          "description": "Email address of the press contact."
+        },
+        "brandToneNotes": {
+          "type": "string",
+          "description": "Notes on brand and tone, used in AI prompts."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "slug"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user within an organization.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "orgId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N User)"
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "User's role (Admin or User)."
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "email",
+        "role"
+      ]
+    },
+    "PressRelease": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PressRelease",
+      "type": "object",
+      "description": "Represents a press release.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the press release."
+        },
+        "orgId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N PressRelease)"
+        },
+        "campaignType": {
+          "type": "string",
+          "description": "Type of campaign."
+        },
+        "targetMarket": {
+          "type": "string",
+          "description": "Target market for the release."
+        },
+        "audience": {
+          "type": "string",
+          "description": "Audience for the release (travel trade, consumer, hybrid)."
+        },
+        "headline": {
+          "type": "string",
+          "description": "Headline of the press release."
+        },
+        "standfirst": {
+          "type": "string",
+          "description": "Standfirst (short summary) of the release."
+        },
+        "bodyCopy": {
+          "type": "string",
+          "description": "Main body copy of the press release."
+        },
+        "quoteName": {
+          "type": "string",
+          "description": "Name of the person quoted."
+        },
+        "quoteRole": {
+          "type": "string",
+          "description": "Role of the person quoted."
+        },
+        "quoteText": {
+          "type": "string",
+          "description": "Text of the quote."
+        },
+        "cta": {
+          "type": "string",
+          "description": "Call to action."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the press release (Draft, Ready, Sent)."
+        },
+        "imageUrls": {
+          "type": "array",
+          "description": "Array of image URLs associated with the release.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "headline",
+        "bodyCopy",
+        "status"
+      ]
+    },
+    "OutletList": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OutletList",
+      "type": "object",
+      "description": "Represents a list of outlets.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the outlet list."
+        },
+        "orgId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N OutletList)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the outlet list."
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "name"
+      ]
+    },
+    "Recipient": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Recipient",
+      "type": "object",
+      "description": "Represents a recipient in an outlet list.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the recipient."
+        },
+        "orgId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N Recipient)"
+        },
+        "outletListId": {
+          "type": "string",
+          "description": "Reference to OutletList. (Relationship: OutletList 1:N Recipient)"
+        },
+        "outletName": {
+          "type": "string",
+          "description": "Name of the outlet."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the recipient.",
+          "format": "email"
+        },
+        "market": {
+          "type": "string",
+          "description": "Market of the outlet."
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "outletListId",
+        "outletName",
+        "email",
+        "market"
+      ]
+    },
+    "SendJob": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SendJob",
+      "type": "object",
+      "description": "Represents a job to send a press release.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the send job."
+        },
+        "orgId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N SendJob)"
+        },
+        "releaseId": {
+          "type": "string",
+          "description": "Reference to PressRelease. (Relationship: PressRelease 1:N SendJob)"
+        },
+        "outletListId": {
+          "type": "string",
+          "description": "Reference to OutletList. (Relationship: OutletList 1:N SendJob)"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the send job (e.g., Queued, Sending, Sent, Failed)."
+        },
+        "sentAt": {
+          "type": "string",
+          "description": "Timestamp when the email was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "releaseId",
+        "outletListId",
+        "status"
+      ]
+    },
+    "Event": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Event",
+      "type": "object",
+      "description": "Represents an event (email open, link click, page view).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the event."
+        },
+        "orgId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N Event)"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of event (open, click, pageView)."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of the event.",
+          "format": "date-time"
+        },
+        "releaseId": {
+          "type": "string",
+          "description": "Reference to PressRelease.  (Relationship: PressRelease 1:N Event)  Optional, as some events might not be directly related to a specific release."
+        },
+        "sendJobId": {
+          "type": "string",
+          "description": "Reference to SendJob.  (Relationship: SendJob 1:N Event) Optional, as some events might not be directly related to a specific send."
+        },
+        "url": {
+          "type": "string",
+          "description": "The URL associated with this event, especially relevant for 'click' and 'pageView' events."
+        }
+      },
+      "required": [
+        "id",
+        "orgId",
+        "type",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "orgs/{orgId}",
+        "definition": {
+          "entityName": "Organization",
+          "schema": {
+            "$ref": "#/backend/entities/Organization"
+          },
+          "description": "Collection for organizations.  Each organization has its own set of users, press releases, outlet lists, etc.",
+          "params": [
+            {
+              "name": "orgId",
+              "description": "Unique identifier for the organization."
+            }
+          ]
+        }
+      },
+      {
+        "path": "orgs/{orgId}/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Collection for users within an organization.  Path-based ownership enables straightforward security rules based on user ID.",
+          "params": [
+            {
+              "name": "orgId",
+              "description": "Unique identifier for the organization."
+            },
+            {
+              "name": "userId",
+              "description": "Unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "orgs/{orgId}/releases/{releaseId}",
+        "definition": {
+          "entityName": "PressRelease",
+          "schema": {
+            "$ref": "#/backend/entities/PressRelease"
+          },
+          "description": "Collection for press releases within an organization. Includes denormalized 'orgId' for authorization independence.",
+          "params": [
+            {
+              "name": "orgId",
+              "description": "Unique identifier for the organization."
+            },
+            {
+              "name": "releaseId",
+              "description": "Unique identifier for the press release."
+            }
+          ]
+        }
+      },
+      {
+        "path": "orgs/{orgId}/outletLists/{outletListId}",
+        "definition": {
+          "entityName": "OutletList",
+          "schema": {
+            "$ref": "#/backend/entities/OutletList"
+          },
+          "description": "Collection for outlet lists within an organization. Includes denormalized 'orgId' for authorization independence.",
+          "params": [
+            {
+              "name": "orgId",
+              "description": "Unique identifier for the organization."
+            },
+            {
+              "name": "outletListId",
+              "description": "Unique identifier for the outlet list."
+            }
+          ]
+        }
+      },
+      {
+        "path": "orgs/{orgId}/outletLists/{outletListId}/recipients/{recipientId}",
+        "definition": {
+          "entityName": "Recipient",
+          "schema": {
+            "$ref": "#/backend/entities/Recipient"
+          },
+          "description": "Collection for recipients within an outlet list. Includes denormalized 'orgId' and 'outletListId' for authorization independence.",
+          "params": [
+            {
+              "name": "orgId",
+              "description": "Unique identifier for the organization."
+            },
+            {
+              "name": "outletListId",
+              "description": "Unique identifier for the outlet list."
+            },
+            {
+              "name": "recipientId",
+              "description": "Unique identifier for the recipient."
+            }
+          ]
+        }
+      },
+      {
+        "path": "orgs/{orgId}/sendJobs/{sendJobId}",
+        "definition": {
+          "entityName": "SendJob",
+          "schema": {
+            "$ref": "#/backend/entities/SendJob"
+          },
+          "description": "Collection for send jobs within an organization. Includes denormalized 'orgId' for authorization independence.",
+          "params": [
+            {
+              "name": "orgId",
+              "description": "Unique identifier for the organization."
+            },
+            {
+              "name": "sendJobId",
+              "description": "Unique identifier for the send job."
+            }
+          ]
+        }
+      },
+      {
+        "path": "orgs/{orgId}/events/{eventId}",
+        "definition": {
+          "entityName": "Event",
+          "schema": {
+            "$ref": "#/backend/entities/Event"
+          },
+          "description": "Collection for events within an organization. Includes denormalized 'orgId' for authorization independence.",
+          "params": [
+            {
+              "name": "orgId",
+              "description": "Unique identifier for the organization."
+            },
+            {
+              "name": "eventId",
+              "description": "Unique identifier for the event."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support a multi-tenant SaaS application for Destination Marketing Organizations (DMOs) to manage press releases, outlet lists, and email syndication.  The key design principle is **Authorization Independence**, achieved through denormalization. Specifically, the `orgId` is included in every document within the `orgs/{orgId}` hierarchy, eliminating the need for `get()` calls in security rules to verify organization membership. This facilitates atomic operations and simplifies rule logic.  \n\n**Structural Segregation** is employed by using separate collections for different entities (users, press releases, outlet lists, etc.) under the organization document.  This ensures that documents within a collection have similar security requirements, simplifying rules. \n\n**Access Modeling** is based on path-based ownership.  User documents are stored under the organization, enabling simple rules based on the `request.auth.uid` to control access.  The `members` map pattern is not required here because the user list and role are explicit in the `/orgs/{orgId}/users/{userId}` path.\n\n**QAPs (Rules are not Filters)** are supported through structural segregation. List operations are secured by ensuring that all documents in a collection share the same access control requirements based on the `orgId`.  For instance, listing press releases under `orgs/{orgId}/releases` will only return releases belonging to the specified organization. Since the app only supports Admin and User roles, a custom claim based approach to auth is not required. The roles are stored within the user object and are accessed via the path."
+  }
+}

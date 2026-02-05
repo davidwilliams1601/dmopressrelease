@@ -1,0 +1,184 @@
+/**
+ * Core Philosophy: This ruleset enforces a strict multi-tenant security model where all data is partitioned by an organization ID (`orgId`). A user's access is strictly confined to the organization they belong to. No cross-organization data access is permitted.
+ *
+ * Data Structure: All application data is hierarchically organized under the top-level `orgs` collection. Each document within this structure (e.g., users, releases, outlet lists) contains a denormalized `orgId` field to enable efficient and secure authorization checks without costly lookups on parent documents.
+ *
+ * Key Security Decisions:
+ * - Multi-Tenancy Firewall: The primary security boundary is the organization. All rules first verify that the authenticated user is a member of the organization associated with the data path.
+ * - Role-Based Access: A simple two-tier role system ('Admin', 'User') is used. Admins have elevated privileges, such as managing users and organization settings, while standard Users have permissions to manage content like press releases and outlet lists.
+ * - User Management: Only Admins can create or delete other users within their organization. Users can modify their own profile information.
+ * - Org Provisioning: Creation and deletion of top-level organization documents are disallowed from the client, as these are assumed to be provisioned via a trusted server-side process.
+ *
+ * Denormalization for Authorization: To ensure performant and simple rules, every document contains an `orgId`. A user's role and organization membership are determined by a single `get` call to their own user document (`/orgs/{orgId}/users/{request.auth.uid}`). This avoids complex and slow multi-document reads during rule evaluation.
+ *
+ * Structural Segregation: Each data type (users, releases, etc.) is stored in its own dedicated subcollection under the parent organization. This clear separation ensures that security rules are specific and easy to manage for each data entity.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Retrieves the authenticated user's profile document from within a specific organization.
+     * This is the primary function for fetching the user's role and orgId for authorization checks.
+     */
+    function getUserData(orgId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/users/$(request.auth.uid));
+    }
+
+    /**
+     * Verifies if the authenticated user is a member of the specified organization.
+     * This is the foundational rule for multi-tenancy.
+     */
+    function isOrgMember(orgId) {
+      return isSignedIn() && getUserData(orgId).data.orgId == orgId;
+    }
+
+    /**
+     * Verifies if the authenticated user is an Admin of the specified organization.
+     */
+    function isOrgAdmin(orgId) {
+      return isOrgMember(orgId) && getUserData(orgId).data.role == 'Admin';
+    }
+
+    /**
+     * Checks if the authenticated user's UID matches the provided userId.
+     * Used for rules that grant access to a user's own data.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * On create, validates that the incoming document's orgId matches the orgId in the path.
+     * Enforces data consistency for new documents.
+     */
+    function hasCorrectOrgIdOnCreate(orgId) {
+      return request.resource.data.orgId == orgId;
+    }
+
+    /**
+     * On update, ensures the orgId of a document cannot be changed.
+     * Prevents documents from being moved between organizations.
+     */
+    function isOrgIdImmutable() {
+      return request.resource.data.orgId == resource.data.orgId;
+    }
+
+
+    /**
+     * @description Rules for the top-level Organization documents.
+     * @path /orgs/{orgId}
+     * @allow (get) An authenticated member of `acme-corp` reading their own organization's document.
+     * @deny (create) Any user trying to create a new organization document from the client.
+     * @principle Restricts modification of core organization data to Admins and disallows client-side creation/deletion.
+     */
+    match /orgs/{orgId} {
+      allow get: if isOrgMember(orgId);
+      allow list: if false;
+      allow create: if false;
+      allow update: if isOrgAdmin(orgId) && resource != null;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Rules for User documents within an organization.
+     * @path /orgs/{orgId}/users/{userId}
+     * @allow (update) A user updating their own profile document.
+     * @deny (delete) A non-admin user trying to delete another user's account in the same org.
+     * @principle Enforces role-based access for user management; Admins manage all users, while individuals can manage their own profile.
+     */
+    match /orgs/{orgId}/users/{userId} {
+      allow get: if isOrgMember(orgId);
+      allow list: if isOrgMember(orgId);
+      allow create: if isOrgAdmin(orgId) && hasCorrectOrgIdOnCreate(orgId) && request.resource.data.id == userId;
+      allow update: if (isOrgAdmin(orgId) || isOwner(userId)) && resource != null && isOrgIdImmutable() && request.resource.data.id == resource.data.id;
+      allow delete: if isOrgAdmin(orgId) && resource != null;
+    }
+
+    /**
+     * @description Rules for Press Release documents within an organization.
+     * @path /orgs/{orgId}/releases/{releaseId}
+     * @allow (create) An authenticated member of `acme-corp` creating a new press release.
+     * @deny (get) A user from `beta-corp` trying to read a press release from `acme-corp`.
+     * @principle Grants full read/write access to all members of the same organization, enforcing the multi-tenant boundary.
+     */
+    match /orgs/{orgId}/releases/{releaseId} {
+      allow get: if isOrgMember(orgId);
+      allow list: if isOrgMember(orgId);
+      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isOrgMember(orgId) && resource != null;
+    }
+
+    /**
+     * @description Rules for Outlet List documents within an organization.
+     * @path /orgs/{orgId}/outletLists/{outletListId}
+     * @allow (list) An authenticated member of `acme-corp` listing all outlet lists for their organization.
+     * @deny (update) An anonymous user trying to update an outlet list.
+     * @principle Grants full read/write access to all members of the same organization, enforcing the multi-tenant boundary.
+     */
+    match /orgs/{orgId}/outletLists/{outletListId} {
+      allow get: if isOrgMember(orgId);
+      allow list: if isOrgMember(orgId);
+      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isOrgMember(orgId) && resource != null;
+    }
+
+    /**
+     * @description Rules for Recipient documents within an Outlet List.
+     * @path /orgs/{orgId}/outletLists/{outletListId}/recipients/{recipientId}
+     * @allow (create) An authenticated member of `acme-corp` adding a recipient to one of their outlet lists.
+     * @deny (get) A user from `beta-corp` trying to read a recipient from an `acme-corp` list.
+     * @principle Enforces multi-tenancy on a nested collection by checking the user's organization membership.
+     */
+    match /orgs/{orgId}/outletLists/{outletListId}/recipients/{recipientId} {
+      allow get: if isOrgMember(orgId);
+      allow list: if isOrgMember(orgId);
+      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId) && request.resource.data.outletListId == outletListId;
+      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable() && request.resource.data.outletListId == resource.data.outletListId;
+      allow delete: if isOrgMember(orgId) && resource != null;
+    }
+
+    /**
+     * @description Rules for Send Job documents within an organization.
+     * @path /orgs/{orgId}/sendJobs/{sendJobId}
+     * @allow (get) An authenticated member of `acme-corp` viewing a send job's status.
+     * @deny (create) A user from a different organization trying to create a send job in `acme-corp`.
+     * @principle Grants full read/write access to all members of the same organization, enforcing the multi-tenant boundary.
+     */
+    match /orgs/{orgId}/sendJobs/{sendJobId} {
+      allow get: if isOrgMember(orgId);
+      allow list: if isOrgMember(orgId);
+      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isOrgMember(orgId) && resource != null;
+    }
+
+    /**
+     * @description Rules for analytics Event documents within an organization.
+     * @path /orgs/{orgId}/events/{eventId}
+     * @allow (create) An authenticated member of `acme-corp` creating a new event document.
+     * @deny (list) An anonymous user trying to list events.
+     * @principle Grants full read/write access to all members of the same organization, enforcing the multi-tenant boundary.
+     */
+    match /orgs/{orgId}/events/{eventId} {
+      allow get: if isOrgMember(orgId);
+      allow list: if isOrgMember(orgId);
+      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isOrgMember(orgId) && resource != null;
+    }
+  }
+}
