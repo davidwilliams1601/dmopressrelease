@@ -24,8 +24,9 @@ import {
 import { PlusCircle } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { collection, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { ImageUpload } from './image-upload';
 
 type NewReleaseDialogProps = {
   orgId: string;
@@ -36,6 +37,19 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
+  
+  // Generate a release ID upfront for image upload
+  const [releaseId] = useState(() => doc(collection(firestore, 'orgs', orgId, 'releases')).id);
+  
+  // Image state
+  const [imageUrl, setImageUrl] = useState<string | undefined>();
+  const [imageStoragePath, setImageStoragePath] = useState<string | undefined>();
+  const [imageMetadata, setImageMetadata] = useState<{
+    fileName: string;
+    size: number;
+    mimeType: string;
+    uploadedAt: Date;
+  } | undefined>();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -53,7 +67,10 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
 
-      await addDocumentNonBlocking(releasesRef, {
+      // Use the pre-generated ID
+      const releaseRef = doc(releasesRef, releaseId);
+
+      await addDocumentNonBlocking(releaseRef, {
         orgId,
         headline,
         slug,
@@ -66,6 +83,9 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
         sends: 0,
         opens: 0,
         clicks: 0,
+        imageUrl: imageUrl || null,
+        imageStoragePath: imageStoragePath || null,
+        imageMetadata: imageMetadata || null,
       });
 
       toast({
@@ -74,8 +94,11 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
       });
 
       setOpen(false);
-      // Reset form
+      // Reset form and image state
       (e.target as HTMLFormElement).reset();
+      setImageUrl(undefined);
+      setImageStoragePath(undefined);
+      setImageMetadata(undefined);
     } catch (error) {
       console.error('Error creating press release:', error);
       toast({
@@ -86,6 +109,22 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleImageUpload = (
+    url: string,
+    storagePath: string,
+    metadata: { fileName: string; size: number; mimeType: string; uploadedAt: Date }
+  ) => {
+    setImageUrl(url);
+    setImageStoragePath(storagePath);
+    setImageMetadata(metadata);
+  };
+
+  const handleImageDelete = () => {
+    setImageUrl(undefined);
+    setImageStoragePath(undefined);
+    setImageMetadata(undefined);
   };
 
   return (
@@ -154,6 +193,18 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
                   <SelectItem value="Hybrid">Hybrid</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Featured Image (Optional)</Label>
+              <ImageUpload
+                orgId={orgId}
+                releaseId={releaseId}
+                currentImageUrl={imageUrl}
+                currentStoragePath={imageStoragePath}
+                onUploadComplete={handleImageUpload}
+                onDelete={handleImageDelete}
+              />
             </div>
 
             <div className="grid gap-2">
