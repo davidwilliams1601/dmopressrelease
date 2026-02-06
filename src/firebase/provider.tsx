@@ -83,7 +83,17 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      (firebaseUser) => { // Auth state determined
+      async (firebaseUser) => { // Auth state determined
+        if (firebaseUser) {
+          // Force refresh the ID token to ensure latest permissions
+          // This is critical for newly created users or users with role changes
+          try {
+            await firebaseUser.getIdToken(true);
+            console.log('FirebaseProvider: User token refreshed');
+          } catch (error) {
+            console.error('FirebaseProvider: Error refreshing token:', error);
+          }
+        }
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error

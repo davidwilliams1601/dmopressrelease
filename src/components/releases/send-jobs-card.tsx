@@ -40,6 +40,12 @@ export function SendJobsCard({ orgId, releaseId }: SendJobsCardProps) {
     return null;
   }
 
+  // Log any errors for debugging
+  if (sendJobsQuery.error) {
+    console.error('SendJobsCard error:', sendJobsQuery.error);
+    return null; // Silently fail - sendJobs are optional
+  }
+
   if (sendJobs.length === 0) {
     return null;
   }
