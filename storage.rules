@@ -7,7 +7,7 @@ service firebase.storage {
     // Helper function to check if user is a member of the organization
     function isOrgMember(orgId) {
       return request.auth != null &&
-             exists(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid));
+             firestore.get(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid)).data.orgId == orgId;
     }
 
     // Organization-based access control for release images
