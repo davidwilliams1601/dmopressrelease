@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   FileText,
   Users,
+  UserCog,
   Settings,
   CircleHelp,
   Book,
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { href: '/dashboard/releases', icon: FileText, label: 'Releases' },
   { href: '/dashboard/outlets', icon: Users, label: 'Outlets' },
+  { href: '/dashboard/settings/team', icon: UserCog, label: 'Team' },
   { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
 ];
 
