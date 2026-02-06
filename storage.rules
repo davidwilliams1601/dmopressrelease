@@ -5,21 +5,23 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // Helper function to check if user is a member of the organization
+    // Uses exists() with proper path format
     function isOrgMember(orgId) {
       return request.auth != null &&
-             firestore.get(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid)).data.orgId == orgId;
+             firestore.exists(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid));
     }
 
     // Organization-based access control for release images
     match /orgs/{orgId}/releases/{releaseId}/{allPaths=**} {
       // Allow read access to authenticated users who are members of the organization
-      allow read: if isOrgMember(orgId);
+      allow read: if request.auth != null && isOrgMember(orgId);
 
       // Allow write access to authenticated users who are members of the organization
       // with additional validation:
       // - File size must be less than 10MB
       // - Content type must be an image
-      allow write: if isOrgMember(orgId) &&
+      allow write: if request.auth != null &&
+                      isOrgMember(orgId) &&
                       request.resource.size < 10 * 1024 * 1024 &&
                       request.resource.contentType.matches('image/.*');
     }
