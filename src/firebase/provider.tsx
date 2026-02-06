@@ -90,6 +90,11 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
           try {
             await firebaseUser.getIdToken(true);
             console.log('FirebaseProvider: User token refreshed');
+            
+            // Add a small delay to ensure the token propagates throughout the Firebase SDK
+            // This prevents race conditions where Firestore queries use stale tokens
+            await new Promise(resolve => setTimeout(resolve, 100));
+            console.log('FirebaseProvider: Token propagation delay complete');
           } catch (error) {
             console.error('FirebaseProvider: Error refreshing token:', error);
           }

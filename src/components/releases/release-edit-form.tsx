@@ -366,7 +366,7 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
         )}
 
         {/* Send History */}
-        <SendJobsCard orgId={orgId} releaseId={release.id} />
+        {/* Temporarily disabled: <SendJobsCard orgId={orgId} releaseId={release.id} /> */}
 
         {/* Action Buttons */}
         <div className="flex items-center justify-between">
