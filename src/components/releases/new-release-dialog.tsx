@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { PlusCircle } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase';
+import { setDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { ImageUpload } from './image-upload';
@@ -67,10 +67,11 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
 
-      // Use the pre-generated ID
+      // Use the pre-generated ID to create a document reference
       const releaseRef = doc(releasesRef, releaseId);
 
-      await addDocumentNonBlocking(releaseRef, {
+      // Use setDocumentNonBlocking with the document reference
+      setDocumentNonBlocking(releaseRef, {
         orgId,
         headline,
         slug,
@@ -86,7 +87,7 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
         imageUrl: imageUrl || null,
         imageStoragePath: imageStoragePath || null,
         imageMetadata: imageMetadata || null,
-      });
+      }, {});
 
       toast({
         title: 'Press release created',
