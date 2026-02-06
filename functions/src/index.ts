@@ -231,3 +231,6 @@ export const cleanupReleaseImages = functions.firestore
       }
     }
   });
+
+// Export user management functions
+export * from './user-management';
