@@ -37,7 +37,7 @@ export default function ReleasesTable({ releases }: ReleasesTableProps) {
           <TableRow
             key={release.id}
             className="cursor-pointer hover:bg-muted/50"
-            onClick={() => router.push(`/releases/${release.id}`)}
+            onClick={() => router.push(`/dashboard/releases/${release.id}`)}
           >
             <TableCell>
               <Badge
