@@ -7,6 +7,8 @@ interface UserData {
   email: string;
   orgId: string;
   role: string;
+  name?: string;
+  initials?: string;
   createdAt: any;
 }
 
@@ -34,5 +36,8 @@ export function useUserData() {
     isLoading: isUserLoading || userDoc.isLoading,
     error: userDoc.error,
     orgId: userDoc.data?.orgId || orgId,
+    role: userDoc.data?.role,
+    email: userDoc.data?.email,
+    name: userDoc.data?.name,
   };
 }
