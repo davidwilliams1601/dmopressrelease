@@ -24,7 +24,13 @@ const GeneratePressReleaseHeadlineOutputSchema = z.object({
 export type GeneratePressReleaseHeadlineOutput = z.infer<typeof GeneratePressReleaseHeadlineOutputSchema>;
 
 export async function generatePressReleaseHeadline(input: GeneratePressReleaseHeadlineInput): Promise<GeneratePressReleaseHeadlineOutput> {
-  return generatePressReleaseHeadlineFlow(input);
+  try {
+    return await generatePressReleaseHeadlineFlow(input);
+  } catch (error: any) {
+    console.error('[AI Headline] Error:', error.message);
+    console.error('[AI Headline] GEMINI_API_KEY set:', !!process.env.GEMINI_API_KEY);
+    throw error;
+  }
 }
 
 const prompt = ai.definePrompt({
