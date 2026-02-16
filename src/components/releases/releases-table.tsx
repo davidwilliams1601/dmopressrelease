@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import type { Release } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { cn, toDate } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 
@@ -60,10 +60,7 @@ export default function ReleasesTable({ releases }: ReleasesTableProps) {
             </TableCell>
             <TableCell className="font-medium">{release.headline}</TableCell>
             <TableCell className="hidden text-right md:table-cell">
-              {format(
-                release.createdAt?.toDate ? release.createdAt.toDate() : new Date(release.createdAt),
-                'dd MMM, yyyy'
-              )}
+              {format(toDate(release.createdAt), 'dd MMM, yyyy')}
             </TableCell>
           </TableRow>
         ))}

@@ -10,7 +10,7 @@ interface FirebaseClientProviderProps {
 
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
   const [isClient, setIsClient] = useState(false);
-  
+
   const firebaseServices = useMemo(() => {
     // Only initialize Firebase on the client side
     if (typeof window === 'undefined') {
@@ -25,9 +25,13 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
     setIsClient(true);
   }, []);
 
-  // During SSR or before client hydration, don't render anything
+  // During SSR or before client hydration, render a minimal shell to avoid layout shift
   if (!isClient || !firebaseServices) {
-    return null;
+    return (
+      <div className="min-h-screen bg-background">
+        {/* Render empty shell matching layout to prevent hydration layout shift */}
+      </div>
+    );
   }
 
   return (

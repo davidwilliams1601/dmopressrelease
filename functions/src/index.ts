@@ -20,11 +20,39 @@ if (sendgridApiKey) {
   console.warn('SendGrid API key not configured. Emails will not be sent.');
 }
 
+// Simple email format validation
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// Escape HTML special characters to prevent XSS in email templates
+function escapeHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Validate that a URL is safe for use in email templates
+function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Cloud Function to process send jobs
  * Triggered when a new sendJob document is created
  */
-export const processSendJob = functions.firestore
+export const processSendJob = functions
+  .runWith({ timeoutSeconds: 540 }) // 9 minute max timeout
+  .firestore
   .document('orgs/{orgId}/sendJobs/{jobId}')
   .onCreate(async (snap, context) => {
     const { orgId, jobId } = context.params;
@@ -51,7 +79,14 @@ export const processSendJob = functions.firestore
         throw new Error('Release not found');
       }
 
-      const release = releaseDoc.data();
+      const release = { ...releaseDoc.data(), id: releaseDoc.id };
+
+      // Fetch organization data for sender info
+      const orgDoc = await db.collection('orgs').doc(orgId).get();
+      if (!orgDoc.exists) {
+        throw new Error(`Organization ${orgId} not found`);
+      }
+      const org = orgDoc.data();
 
       // Fetch all recipients from selected outlet lists
       const recipients: any[] = [];
@@ -69,19 +104,41 @@ export const processSendJob = functions.firestore
         });
       }
 
-      console.log(`Sending to ${recipients.length} recipients`);
+      // Filter to valid emails only
+      const validRecipients = recipients.filter((r) => r.email && isValidEmail(r.email));
+      const skippedCount = recipients.length - validRecipients.length;
+      if (skippedCount > 0) {
+        console.warn(`Skipped ${skippedCount} recipients with invalid emails`);
+      }
+
+      console.log(`Sending to ${validRecipients.length} recipients`);
 
       let sentCount = 0;
       let failedCount = 0;
 
-      // Send emails to each recipient
-      for (const recipient of recipients) {
-        try {
-          await sendEmail(recipient, release, orgId);
-          sentCount++;
-        } catch (error) {
-          console.error(`Failed to send to ${recipient.email}:`, error);
-          failedCount++;
+      // Send emails in batches to avoid timeout
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < validRecipients.length; i += BATCH_SIZE) {
+        const batch = validRecipients.slice(i, i + BATCH_SIZE);
+
+        await Promise.all(
+          batch.map(async (recipient) => {
+            try {
+              await sendEmail(recipient, release, orgId, org);
+              sentCount++;
+            } catch (error) {
+              console.error(`Failed to send to ${recipient.email}:`, error);
+              failedCount++;
+            }
+          })
+        );
+
+        // Update progress periodically
+        if (i + BATCH_SIZE < validRecipients.length) {
+          await snap.ref.update({
+            sentCount,
+            failedCount,
+          });
         }
       }
 
@@ -109,16 +166,12 @@ export const processSendJob = functions.firestore
 /**
  * Send email to a recipient using SendGrid
  */
-async function sendEmail(recipient: any, release: any, orgId: string) {
+async function sendEmail(recipient: any, release: any, orgId: string, org: any) {
   if (!sendgridApiKey) {
     console.log(`[MOCK] Would send email to ${recipient.email}`);
     console.log(`Subject: ${release.headline}`);
     return;
   }
-
-  // Fetch organization data for sender info
-  const orgDoc = await db.collection('orgs').doc(orgId).get();
-  const org = orgDoc.data();
 
   // Configure from email - use your verified sender
   const fromEmail = functions.config().sendgrid?.from_email ||
@@ -156,41 +209,52 @@ async function sendEmail(recipient: any, release: any, orgId: string) {
  * Format release content as HTML email
  */
 function formatEmailHtml(release: any, recipient: any, org?: any): string {
+  const headline = escapeHtml(release.headline || '');
+  const bodyCopy = escapeHtml(release.bodyCopy || '');
+  const recipientName = escapeHtml(recipient.name || '');
+  const recipientEmail = escapeHtml(recipient.email || '');
+  const recipientOutlet = escapeHtml(recipient.outlet || '');
+  const orgName = escapeHtml(org?.name || '');
+  const boilerplate = escapeHtml(org?.boilerplate || '');
+
+  // Only include image if URL is valid
+  const imageHtml = (release.imageUrl && isValidUrl(release.imageUrl))
+    ? `<div style="margin-bottom: 20px;">
+        <img src="${escapeHtml(release.imageUrl)}" alt="${headline}"
+             style="max-width: 100%; height: auto; border-radius: 8px; display: block;" />
+      </div>`
+    : '';
+
   return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${release.headline}</title>
+      <title>${headline}</title>
     </head>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-        <h1 style="margin: 0; color: #1a1a1a; font-size: 24px;">${release.headline}</h1>
+        <h1 style="margin: 0; color: #1a1a1a; font-size: 24px;">${headline}</h1>
       </div>
 
       <div style="background-color: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb;">
-        ${release.imageUrl ? `
-          <div style="margin-bottom: 20px;">
-            <img src="${release.imageUrl}" alt="${release.headline}"
-                 style="max-width: 100%; height: auto; border-radius: 8px; display: block;" />
-          </div>
-        ` : ''}
+        ${imageHtml}
 
         <div style="white-space: pre-wrap; margin-bottom: 20px;">
-          ${release.bodyCopy || ''}
+          ${bodyCopy}
         </div>
 
-        ${org?.boilerplate ? `
+        ${boilerplate ? `
           <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; margin-top: 20px; font-size: 14px; color: #666;">
-            <strong>About ${org.name}:</strong><br>
-            ${org.boilerplate}
+            <strong>About ${orgName}:</strong><br>
+            ${boilerplate}
           </div>
         ` : ''}
       </div>
 
       <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #666; text-align: center;">
-        <p>This email was sent to ${recipient.name} (${recipient.email}) at ${recipient.outlet}.</p>
+        <p>This email was sent to ${recipientName} (${recipientEmail}) at ${recipientOutlet}.</p>
         <p>If you no longer wish to receive these emails, please contact us.</p>
       </div>
     </body>
@@ -205,11 +269,19 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
 export const cleanupReleaseImages = functions.firestore
   .document('orgs/{orgId}/releases/{releaseId}')
   .onDelete(async (snap, context) => {
+    const { orgId, releaseId } = context.params;
     const release = snap.data();
 
     // Check if the release had an image
     if (!release.imageStoragePath) {
       console.log('No image to clean up');
+      return;
+    }
+
+    // Validate the storage path belongs to this org/release
+    const expectedPrefix = `orgs/${orgId}/releases/${releaseId}`;
+    if (!release.imageStoragePath.startsWith(expectedPrefix)) {
+      console.error(`Invalid image path: ${release.imageStoragePath} (expected prefix: ${expectedPrefix})`);
       return;
     }
 

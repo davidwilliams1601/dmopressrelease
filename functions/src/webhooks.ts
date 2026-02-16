@@ -21,9 +21,8 @@ function verifySendGridSignature(
                          process.env.SENDGRID_WEBHOOK_VERIFICATION_KEY;
 
   if (!verificationKey) {
-    console.warn('SendGrid webhook verification key not configured');
-    // In development, allow unsigned requests
-    return process.env.NODE_ENV !== 'production';
+    console.warn('SendGrid webhook verification key not configured. Rejecting request for safety.');
+    return false;
   }
 
   try {
@@ -71,6 +70,26 @@ function extractMetadataFromEvent(event: any): { orgId?: string; releaseId?: str
 }
 
 /**
+ * Generate a deterministic event ID for idempotency.
+ * Uses the SendGrid event's unique fields to prevent duplicate processing on webhook retries.
+ */
+function generateEventId(event: any): string {
+  const key = `${event.sg_event_id || ''}_${event.sg_message_id || ''}_${event.event || ''}_${event.timestamp || ''}`;
+  return crypto.createHash('sha256').update(key).digest('hex').substring(0, 20);
+}
+
+/**
+ * Validate that a timestamp is a reasonable Unix epoch value
+ */
+function isValidTimestamp(ts: any): boolean {
+  if (typeof ts !== 'number' || !Number.isFinite(ts)) return false;
+  // Must be between 2020 and 10 years from now
+  const minTs = 1577836800; // 2020-01-01
+  const maxTs = Math.floor(Date.now() / 1000) + (10 * 365 * 24 * 60 * 60);
+  return ts >= minTs && ts <= maxTs;
+}
+
+/**
  * Cloud Function to handle SendGrid webhook events
  * This receives email engagement events (opens, clicks, bounces, etc.)
  */
@@ -99,10 +118,21 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
     const events = Array.isArray(req.body) ? req.body : [req.body];
     console.log(`Processing ${events.length} events`);
 
-    const batch = db.batch();
-    let eventCount = 0;
+    // Process events and build batch operations
+    const operations: Array<{
+      eventRef: FirebaseFirestore.DocumentReference;
+      eventData: any;
+      releaseRef: FirebaseFirestore.DocumentReference;
+      eventType: string;
+    }> = [];
 
     for (const event of events) {
+      // Validate required fields
+      if (!event.email || !event.event) {
+        console.warn('Skipping event with missing email or event type');
+        continue;
+      }
+
       // Extract metadata
       const { orgId, releaseId } = extractMetadataFromEvent(event);
 
@@ -138,12 +168,18 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
           continue;
       }
 
-      // Create event document
+      // Use deterministic ID for idempotency
+      const eventId = generateEventId(event);
       const eventRef = db
         .collection('orgs')
         .doc(orgId)
         .collection('events')
-        .doc();
+        .doc(eventId);
+
+      // Validate and convert timestamp
+      const eventTimestamp = isValidTimestamp(event.timestamp)
+        ? admin.firestore.Timestamp.fromMillis(event.timestamp * 1000)
+        : admin.firestore.Timestamp.now();
 
       const eventData = {
         id: eventRef.id,
@@ -151,7 +187,7 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
         releaseId,
         recipientEmail: event.email,
         eventType,
-        timestamp: admin.firestore.Timestamp.fromMillis(event.timestamp * 1000),
+        timestamp: eventTimestamp,
         metadata: {
           userAgent: event.useragent || undefined,
           ip: event.ip || undefined,
@@ -160,33 +196,43 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
         },
       };
 
-      batch.set(eventRef, eventData);
-      eventCount++;
-
-      // Update release stats directly in the batch
       const releaseRef = db
         .collection('orgs')
         .doc(orgId)
         .collection('releases')
         .doc(releaseId);
 
-      if (eventType === 'open') {
-        batch.update(releaseRef, {
-          opens: admin.firestore.FieldValue.increment(1),
-        });
-      } else if (eventType === 'click') {
-        batch.update(releaseRef, {
-          clicks: admin.firestore.FieldValue.increment(1),
-        });
+      operations.push({ eventRef, eventData, releaseRef, eventType });
+    }
+
+    // Commit in batches of 250 (each event may need 2 ops: set + update)
+    // Firestore limit is 500 operations per batch
+    const BATCH_LIMIT = 250;
+    let totalCommitted = 0;
+
+    for (let i = 0; i < operations.length; i += BATCH_LIMIT) {
+      const chunk = operations.slice(i, i + BATCH_LIMIT);
+      const batch = db.batch();
+
+      for (const op of chunk) {
+        batch.set(op.eventRef, op.eventData);
+
+        if (op.eventType === 'open') {
+          batch.update(op.releaseRef, {
+            opens: admin.firestore.FieldValue.increment(1),
+          });
+        } else if (op.eventType === 'click') {
+          batch.update(op.releaseRef, {
+            clicks: admin.firestore.FieldValue.increment(1),
+          });
+        }
       }
-    }
 
-    // Commit all events in a single batch
-    if (eventCount > 0) {
       await batch.commit();
-      console.log(`Successfully stored ${eventCount} events`);
+      totalCommitted += chunk.length;
     }
 
+    console.log(`Successfully stored ${totalCommitted} events`);
     res.status(200).send('OK');
   } catch (error) {
     console.error('Error processing webhook:', error);

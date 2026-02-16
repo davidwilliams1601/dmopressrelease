@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/select';
 import { UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-;
 
 type AddUserDialogProps = {
   orgId: string;

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
@@ -14,15 +15,28 @@ interface UserData {
 
 /**
  * Hook to fetch the current user's data from Firestore.
- * Returns the user document from orgs/{orgId}/users/{userId}
+ * Reads orgId from Firebase Auth custom claims (set during user creation).
+ * Falls back to 'visit-kent' for users created before custom claims were added.
  */
 export function useUserData() {
   const { firestore, user, isUserLoading } = useFirebase();
+  const [orgId, setOrgId] = useState<string | null>(null);
 
-  // For now, we hardcode the orgId since we need it to construct the path
-  // In a production app, you might store this in the user's Firebase Auth custom claims
-  // or have a root-level users collection that maps uid -> orgId
-  const orgId = 'visit-kent';
+  // Read orgId from the user's ID token custom claims
+  useEffect(() => {
+    if (!user) {
+      setOrgId(null);
+      return;
+    }
+
+    user.getIdTokenResult().then((tokenResult) => {
+      const claimsOrgId = tokenResult.claims.orgId as string | undefined;
+      // Use custom claim if available, otherwise fall back for legacy users
+      setOrgId(claimsOrgId || 'visit-kent');
+    }).catch(() => {
+      setOrgId('visit-kent');
+    });
+  }, [user]);
 
   const userDoc = useDoc<UserData>(
     useMemoFirebase(() => {
@@ -33,7 +47,7 @@ export function useUserData() {
 
   return {
     userData: userDoc.data,
-    isLoading: isUserLoading || userDoc.isLoading,
+    isLoading: isUserLoading || !orgId || userDoc.isLoading,
     error: userDoc.error,
     orgId: userDoc.data?.orgId || orgId,
     role: userDoc.data?.role,

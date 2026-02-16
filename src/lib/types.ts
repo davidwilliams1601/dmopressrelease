@@ -17,6 +17,8 @@ export type User = {
   email: string;
   initials: string;
   orgId: string;
+  role: 'Admin' | 'User';
+  createdAt: Date | any;
 };
 
 export type Release = {

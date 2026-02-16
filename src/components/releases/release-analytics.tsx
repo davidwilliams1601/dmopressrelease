@@ -11,10 +11,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AnalyticsChart } from './analytics-chart';
-import { useCollection, useFirestore } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import type { EmailEvent } from '@/lib/types';
 import { format } from 'date-fns';
+import { toDate } from '@/lib/utils';
 import { Mail, MousePointerClick, ExternalLink, AlertCircle, Ban } from 'lucide-react';
 
 type ReleaseAnalyticsProps = {
@@ -26,7 +27,7 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
   const firestore = useFirestore();
 
   // Fetch events for this release
-  const eventsQuery = useMemo(
+  const eventsQuery = useMemoFirebase(
     () => {
       const eventsRef = collection(
         firestore,
@@ -43,7 +44,8 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
     [firestore, orgId, releaseId]
   );
 
-  const { data: events = [], isLoading, error } = useCollection<EmailEvent>(eventsQuery);
+  const { data: rawEvents, isLoading, error } = useCollection<EmailEvent>(eventsQuery);
+  const events = rawEvents ?? [];
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -244,9 +246,7 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
           <ScrollArea className="h-[400px] pr-4">
             <div className="space-y-3">
               {events.map((event) => {
-                const timestamp = event.timestamp?.toDate
-                  ? event.timestamp.toDate()
-                  : new Date(event.timestamp);
+                const timestamp = toDate(event.timestamp);
 
                 let icon;
                 let color;

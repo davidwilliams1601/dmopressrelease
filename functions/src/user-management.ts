@@ -67,6 +67,9 @@ export const createOrgUser = functions.https.onCall(async (data, context) => {
       .toUpperCase()
       .slice(0, 2);
 
+    // Set custom claims so the client can read orgId from the auth token
+    await admin.auth().setCustomUserClaims(userRecord.uid, { orgId });
+
     // Create the Firestore user document
     await db
       .collection('orgs')
@@ -156,6 +159,9 @@ export const deleteOrgUser = functions.https.onCall(async (data, context) => {
       );
     }
 
+    // Delete Auth user first (harder to recreate), then Firestore doc
+    await admin.auth().deleteUser(userId);
+
     // Delete the Firestore document
     await db
       .collection('orgs')
@@ -163,9 +169,6 @@ export const deleteOrgUser = functions.https.onCall(async (data, context) => {
       .collection('users')
       .doc(userId)
       .delete();
-
-    // Delete the Firebase Auth user
-    await admin.auth().deleteUser(userId);
 
     console.log(`User deleted: ${userId} from org ${orgId}`);
 
@@ -253,14 +256,9 @@ export const updateOrgUserRole = functions.https.onCall(async (data, context) =>
 });
 
 /**
- * Generate a random temporary password
+ * Generate a cryptographically secure random temporary password
  */
 function generateTempPassword(): string {
-  const length = 12;
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
+  const crypto = require('crypto');
+  return crypto.randomBytes(16).toString('base64').slice(0, 16);
 }

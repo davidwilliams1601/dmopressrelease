@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import type { OutletList } from '@/lib/types';
 import { format } from 'date-fns';
+import { toDate } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 
@@ -49,10 +50,7 @@ export function OutletListsTable({ outletLists }: OutletListsTableProps) {
               </Badge>
             </TableCell>
             <TableCell className="hidden text-right md:table-cell">
-              {format(
-                list.createdAt?.toDate ? list.createdAt.toDate() : new Date(list.createdAt),
-                'dd MMM, yyyy'
-              )}
+              {format(toDate(list.createdAt), 'dd MMM, yyyy')}
             </TableCell>
           </TableRow>
         ))}

@@ -12,6 +12,7 @@ import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import type { SendJob } from '@/lib/types';
 import { format } from 'date-fns';
+import { toDate } from '@/lib/utils';
 import { Send, CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react';
 
 type SendJobsCardProps = {
@@ -101,12 +102,7 @@ export function SendJobsCard({ orgId, releaseId }: SendJobsCardProps) {
                 <div className="flex items-center gap-2">
                   {getStatusBadge(job.status)}
                   <span className="text-sm text-muted-foreground">
-                    {format(
-                      job.createdAt?.toDate
-                        ? job.createdAt.toDate()
-                        : new Date(job.createdAt),
-                      'dd MMM yyyy, HH:mm'
-                    )}
+                    {format(toDate(job.createdAt), 'dd MMM yyyy, HH:mm')}
                   </span>
                 </div>
                 <div className="text-sm">

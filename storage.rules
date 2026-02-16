@@ -5,19 +5,24 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // Organization-based access control for release images
-    // Note: Org-level security is enforced by Firestore rules (users can only create
-    // releases in their own org). Storage rules verify authentication and file type.
-    match /orgs/{orgId}/releases/{releaseId}/{allPaths=**} {
-      // Allow authenticated users to read
-      allow read: if request.auth != null;
-      
-      // Allow authenticated users to write images with validation
-      allow write: if request.auth != null &&
+    // Verifies the user has a profile document in the org (same pattern as Firestore rules)
+    match /orgs/{orgId}/releases/{releaseId}/{fileName} {
+      // Helper: check user belongs to this org by reading their Firestore user doc
+      function isOrgMember() {
+        return request.auth != null
+          && firestore.exists(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid));
+      }
+
+      // Allow org members to read images
+      allow read: if isOrgMember();
+
+      // Allow org members to write images with validation
+      allow write: if isOrgMember() &&
                       request.resource.size < 10 * 1024 * 1024 &&
-                      request.resource.contentType.matches('image/.*');
-      
-      // Allow authenticated users to delete
-      allow delete: if request.auth != null;
+                      request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+
+      // Allow org members to delete images
+      allow delete: if isOrgMember();
     }
 
     // Deny all other access by default

@@ -44,6 +44,7 @@ import { AddUserDialog } from '@/components/settings/add-user-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, Shield, User as UserIcon } from 'lucide-react';
 import { format } from 'date-fns';
+import { toDate } from '@/lib/utils';
 import type { User } from '@/lib/types';
 
 export default function TeamPage() {
@@ -86,7 +87,7 @@ export default function TeamPage() {
       });
 
       // Refresh the users list
-      usersQuery.refetch?.();
+      // Data refreshes automatically via onSnapshot;
     } catch (error: any) {
       console.error('Error updating role:', error);
       toast({
@@ -118,7 +119,7 @@ export default function TeamPage() {
 
       setDeleteUserId(null);
       // Refresh the users list
-      usersQuery.refetch?.();
+      // Data refreshes automatically via onSnapshot;
     } catch (error: any) {
       console.error('Error deleting user:', error);
       
@@ -170,7 +171,7 @@ export default function TeamPage() {
             Manage users and permissions for your organization.
           </p>
         </div>
-        {orgId && <AddUserDialog orgId={orgId} onUserAdded={() => usersQuery.refetch?.()} />}
+        {orgId && <AddUserDialog orgId={orgId} onUserAdded={() => { /* Data refreshes automatically via onSnapshot */ }} />}
       </div>
 
       <Card>
@@ -254,10 +255,7 @@ export default function TeamPage() {
                       </TableCell>
                       <TableCell>
                         {user.createdAt
-                          ? format(
-                              user.createdAt?.toDate ? user.createdAt.toDate() : new Date(user.createdAt),
-                              'dd MMM yyyy'
-                            )
+                          ? format(toDate(user.createdAt), 'dd MMM yyyy')
                           : 'Unknown'}
                       </TableCell>
                       <TableCell className="text-right">
