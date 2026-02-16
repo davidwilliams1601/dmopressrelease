@@ -51,7 +51,17 @@ export function AiHeadlineGenerator({
         toneNotes: toneNotes || '',
       });
 
-      setHeadlines(result.headlineOptions);
+      if (!result.success) {
+        console.error('Error generating headlines:', result.error);
+        toast({
+          title: 'Failed to generate headlines',
+          description: result.error,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setHeadlines(result.data.headlineOptions);
     } catch (error) {
       console.error('Error generating headlines:', error);
       toast({

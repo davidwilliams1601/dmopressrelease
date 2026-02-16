@@ -2,13 +2,8 @@
 
 /**
  * @fileOverview Generates press release headline options based on body copy and target market.
- *
- * - generatePressReleaseHeadline - A function that generates headline options.
- * - GeneratePressReleaseHeadlineInput - The input type for the generatePressReleaseHeadline function.
- * - GeneratePressReleaseHeadlineOutput - The return type for the generatePressReleaseHeadline function.
  */
 
-import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GeneratePressReleaseHeadlineInputSchema = z.object({
@@ -23,40 +18,33 @@ const GeneratePressReleaseHeadlineOutputSchema = z.object({
 });
 export type GeneratePressReleaseHeadlineOutput = z.infer<typeof GeneratePressReleaseHeadlineOutputSchema>;
 
-export async function generatePressReleaseHeadline(input: GeneratePressReleaseHeadlineInput): Promise<GeneratePressReleaseHeadlineOutput> {
-  try {
-    return await generatePressReleaseHeadlineFlow(input);
-  } catch (error: any) {
-    console.error('[AI Headline] Error:', error.message);
-    console.error('[AI Headline] GEMINI_API_KEY set:', !!process.env.GEMINI_API_KEY);
-    throw error;
-  }
-}
+type HeadlineResult =
+  | { success: true; data: GeneratePressReleaseHeadlineOutput }
+  | { success: false; error: string };
 
-const prompt = ai.definePrompt({
-  name: 'generatePressReleaseHeadlinePrompt',
-  input: {schema: GeneratePressReleaseHeadlineInputSchema},
-  output: {schema: GeneratePressReleaseHeadlineOutputSchema},
-  prompt: `You are an expert copywriter specializing in crafting compelling headlines for press releases.
+export async function generatePressReleaseHeadline(input: GeneratePressReleaseHeadlineInput): Promise<HeadlineResult> {
+  try {
+    // Lazy import to avoid module-level initialization failures
+    const {ai} = await import('@/ai/genkit');
+
+    const {output} = await ai.generate({
+      prompt: `You are an expert copywriter specializing in crafting compelling headlines for press releases.
 
   Based on the provided body copy and target market, generate three distinct headline options. Take into account the desired tone of the press release, if provided.
 
-  Body Copy: {{{bodyCopy}}}
-  Target Market: {{{targetMarket}}}
-  Tone Notes: {{{toneNotes}}}
+  Body Copy: ${input.bodyCopy}
+  Target Market: ${input.targetMarket}
+  Tone Notes: ${input.toneNotes || 'None provided'}
 
-  Your response should be an array of strings representing the headline options. Do not include any other preamble or explanatory text.
-  `,
-});
+  Your response should be an array of strings representing the headline options. Do not include any other preamble or explanatory text.`,
+      output: {schema: GeneratePressReleaseHeadlineOutputSchema},
+    });
 
-const generatePressReleaseHeadlineFlow = ai.defineFlow(
-  {
-    name: 'generatePressReleaseHeadlineFlow',
-    inputSchema: GeneratePressReleaseHeadlineInputSchema,
-    outputSchema: GeneratePressReleaseHeadlineOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+    return { success: true, data: output! };
+  } catch (error: any) {
+    console.error('[AI Headline] Error:', error.message);
+    console.error('[AI Headline] Stack:', error.stack);
+    console.error('[AI Headline] GEMINI_API_KEY set:', !!process.env.GEMINI_API_KEY);
+    return { success: false, error: error.message || 'Unknown error' };
   }
-);
+}
