@@ -17,8 +17,9 @@ export type User = {
   email: string;
   initials: string;
   orgId: string;
-  role: 'Admin' | 'User';
+  role: 'Admin' | 'User' | 'Partner';
   createdAt: Date | any;
+  inviteId?: string;
 };
 
 export type Release = {
@@ -88,6 +89,55 @@ export type SendJob = {
   createdAt: Date | any;
   completedAt?: Date | any;
   error?: string;
+};
+
+export type PartnerInvite = {
+  id: string;
+  orgId: string;
+  code: string;
+  createdBy: string;
+  createdAt: Date | any;
+  expiresAt?: Date | any;
+  maxUses?: number;
+  useCount: number;
+  status: 'active' | 'expired' | 'revoked';
+  label?: string;
+};
+
+export type Tag = {
+  id: string;
+  orgId: string;
+  name: string;
+  color?: string;
+  createdBy: string;
+  createdAt: Date | any;
+};
+
+export type PartnerSubmission = {
+  id: string;
+  orgId: string;
+  partnerId: string;
+  partnerName: string;
+  partnerEmail: string;
+  title: string;
+  bodyCopy: string;
+  tagIds: string[];
+  imageUrls: string[];
+  imageStoragePaths: string[];
+  imageMetadata: Array<{
+    fileName: string;
+    size: number;
+    mimeType: string;
+    uploadedAt: Date | any;
+  }>;
+  status: 'submitted' | 'reviewed' | 'used' | 'archived';
+  aiThemes?: string[];
+  aiThemeAnalysis?: string;
+  aiAnalyzedAt?: Date | any;
+  createdAt: Date | any;
+  updatedAt?: Date | any;
+  reviewNotes?: string;
+  usedInReleaseIds?: string[];
 };
 
 export type EmailEvent = {

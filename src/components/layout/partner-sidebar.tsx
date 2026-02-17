@@ -10,40 +10,21 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar';
 import {
-  LayoutDashboard,
-  FileText,
-  Users,
-  UserCog,
-  Settings,
+  Inbox,
+  PenSquare,
   CircleHelp,
   Book,
-  Inbox,
-  Tag,
-  Link as LinkIcon,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { useUserData } from '@/hooks/use-user-data';
 import UserNav from './user-nav';
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', exact: true },
-  { href: '/dashboard/releases', icon: FileText, label: 'Releases' },
-  { href: '/dashboard/submissions', icon: Inbox, label: 'Submissions' },
-  { href: '/dashboard/outlets', icon: Users, label: 'Outlets' },
-  { href: '/dashboard/settings/team', icon: UserCog, label: 'Team' },
-  { href: '/dashboard/settings/tags', icon: Tag, label: 'Tags', adminOnly: true },
-  { href: '/dashboard/settings/partners', icon: LinkIcon, label: 'Partners', adminOnly: true },
-  { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
+  { href: '/portal', icon: Inbox, label: 'My Submissions', exact: true },
+  { href: '/portal/submit', icon: PenSquare, label: 'New Submission' },
 ];
 
-export default function AppSidebar() {
+export default function PartnerSidebar() {
   const pathname = usePathname();
-  const { role } = useUserData();
-  const isAdmin = role === 'Admin';
-
-  const filteredNavItems = navItems.filter(
-    (item) => !('adminOnly' in item) || isAdmin
-  );
 
   return (
     <>
@@ -54,10 +35,15 @@ export default function AppSidebar() {
             PressPilot
           </span>
         </div>
+        <div className="px-2">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Partner Portal
+          </span>
+        </div>
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
-          {filteredNavItems.map((item) => (
+          {navItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
                 asChild

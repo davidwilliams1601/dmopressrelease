@@ -2,6 +2,7 @@
 import LoginForm from '@/components/auth/login-form';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useUser } from '@/firebase';
+import { useUserData } from '@/hooks/use-user-data';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,13 +14,18 @@ export const dynamic = 'force-dynamic';
 
 export default function LoginPage() {
   const { user, isUserLoading } = useUser();
+  const { role } = useUserData();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isUserLoading && user) {
-      router.push('/dashboard');
+    if (!isUserLoading && user && role) {
+      if (role === 'Partner') {
+        router.push('/portal');
+      } else {
+        router.push('/dashboard');
+      }
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, role, router]);
 
   if (isUserLoading || user) {
     return (

@@ -308,3 +308,9 @@ export const cleanupReleaseImages = functions.firestore
 export * from './user-management';
 export * from './debug-user';
 export * from './recreate-user';
+
+// Export partner invite functions
+export * from './partner-invites';
+
+// Export submission analysis functions
+export * from './submission-analysis';

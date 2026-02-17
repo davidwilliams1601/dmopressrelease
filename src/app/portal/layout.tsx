@@ -1,5 +1,6 @@
 'use client';
-import AppSidebar from '@/components/layout/app-sidebar';
+
+import PartnerSidebar from '@/components/layout/partner-sidebar';
 import AppHeader from '@/components/layout/header';
 import {
   SidebarProvider,
@@ -14,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export const dynamic = 'force-dynamic';
 
-export default function DashboardLayout({
+export default function PortalLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -27,9 +28,9 @@ export default function DashboardLayout({
     if (!isUserLoading && !user) {
       router.push('/');
     }
-    // Redirect partners to the portal
-    if (!isUserLoading && user && role === 'Partner') {
-      router.push('/portal');
+    // Redirect non-partners to the dashboard
+    if (!isUserLoading && user && role && role !== 'Partner') {
+      router.push('/dashboard');
     }
   }, [user, isUserLoading, role, router]);
 
@@ -50,7 +51,7 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon" variant="inset" side="left">
-        <AppSidebar />
+        <PartnerSidebar />
       </Sidebar>
       <SidebarInset>
         <AppHeader />

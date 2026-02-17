@@ -26,10 +26,10 @@ export const createOrgUser = functions.https.onCall(async (data, context) => {
     );
   }
 
-  if (!['Admin', 'User'].includes(role)) {
+  if (!['Admin', 'User', 'Partner'].includes(role)) {
     throw new functions.https.HttpsError(
       'invalid-argument',
-      'Role must be either "Admin" or "User"'
+      'Role must be "Admin", "User", or "Partner"'
     );
   }
 
@@ -205,10 +205,10 @@ export const updateOrgUserRole = functions.https.onCall(async (data, context) =>
     );
   }
 
-  if (!['Admin', 'User'].includes(role)) {
+  if (!['Admin', 'User', 'Partner'].includes(role)) {
     throw new functions.https.HttpsError(
       'invalid-argument',
-      'Role must be either "Admin" or "User"'
+      'Role must be "Admin", "User", or "Partner"'
     );
   }
 

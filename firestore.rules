@@ -5,7 +5,7 @@
  *
  * Key Security Decisions:
  * - Multi-Tenancy Firewall: The primary security boundary is the organization. All rules first verify that the authenticated user is a member of the organization associated with the data path.
- * - Role-Based Access: A simple two-tier role system ('Admin', 'User') is used. Admins have elevated privileges, such as managing users and organization settings, while standard Users have permissions to manage content like press releases and outlet lists.
+ * - Role-Based Access: A three-tier role system ('Admin', 'User', 'Partner') is used. Admins have elevated privileges, Users manage content, and Partners can only submit content and view their own submissions.
  * - User Management: Only Admins can create or delete other users within their organization. Users can modify their own profile information.
  * - Org Provisioning: Creation and deletion of top-level organization documents are disallowed from the client, as these are assumed to be provisioned via a trusted server-side process.
  *
@@ -49,6 +49,13 @@ service cloud.firestore {
      */
     function isOrgAdmin(orgId) {
       return isOrgMember(orgId) && getUserData(orgId).data.role == 'Admin';
+    }
+
+    /**
+     * Verifies if the authenticated user is a team member (Admin or User, not Partner).
+     */
+    function isTeamMember(orgId) {
+      return isOrgMember(orgId) && getUserData(orgId).data.role in ['Admin', 'User'];
     }
 
     /**
@@ -110,69 +117,103 @@ service cloud.firestore {
     /**
      * @description Rules for Press Release documents within an organization.
      * @path /orgs/{orgId}/releases/{releaseId}
-     * @allow (create) An authenticated member creating a new press release.
-     * @deny (get) A user from another org trying to read a press release.
-     * @principle Grants full read/write access to all members of the same organization, enforcing the multi-tenant boundary.
+     * @principle Team members only (Admin/User). Partners cannot access releases.
      */
     match /orgs/{orgId}/releases/{releaseId} {
-      allow read: if isOrgMember(orgId);
-      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
-      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable();
-      allow delete: if isOrgMember(orgId) && resource != null;
+      allow read: if isTeamMember(orgId);
+      allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isTeamMember(orgId) && resource != null;
     }
 
     /**
      * @description Rules for Outlet List documents within an organization.
      * @path /orgs/{orgId}/outletLists/{outletListId}
-     * @allow (list) An authenticated member listing all outlet lists for their organization.
-     * @deny (update) An anonymous user trying to update an outlet list.
-     * @principle Grants full read/write access to all members of the same organization, enforcing the multi-tenant boundary.
+     * @principle Team members only. Partners cannot access outlet lists.
      */
     match /orgs/{orgId}/outletLists/{outletListId} {
-      allow read: if isOrgMember(orgId);
-      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
-      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable();
-      allow delete: if isOrgMember(orgId) && resource != null;
+      allow read: if isTeamMember(orgId);
+      allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isTeamMember(orgId) && resource != null;
     }
 
     /**
      * @description Rules for Recipient documents within an Outlet List.
      * @path /orgs/{orgId}/outletLists/{outletListId}/recipients/{recipientId}
-     * @allow (create) An authenticated member adding a recipient to one of their outlet lists.
-     * @deny (get) A user from another org trying to read a recipient.
-     * @principle Enforces multi-tenancy on a nested collection by checking the user's organization membership.
+     * @principle Team members only. Partners cannot access recipients.
      */
     match /orgs/{orgId}/outletLists/{outletListId}/recipients/{recipientId} {
-      allow read: if isOrgMember(orgId);
-      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId) && request.resource.data.outletListId == outletListId;
-      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable() && request.resource.data.outletListId == resource.data.outletListId;
-      allow delete: if isOrgMember(orgId) && resource != null;
+      allow read: if isTeamMember(orgId);
+      allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId) && request.resource.data.outletListId == outletListId;
+      allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable() && request.resource.data.outletListId == resource.data.outletListId;
+      allow delete: if isTeamMember(orgId) && resource != null;
     }
 
     /**
      * @description Rules for Send Job documents within an organization.
      * @path /orgs/{orgId}/sendJobs/{sendJobId}
-     * @allow (get) An authenticated member viewing a send job's status.
-     * @deny (create) A user from a different organization trying to create a send job.
-     * @principle Grants full read/write access to all members of the same organization, enforcing the multi-tenant boundary.
+     * @principle Team members only. Partners cannot access send jobs.
      */
     match /orgs/{orgId}/sendJobs/{sendJobId} {
-      allow read: if isOrgMember(orgId);
-      allow create: if isOrgMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
-      allow update: if isOrgMember(orgId) && resource != null && isOrgIdImmutable();
-      allow delete: if isOrgMember(orgId) && resource != null;
+      allow read: if isTeamMember(orgId);
+      allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isTeamMember(orgId) && resource != null;
     }
 
     /**
      * @description Rules for analytics Event documents within an organization.
      * @path /orgs/{orgId}/events/{eventId}
-     * @allow (get, list) Authenticated members can read events for their organization.
-     * @deny (create, update, delete) All write operations are denied from clients; only Cloud Functions can write events.
-     * @principle Read-only access for clients ensures data integrity. Events are created exclusively via SendGrid webhooks processed by Cloud Functions.
+     * @principle Read-only for team members. Only Cloud Functions can write events.
      */
     match /orgs/{orgId}/events/{eventId} {
-      allow read: if isOrgMember(orgId);
+      allow read: if isTeamMember(orgId);
       allow create, update, delete: if false; // Only Cloud Functions can write events
+    }
+
+    /**
+     * @description Rules for Partner Invite documents.
+     * @path /orgs/{orgId}/invites/{inviteId}
+     * @principle Only admins can manage invites.
+     */
+    match /orgs/{orgId}/invites/{inviteId} {
+      allow read: if isOrgAdmin(orgId);
+      allow create: if isOrgAdmin(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isOrgAdmin(orgId) && isOrgIdImmutable();
+      allow delete: if isOrgAdmin(orgId);
+    }
+
+    /**
+     * @description Rules for Tag documents.
+     * @path /orgs/{orgId}/tags/{tagId}
+     * @principle All org members (including partners) can read tags. Only admins can manage.
+     */
+    match /orgs/{orgId}/tags/{tagId} {
+      allow read: if isOrgMember(orgId);
+      allow create: if isOrgAdmin(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isOrgAdmin(orgId) && isOrgIdImmutable();
+      allow delete: if isOrgAdmin(orgId);
+    }
+
+    /**
+     * @description Rules for Partner Submission documents.
+     * @path /orgs/{orgId}/submissions/{submissionId}
+     * @principle Team members can read all submissions. Partners can only read their own.
+     *            Partners can create submissions (must set themselves as partnerId).
+     *            Team members can update (status, notes). Only admins can delete.
+     * @note For partner list queries, the query MUST include where('partnerId', '==', uid).
+     */
+    match /orgs/{orgId}/submissions/{submissionId} {
+      allow get: if isTeamMember(orgId) ||
+        (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
+      allow list: if isTeamMember(orgId) ||
+        (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
+      allow create: if isOrgMember(orgId) &&
+        hasCorrectOrgIdOnCreate(orgId) &&
+        request.resource.data.partnerId == request.auth.uid;
+      allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isOrgAdmin(orgId) && resource != null;
     }
   }
 }

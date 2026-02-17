@@ -25,6 +25,25 @@ service firebase.storage {
       allow delete: if isOrgMember();
     }
 
+    // Organization-based access control for partner submission images
+    match /orgs/{orgId}/submissions/{submissionId}/{fileName} {
+      function isOrgMember() {
+        return request.auth != null
+          && firestore.exists(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid));
+      }
+
+      // Any org member (including partners) can read submission images
+      allow read: if isOrgMember();
+
+      // Any org member can write images with same validation as releases
+      allow write: if isOrgMember() &&
+                      request.resource.size < 10 * 1024 * 1024 &&
+                      request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+
+      // Allow org members to delete images
+      allow delete: if isOrgMember();
+    }
+
     // Deny all other access by default
     match /{allPaths=**} {
       allow read, write: if false;

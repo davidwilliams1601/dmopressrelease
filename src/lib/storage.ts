@@ -78,6 +78,56 @@ export async function uploadReleaseImage(
  * @param storage Firebase Storage instance
  * @param storagePath The storage path to delete
  */
+/**
+ * Uploads a submission image to Firebase Storage
+ */
+export async function uploadSubmissionImage(
+  storage: FirebaseStorage,
+  orgId: string,
+  submissionId: string,
+  file: File,
+  index: number
+): Promise<{ storagePath: string; downloadUrl: string }> {
+  const validation = validateImageFile(file);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+
+  const fileExtension = file.name.split('.').pop() || 'jpg';
+  const storagePath = `orgs/${orgId}/submissions/${submissionId}/image-${index}.${fileExtension}`;
+  const storageRef = ref(storage, storagePath);
+
+  await uploadBytes(storageRef, file, {
+    contentType: file.type,
+    customMetadata: {
+      originalFileName: file.name,
+      uploadedAt: new Date().toISOString(),
+    },
+  });
+
+  const downloadUrl = await getDownloadURL(storageRef);
+
+  return { storagePath, downloadUrl };
+}
+
+/**
+ * Deletes a submission image from Firebase Storage
+ */
+export async function deleteSubmissionImage(
+  storage: FirebaseStorage,
+  storagePath: string
+): Promise<void> {
+  if (!storagePath) return;
+  try {
+    const storageRef = ref(storage, storagePath);
+    await deleteObject(storageRef);
+  } catch (error: any) {
+    if (error.code !== 'storage/object-not-found') {
+      throw error;
+    }
+  }
+}
+
 export async function deleteReleaseImage(
   storage: FirebaseStorage,
   storagePath: string
