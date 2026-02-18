@@ -43,7 +43,10 @@ export default function PortalLayout({
     }
   }, [user, isUserLoading, isRoleLoading, role, router]);
 
-  if (isUserLoading || isRoleLoading || !user) {
+  // Don't render portal content until we've confirmed Partner role.
+  // useEffect handles the redirect; this prevents the one-frame flash
+  // that fires Firestore queries before the redirect completes.
+  if (isUserLoading || isRoleLoading || !user || role !== 'Partner') {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <div className="flex flex-col items-center gap-4">
