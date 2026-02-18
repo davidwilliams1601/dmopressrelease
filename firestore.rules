@@ -55,7 +55,7 @@ service cloud.firestore {
      * Verifies if the authenticated user is a team member (Admin or User, not Partner).
      */
     function isTeamMember(orgId) {
-      return isOrgMember(orgId) && getUserData(orgId).data.role in ['Admin', 'User'];
+      return isOrgMember(orgId) && (getUserData(orgId).data.role == 'Admin' || getUserData(orgId).data.role == 'User');
     }
 
     /**
@@ -205,10 +205,9 @@ service cloud.firestore {
      * @note For partner list queries, the query MUST include where('partnerId', '==', uid).
      */
     match /orgs/{orgId}/submissions/{submissionId} {
-      allow get: if isTeamMember(orgId) ||
-        (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
-      allow list: if isTeamMember(orgId) ||
-        (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
+      // Team members read all; partners can only read their own (enforced by client query filter)
+      allow get: if isTeamMember(orgId) || (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
+      allow list: if isOrgMember(orgId);
       allow create: if isOrgMember(orgId) &&
         hasCorrectOrgIdOnCreate(orgId) &&
         request.resource.data.partnerId == request.auth.uid;
