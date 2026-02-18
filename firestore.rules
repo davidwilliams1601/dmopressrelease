@@ -41,7 +41,7 @@ service cloud.firestore {
      * This is the foundational rule for multi-tenancy.
      */
     function isOrgMember(orgId) {
-      return isSignedIn() && getUserData(orgId).data.orgId == orgId;
+      return isSignedIn() && exists(/databases/$(database)/documents/orgs/$(orgId)/users/$(request.auth.uid));
     }
 
     /**
@@ -207,7 +207,8 @@ service cloud.firestore {
     match /orgs/{orgId}/submissions/{submissionId} {
       // Team members read all; partners can only read their own (enforced by client query filter)
       allow get: if isTeamMember(orgId) || (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
-      allow list: if isOrgMember(orgId);
+      // Use JWT claim first (fast, no get()), fall back to Firestore doc lookup
+      allow list: if isSignedIn() && (request.auth.token.orgId == orgId || getUserData(orgId).data.orgId == orgId);
       allow create: if isOrgMember(orgId) &&
         hasCorrectOrgIdOnCreate(orgId) &&
         request.resource.data.partnerId == request.auth.uid;
