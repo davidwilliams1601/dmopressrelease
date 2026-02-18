@@ -47,7 +47,7 @@ export function useUserData() {
 
   return {
     userData: userDoc.data,
-    isLoading: isUserLoading || !orgId || userDoc.isLoading,
+    isLoading: isUserLoading || (!!user && (!orgId || userDoc.isLoading)),
     error: userDoc.error,
     orgId: userDoc.data?.orgId || orgId,
     role: userDoc.data?.role,
