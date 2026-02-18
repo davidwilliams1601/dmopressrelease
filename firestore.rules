@@ -207,8 +207,7 @@ service cloud.firestore {
     match /orgs/{orgId}/submissions/{submissionId} {
       // Team members read all; partners can only read their own (enforced by client query filter)
       allow get: if isTeamMember(orgId) || (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
-      // Use JWT claim first (fast, no get()), fall back to Firestore doc lookup
-      allow list: if isSignedIn() && (request.auth.token.orgId == orgId || getUserData(orgId).data.orgId == orgId);
+      allow list: if isOrgMember(orgId);
       allow create: if isOrgMember(orgId) &&
         hasCorrectOrgIdOnCreate(orgId) &&
         request.resource.data.partnerId == request.auth.uid;
