@@ -21,20 +21,29 @@ export default function PortalLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
-  const { role } = useUserData();
+  const { role, isLoading: isRoleLoading } = useUserData();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    // Wait for both auth and role to finish loading
+    if (isUserLoading || isRoleLoading) return;
+
+    if (!user) {
       router.push('/');
+      return;
     }
     // Redirect non-partners to the dashboard
-    if (!isUserLoading && user && role && role !== 'Partner') {
+    if (role && role !== 'Partner') {
       router.push('/dashboard');
+      return;
     }
-  }, [user, isUserLoading, role, router]);
+    // User is logged in but has no org membership (no Firestore doc)
+    if (!role) {
+      router.push('/');
+    }
+  }, [user, isUserLoading, isRoleLoading, role, router]);
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || isRoleLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <div className="flex flex-col items-center gap-4">
