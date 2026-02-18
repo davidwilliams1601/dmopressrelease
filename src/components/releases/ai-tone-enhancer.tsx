@@ -57,7 +57,17 @@ export function AiToneEnhancer({
         brandToneNotes,
       });
 
-      setEnhancedCopy(result.enhancedBodyCopy);
+      if (!result.success) {
+        console.error('Error enhancing tone:', result.error);
+        toast({
+          title: 'Failed to enhance tone',
+          description: result.error,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setEnhancedCopy(result.data.enhancedBodyCopy);
     } catch (error) {
       console.error('Error enhancing tone:', error);
       toast({

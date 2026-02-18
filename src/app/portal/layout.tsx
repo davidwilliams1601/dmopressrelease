@@ -41,7 +41,8 @@ export default function PortalLayout({
     if (!role) {
       router.push('/');
     }
-  }, [user, isUserLoading, isRoleLoading, role, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isUserLoading, isRoleLoading, role]);
 
   // Don't render portal content until we've confirmed Partner role.
   // useEffect handles the redirect; this prevents the one-frame flash

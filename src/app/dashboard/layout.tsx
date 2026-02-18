@@ -20,19 +20,31 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
-  const { role } = useUserData();
+  const { role, isLoading: isRoleLoading } = useUserData();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    // Wait for both auth AND role to finish loading before redirecting.
+    // This prevents race conditions where a brief null user mid-auth
+    // fires a redirect to '/', causing a back-and-forth loop with the login page.
+    if (isUserLoading || isRoleLoading) return;
+
+    if (!user) {
       router.push('/');
+      return;
     }
     // Redirect partners to the portal
-    if (!isUserLoading && user && role === 'Partner') {
+    if (role === 'Partner') {
       router.push('/portal');
     }
-  }, [user, isUserLoading, role, router]);
+  // router is intentionally excluded from deps — its reference can change during
+  // navigation in Next.js App Router, which would re-fire this effect and cause
+  // the redirect loop. router.push is a stable API, not reactive data.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isUserLoading, isRoleLoading, role]);
 
+  // Render guard uses auth-only loading so the layout appears immediately
+  // once Firebase Auth resolves, without waiting for the Firestore user doc.
   if (isUserLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center">

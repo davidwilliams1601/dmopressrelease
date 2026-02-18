@@ -2,13 +2,8 @@
 
 /**
  * @fileOverview Enhances the tone of a press release body copy to align with the organization's brand and tone notes.
- *
- * - enhancePressReleaseTone - A function that enhances the tone of the press release.
- * - EnhancePressReleaseToneInput - The input type for the enhancePressReleaseTone function.
- * - EnhancePressReleaseToneOutput - The return type for the enhancePressReleaseTone function.
  */
 
-import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const EnhancePressReleaseToneInputSchema = z.object({
@@ -22,31 +17,30 @@ const EnhancePressReleaseToneOutputSchema = z.object({
 });
 export type EnhancePressReleaseToneOutput = z.infer<typeof EnhancePressReleaseToneOutputSchema>;
 
-export async function enhancePressReleaseTone(input: EnhancePressReleaseToneInput): Promise<EnhancePressReleaseToneOutput> {
-  return enhancePressReleaseToneFlow(input);
-}
+type ToneResult =
+  | { success: true; data: EnhancePressReleaseToneOutput }
+  | { success: false; error: string };
 
-const prompt = ai.definePrompt({
-  name: 'enhancePressReleaseTonePrompt',
-  input: {schema: EnhancePressReleaseToneInputSchema},
-  output: {schema: EnhancePressReleaseToneOutputSchema},
-  prompt: `You are an expert copywriter specializing in press releases. Your task is to enhance the tone of the provided press release body copy to align with the organization's brand and tone notes.
+export async function enhancePressReleaseTone(input: EnhancePressReleaseToneInput): Promise<ToneResult> {
+  try {
+    const {ai} = await import('@/ai/genkit');
 
-Brand and Tone Notes: {{{brandToneNotes}}}
+    const {output} = await ai.generate({
+      prompt: `You are an expert copywriter specializing in press releases. Your task is to enhance the tone of the provided press release body copy to align with the organization's brand and tone notes.
 
-Original Body Copy: {{{bodyCopy}}}
+Brand and Tone Notes: ${input.brandToneNotes}
+
+Original Body Copy: ${input.bodyCopy}
 
 Enhanced Body Copy:`,
-});
+      output: {schema: EnhancePressReleaseToneOutputSchema},
+    });
 
-const enhancePressReleaseToneFlow = ai.defineFlow(
-  {
-    name: 'enhancePressReleaseToneFlow',
-    inputSchema: EnhancePressReleaseToneInputSchema,
-    outputSchema: EnhancePressReleaseToneOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+    return { success: true, data: output! };
+  } catch (error: any) {
+    console.error('[AI Tone] Error:', error.message);
+    console.error('[AI Tone] Stack:', error.stack);
+    console.error('[AI Tone] GEMINI_API_KEY set:', !!process.env.GEMINI_API_KEY);
+    return { success: false, error: error.message || 'Unknown error' };
   }
-);
+}

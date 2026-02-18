@@ -1,18 +1,9 @@
 'use server';
 
 /**
- * @fileOverview This file defines a Genkit flow for providing campaign effectiveness insights.
- *
- * The flow takes in engagement statistics and organization brand/tone notes to generate insights
- * on how well the campaign aligned with the target audience. It exports a function,
- * provideCampaignEffectivenessInsights, which wraps the flow.
- *
- * @interface ProvideCampaignEffectivenessInsightsInput - Input for the campaign effectiveness insights flow.
- * @interface ProvideCampaignEffectivenessInsightsOutput - Output of the campaign effectiveness insights flow.
- * @function provideCampaignEffectivenessInsights - A function that calls the campaign effectiveness insights flow.
+ * @fileOverview This file defines a server action for providing campaign effectiveness insights.
  */
 
-import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ProvideCampaignEffectivenessInsightsInputSchema = z.object({
@@ -30,40 +21,38 @@ const ProvideCampaignEffectivenessInsightsOutputSchema = z.object({
 });
 export type ProvideCampaignEffectivenessInsightsOutput = z.infer<typeof ProvideCampaignEffectivenessInsightsOutputSchema>;
 
+type InsightsResult =
+  | { success: true; data: ProvideCampaignEffectivenessInsightsOutput }
+  | { success: false; error: string };
+
 export async function provideCampaignEffectivenessInsights(
   input: ProvideCampaignEffectivenessInsightsInput
-): Promise<ProvideCampaignEffectivenessInsightsOutput> {
-  return provideCampaignEffectivenessInsightsFlow(input);
-}
+): Promise<InsightsResult> {
+  try {
+    const {ai} = await import('@/ai/genkit');
 
-const prompt = ai.definePrompt({
-  name: 'provideCampaignEffectivenessInsightsPrompt',
-  input: {schema: ProvideCampaignEffectivenessInsightsInputSchema},
-  output: {schema: ProvideCampaignEffectivenessInsightsOutputSchema},
-  prompt: `You are an expert marketing analyst providing insights on campaign effectiveness.
+    const {output} = await ai.generate({
+      prompt: `You are an expert marketing analyst providing insights on campaign effectiveness.
 
   Based on the following engagement statistics and brand/tone notes, provide insights on how well the campaign aligned with the target audience.
 
   Engagement Statistics:
-  - Number of Releases: {{{numReleases}}}
-  - Number of Sends: {{{numSends}}}
-  - Opens: {{{opens}}}
-  - Clicks: {{{clicks}}}
-  - Page Views: {{{pageViews}}}
+  - Number of Releases: ${input.numReleases}
+  - Number of Sends: ${input.numSends}
+  - Opens: ${input.opens}
+  - Clicks: ${input.clicks}
+  - Page Views: ${input.pageViews}
 
   Brand/Tone Notes:
-  {{{brandToneNotes}}}
-  `,
-});
+  ${input.brandToneNotes}`,
+      output: {schema: ProvideCampaignEffectivenessInsightsOutputSchema},
+    });
 
-const provideCampaignEffectivenessInsightsFlow = ai.defineFlow(
-  {
-    name: 'provideCampaignEffectivenessInsightsFlow',
-    inputSchema: ProvideCampaignEffectivenessInsightsInputSchema,
-    outputSchema: ProvideCampaignEffectivenessInsightsOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+    return { success: true, data: output! };
+  } catch (error: any) {
+    console.error('[AI Insights] Error:', error.message);
+    console.error('[AI Insights] Stack:', error.stack);
+    console.error('[AI Insights] GEMINI_API_KEY set:', !!process.env.GEMINI_API_KEY);
+    return { success: false, error: error.message || 'Unknown error' };
   }
-);
+}

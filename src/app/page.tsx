@@ -18,14 +18,15 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isUserLoading && user && role) {
-      if (role === 'Partner') {
-        router.push('/portal');
-      } else {
-        router.push('/dashboard');
-      }
+    if (isUserLoading || !user || !role) return;
+
+    if (role === 'Partner') {
+      router.push('/portal');
+    } else {
+      router.push('/dashboard');
     }
-  }, [user, isUserLoading, role, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isUserLoading, role]);
 
   if (isUserLoading || user) {
     return (

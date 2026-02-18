@@ -27,7 +27,18 @@ export default function AiInsights({ stats }: { stats: EngagementStats }) {
         pageViews: stats.pageViews,
         brandToneNotes: organization.brandToneNotes,
       });
-      setInsights(result.insights);
+
+      if (!result.success) {
+        console.error('Failed to generate insights:', result.error);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: result.error,
+        });
+        return;
+      }
+
+      setInsights(result.data.insights);
     } catch (error) {
       console.error('Failed to generate insights:', error);
       toast({

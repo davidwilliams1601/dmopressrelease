@@ -173,10 +173,13 @@ async function sendEmail(recipient: any, release: any, orgId: string, org: any) 
     return;
   }
 
-  // Configure from email - use your verified sender
+  // Configure from email - must be a SendGrid verified sender
   const fromEmail = functions.config().sendgrid?.from_email ||
-                    process.env.SENDGRID_FROM_EMAIL ||
-                    'noreply@yourdomain.com';
+                    process.env.SENDGRID_FROM_EMAIL;
+  if (!fromEmail) {
+    console.error('[EMAIL] SENDGRID_FROM_EMAIL is not configured. Cannot send email.');
+    throw new Error('Missing sendgrid.from_email config. Set it with: firebase functions:config:set sendgrid.from_email="you@yourdomain.com"');
+  }
 
   const msg = {
     to: recipient.email,
