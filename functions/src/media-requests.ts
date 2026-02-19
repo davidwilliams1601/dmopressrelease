@@ -67,17 +67,24 @@ export const submitStoryRequest = functions.https.onCall(async (data) => {
   const cleanEmail = email.trim().toLowerCase();
   const orgId: string = functions.config().org?.id || 'visit-kent';
 
-  // 3. Rate limit: max 5 submissions from the same email in the last hour
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  const recentSnapshot = await db
+  // 3. Rate limit: max 5 submissions from the same email in the last hour.
+  // Single equality filter only — avoids requiring a composite index.
+  // Time filtering is done in code after the query.
+  const emailSnapshot = await db
     .collection('orgs')
     .doc(orgId)
     .collection('mediaRequests')
     .where('email', '==', cleanEmail)
-    .where('createdAt', '>=', oneHourAgo)
     .get();
 
-  if (recentSnapshot.size >= 5) {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const recentCount = emailSnapshot.docs.filter((d) => {
+    const createdAt: FirebaseFirestore.Timestamp | undefined = d.data().createdAt;
+    const submittedAt = createdAt?.toDate ? createdAt.toDate() : new Date(0);
+    return submittedAt >= oneHourAgo;
+  }).length;
+
+  if (recentCount >= 5) {
     throw new functions.https.HttpsError(
       'resource-exhausted',
       'Too many requests from this email address. Please try again later.'
