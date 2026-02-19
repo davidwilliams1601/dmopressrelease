@@ -42,7 +42,7 @@ export default function ReleaseDetailPage() {
       <div className="flex flex-col gap-6">
         <Button
           variant="ghost"
-          onClick={() => router.push('/releases')}
+          onClick={() => router.push('/dashboard/releases')}
           className="w-fit"
         >
           <ArrowLeft />
@@ -62,7 +62,7 @@ export default function ReleaseDetailPage() {
     <div className="flex flex-col gap-6">
       <Button
         variant="ghost"
-        onClick={() => router.push('/releases')}
+        onClick={() => router.push('/dashboard/releases')}
         className="w-fit"
       >
         <ArrowLeft />
