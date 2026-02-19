@@ -29,20 +29,25 @@ export default function StoryRequestForm() {
     setError(null);
 
     try {
-      const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const functions = getFunctions();
-      const submitRequest = httpsCallable(functions, 'submitStoryRequest');
+      // Use plain fetch to call the Firebase callable function — no Firebase SDK
+      // initialization required, which keeps this public page free of any auth dependency.
+      const res = await fetch(
+        'https://us-central1-dmo-press-release.cloudfunctions.net/submitStoryRequest',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: { name, email, outlet, topic, destinations, deadline, additionalInfo, honeypot },
+          }),
+        }
+      );
 
-      await submitRequest({
-        name,
-        email,
-        outlet,
-        topic,
-        destinations,
-        deadline,
-        additionalInfo,
-        honeypot,
-      });
+      const json = await res.json();
+
+      if (!res.ok || json.error) {
+        const status: string = json.error?.status || '';
+        throw { status, message: json.error?.message || 'Unknown error' };
+      }
 
       setSubmitted(true);
       toast({
@@ -53,11 +58,11 @@ export default function StoryRequestForm() {
       console.error('Error submitting story request:', err);
 
       let errorMessage = 'There was a problem submitting your request. Please try again.';
-      if (err.code === 'functions/resource-exhausted') {
+      if (err.status === 'RESOURCE_EXHAUSTED') {
         errorMessage = 'Too many requests from this email address. Please try again later.';
-      } else if (err.code === 'functions/invalid-argument') {
+      } else if (err.status === 'INVALID_ARGUMENT') {
         errorMessage = err.message || 'Please check your submission and try again.';
-      } else if (err.code === 'functions/permission-denied') {
+      } else if (err.status === 'PERMISSION_DENIED') {
         errorMessage = 'Your submission was rejected. Please try again.';
       }
 
