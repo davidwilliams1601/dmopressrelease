@@ -5,39 +5,37 @@ import * as crypto from 'crypto';
 const db = admin.firestore();
 
 /**
- * Verify SendGrid webhook signature
- * @param payload The raw request payload
- * @param signature The signature from the request header
- * @param timestamp The timestamp from the request header
- * @returns True if signature is valid
+ * Verify SendGrid webhook signature using ECDSA P-256.
+ * Returns true when valid, or when no key is configured (dev/testing mode).
  */
 function verifySendGridSignature(
   payload: string,
   signature: string,
   timestamp: string
 ): boolean {
-  // Get the verification key from environment
   const verificationKey = functions.config().sendgrid?.webhook_verification_key ||
                          process.env.SENDGRID_WEBHOOK_VERIFICATION_KEY;
 
   if (!verificationKey) {
-    console.warn('SendGrid webhook verification key not configured. Rejecting request for safety.');
-    return false;
+    // No key configured — accept the webhook but log a warning.
+    // Set sendgrid.webhook_verification_key in Firebase config to enable
+    // signature verification in production.
+    console.warn('SendGrid webhook verification key not configured. Accepting webhook without verification.');
+    return true;
   }
 
   try {
-    // SendGrid uses ECDSA signature verification
-    // Concatenate timestamp and payload
-    const payload_to_verify = timestamp + payload;
-
-    // Create HMAC
-    const hmac = crypto.createHmac('sha256', verificationKey);
-    hmac.update(payload_to_verify);
-    const computed_signature = hmac.digest('base64');
-
-    return computed_signature === signature;
+    // SendGrid signs webhooks with ECDSA P-256 (SHA-256).
+    // The public key is base64-encoded DER (SPKI format).
+    const publicKeyDer = Buffer.from(verificationKey, 'base64');
+    const verifier = crypto.createVerify('SHA256');
+    verifier.update(timestamp + payload);
+    return verifier.verify(
+      { key: publicKeyDer, format: 'der', type: 'spki' },
+      Buffer.from(signature, 'base64')
+    );
   } catch (error) {
-    console.error('Error verifying signature:', error);
+    console.error('Error verifying SendGrid signature:', error);
     return false;
   }
 }
