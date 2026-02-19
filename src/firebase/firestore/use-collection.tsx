@@ -58,7 +58,7 @@ export function useCollection<T = any>(
   type StateDataType = ResultItemType[] | null;
 
   const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(!!memoizedTargetRefOrQuery);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   // Validate memoization BEFORE subscribing to avoid side effects with bad queries
@@ -66,11 +66,20 @@ export function useCollection<T = any>(
     throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
   }
 
-  useEffect(() => {
+  // Derived state: sync isLoading with ref/query changes during render so there
+  // is no one-render gap where isLoading=false but a query is incoming.
+  const [committedQuery, setCommittedQuery] = useState(memoizedTargetRefOrQuery);
+  if (committedQuery !== memoizedTargetRefOrQuery) {
+    setCommittedQuery(memoizedTargetRefOrQuery);
+    setIsLoading(!!memoizedTargetRefOrQuery);
     if (!memoizedTargetRefOrQuery) {
       setData(null);
-      setIsLoading(false);
       setError(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!memoizedTargetRefOrQuery) {
       return;
     }
 

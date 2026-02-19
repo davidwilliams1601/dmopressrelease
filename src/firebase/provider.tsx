@@ -20,6 +20,7 @@ interface UserAuthState {
   user: User | null;
   isUserLoading: boolean;
   userError: Error | null;
+  orgId: string | null;
 }
 
 // Combined state for the Firebase context
@@ -33,6 +34,7 @@ export interface FirebaseContextState {
   user: User | null;
   isUserLoading: boolean; // True during initial auth check
   userError: Error | null; // Error from auth listener
+  orgId: string | null; // Resolved once from token claims; shared so components don't re-resolve on remount
 }
 
 // Return type for useFirebase()
@@ -44,6 +46,7 @@ export interface FirebaseServicesAndUser {
   user: User | null;
   isUserLoading: boolean;
   userError: Error | null;
+  orgId: string | null;
 }
 
 // Return type for useUser() - specific to user auth state
@@ -70,40 +73,46 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     user: null,
     isUserLoading: true, // Start loading until first auth event
     userError: null,
+    orgId: null,
   });
 
   // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
     if (!auth) { // If no Auth service instance, cannot determine user state
-      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
+      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided."), orgId: null });
       return;
     }
 
-    setUserAuthState({ user: null, isUserLoading: true, userError: null }); // Reset on auth instance change
+    setUserAuthState({ user: null, isUserLoading: true, userError: null, orgId: null }); // Reset on auth instance change
 
     const unsubscribe = onAuthStateChanged(
       auth,
       async (firebaseUser) => { // Auth state determined
         if (firebaseUser) {
-          // Force refresh the ID token to ensure latest permissions
-          // This is critical for newly created users or users with role changes
+          // Force refresh the ID token to ensure latest claims (critical for newly created users)
           try {
             await firebaseUser.getIdToken(true);
-            console.log('FirebaseProvider: User token refreshed');
-            
             // Add a small delay to ensure the token propagates throughout the Firebase SDK
-            // This prevents race conditions where Firestore queries use stale tokens
             await new Promise(resolve => setTimeout(resolve, 100));
-            console.log('FirebaseProvider: Token propagation delay complete');
           } catch (error) {
             console.error('FirebaseProvider: Error refreshing token:', error);
           }
+          // Read orgId from claims once here so all consumers share the same value
+          // and individual components don't each re-resolve it on mount
+          try {
+            const tokenResult = await firebaseUser.getIdTokenResult();
+            const claimsOrgId = (tokenResult.claims.orgId as string | undefined) || 'visit-kent';
+            setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null, orgId: claimsOrgId });
+          } catch {
+            setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null, orgId: 'visit-kent' });
+          }
+        } else {
+          setUserAuthState({ user: null, isUserLoading: false, userError: null, orgId: null });
         }
-        setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
-        setUserAuthState({ user: null, isUserLoading: false, userError: error });
+        setUserAuthState({ user: null, isUserLoading: false, userError: error, orgId: null });
       }
     );
     return () => unsubscribe(); // Cleanup
@@ -121,6 +130,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       user: userAuthState.user,
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,
+      orgId: userAuthState.orgId,
     };
   }, [firebaseApp, firestore, auth, storage, userAuthState]);
 
@@ -155,6 +165,7 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     user: context.user,
     isUserLoading: context.isUserLoading,
     userError: context.userError,
+    orgId: context.orgId,
   };
 };
 

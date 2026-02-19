@@ -32,14 +32,12 @@ export default function PortalLayout({
       router.push('/');
       return;
     }
-    // Redirect non-partners to the dashboard
+    // Redirect non-partners (Admin/User) to the dashboard.
+    // Do NOT redirect when role is undefined — that can happen for one render
+    // before useDoc sets isLoading=true (useDoc initialises to false). The
+    // render guard already shows a skeleton in that state, so we just wait.
     if (role && role !== 'Partner') {
       router.push('/dashboard');
-      return;
-    }
-    // User is logged in but has no org membership (no Firestore doc)
-    if (!role) {
-      router.push('/');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isUserLoading, isRoleLoading, role]);

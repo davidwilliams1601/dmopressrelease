@@ -20,7 +20,8 @@ export function useRedirectByRole() {
     } else {
       router.replace('/dashboard');
     }
-  }, [role, isLoading, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, isLoading]);
 
   return { role, isLoading };
 }

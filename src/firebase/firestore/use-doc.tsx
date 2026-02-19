@@ -44,20 +44,30 @@ export function useDoc<T = any>(
   type StateDataType = WithId<T> | null;
 
   const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(!!memoizedDocRef);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+
+  // Track which ref we last "committed" so we can detect changes during render.
+  // When memoizedDocRef changes, we update isLoading synchronously here (before
+  // effects fire) to eliminate the one-render gap where isLoading=false but the
+  // ref is non-null. This is the React "derived state from props" pattern.
+  const [committedRef, setCommittedRef] = useState(memoizedDocRef);
+  if (committedRef !== memoizedDocRef) {
+    setCommittedRef(memoizedDocRef);
+    setIsLoading(!!memoizedDocRef);
+    if (!memoizedDocRef) {
+      setData(null);
+      setError(null);
+    }
+  }
 
   useEffect(() => {
     if (!memoizedDocRef) {
-      setData(null);
-      setIsLoading(false);
-      setError(null);
       return;
     }
 
     setIsLoading(true);
     setError(null);
-    // Optional: setData(null); // Clear previous data instantly
 
     const unsubscribe = onSnapshot(
       memoizedDocRef,

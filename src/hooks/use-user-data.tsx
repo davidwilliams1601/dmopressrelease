@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
@@ -15,28 +14,10 @@ interface UserData {
 
 /**
  * Hook to fetch the current user's data from Firestore.
- * Reads orgId from Firebase Auth custom claims (set during user creation).
- * Falls back to 'visit-kent' for users created before custom claims were added.
+ * Reads orgId from FirebaseProvider context (resolved once at auth time via token claims).
  */
 export function useUserData() {
-  const { firestore, user, isUserLoading } = useFirebase();
-  const [orgId, setOrgId] = useState<string | null>(null);
-
-  // Read orgId from the user's ID token custom claims
-  useEffect(() => {
-    if (!user) {
-      setOrgId(null);
-      return;
-    }
-
-    user.getIdTokenResult().then((tokenResult) => {
-      const claimsOrgId = tokenResult.claims.orgId as string | undefined;
-      // Use custom claim if available, otherwise fall back for legacy users
-      setOrgId(claimsOrgId || 'visit-kent');
-    }).catch(() => {
-      setOrgId('visit-kent');
-    });
-  }, [user]);
+  const { firestore, user, isUserLoading, orgId } = useFirebase();
 
   const userDoc = useDoc<UserData>(
     useMemoFirebase(() => {
