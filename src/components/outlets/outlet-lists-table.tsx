@@ -38,7 +38,7 @@ export function OutletListsTable({ outletLists }: OutletListsTableProps) {
           <TableRow
             key={list.id}
             className="cursor-pointer hover:bg-muted/50"
-            onClick={() => router.push(`/outlets/${list.id}`)}
+            onClick={() => router.push(`/dashboard/outlets/${list.id}`)}
           >
             <TableCell className="font-medium">{list.name}</TableCell>
             <TableCell className="text-muted-foreground max-w-md truncate">

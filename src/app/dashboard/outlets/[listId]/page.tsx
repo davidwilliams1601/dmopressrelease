@@ -53,7 +53,7 @@ export default function OutletListDetailPage() {
       <div className="flex flex-col gap-6">
         <Button
           variant="ghost"
-          onClick={() => router.push('/outlets')}
+          onClick={() => router.push('/dashboard/outlets')}
           className="w-fit"
         >
           <ArrowLeft />
@@ -73,7 +73,7 @@ export default function OutletListDetailPage() {
     <div className="flex flex-col gap-6">
       <Button
         variant="ghost"
-        onClick={() => router.push('/outlets')}
+        onClick={() => router.push('/dashboard/outlets')}
         className="w-fit"
       >
         <ArrowLeft />

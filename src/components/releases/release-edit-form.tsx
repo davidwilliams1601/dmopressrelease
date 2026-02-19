@@ -124,7 +124,7 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
         description: 'Your press release has been deleted successfully.',
       });
 
-      router.push('/releases');
+      router.push('/dashboard/releases');
     } catch (error) {
       console.error('Error deleting release:', error);
       toast({
