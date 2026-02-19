@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import { NewRecipientDialog } from '@/components/outlets/new-recipient-dialog';
+import { CsvImportDialog } from '@/components/outlets/csv-import-dialog';
 import { RecipientsTable } from '@/components/outlets/recipients-table';
 
 export default function OutletListDetailPage() {
@@ -88,7 +89,10 @@ export default function OutletListDetailPage() {
           </p>
         </div>
         {orgId && listId && (
-          <NewRecipientDialog orgId={orgId} listId={listId} />
+          <div className="flex items-center gap-2">
+            <CsvImportDialog orgId={orgId} listId={listId} />
+            <NewRecipientDialog orgId={orgId} listId={listId} />
+          </div>
         )}
       </div>
 
