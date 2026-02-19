@@ -17,6 +17,22 @@
       ]
     },
     {
+      "collectionGroup": "sendJobs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "releaseId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "releaseId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "mediaRequests",
       "queryScope": "COLLECTION",
       "fields": [

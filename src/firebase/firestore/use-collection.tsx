@@ -114,8 +114,14 @@ export function useCollection<T = any>(
         setData(null)
         setIsLoading(false)
 
-        // trigger global error propagation
-        errorEmitter.emit('permission-error', contextualError);
+        // Only propagate genuine permission-denied errors globally.
+        // Other errors (missing index, network, etc.) are handled locally
+        // by each component's error state to avoid crashing the whole page.
+        if (error.code === 'permission-denied') {
+          errorEmitter.emit('permission-error', contextualError);
+        } else {
+          console.error(`Firestore error on ${path}:`, error.code, error.message);
+        }
       }
     );
 
