@@ -197,6 +197,18 @@ service cloud.firestore {
     }
 
     /**
+     * @description Rules for Media Request documents submitted by journalists.
+     * @path /orgs/{orgId}/mediaRequests/{requestId}
+     * @principle Public writes are handled exclusively by the submitStoryRequest Cloud Function.
+     *            Team members can read and update status. No client-side create or delete.
+     */
+    match /orgs/{orgId}/mediaRequests/{requestId} {
+      allow read: if isTeamMember(orgId);
+      allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
+      allow create, delete: if false; // Cloud Function only
+    }
+
+    /**
      * @description Rules for Partner Submission documents.
      * @path /orgs/{orgId}/submissions/{submissionId}
      * @principle Team members can read all submissions. Partners can only read their own.

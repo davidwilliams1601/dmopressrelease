@@ -20,6 +20,7 @@ import {
   Inbox,
   Tag,
   Link as LinkIcon,
+  Newspaper,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useUserData } from '@/hooks/use-user-data';
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { href: '/dashboard/releases', icon: FileText, label: 'Releases' },
   { href: '/dashboard/submissions', icon: Inbox, label: 'Submissions' },
+  { href: '/dashboard/media-requests', icon: Newspaper, label: 'Media Requests' },
   { href: '/dashboard/outlets', icon: Users, label: 'Outlets' },
   { href: '/dashboard/settings/team', icon: UserCog, label: 'Team' },
   { href: '/dashboard/settings/tags', icon: Tag, label: 'Tags', adminOnly: true },

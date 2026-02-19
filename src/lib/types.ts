@@ -140,6 +140,21 @@ export type PartnerSubmission = {
   usedInReleaseIds?: string[];
 };
 
+export type MediaRequest = {
+  id: string;
+  orgId: string;
+  name: string;
+  email: string;
+  outlet: string;
+  topic: string;
+  destinations?: string;
+  deadline?: string;
+  additionalInfo?: string;
+  status: 'new' | 'in-progress' | 'completed' | 'archived';
+  createdAt: Date | any;
+  updatedAt?: Date | any;
+};
+
 export type EmailEvent = {
   id: string;
   orgId: string;
