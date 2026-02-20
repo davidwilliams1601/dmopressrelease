@@ -26,6 +26,7 @@ import { useFirestore } from '@/firebase';
 import { setDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 import { ImageUpload } from './image-upload';
 
 type NewReleaseDialogProps = {
@@ -37,6 +38,7 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   
   // Generate a release ID upfront for image upload
   const [releaseId] = useState(() => doc(collection(firestore, 'orgs', orgId, 'releases')).id);
@@ -95,11 +97,7 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
       });
 
       setOpen(false);
-      // Reset form and image state
-      (e.target as HTMLFormElement).reset();
-      setImageUrl(undefined);
-      setImageStoragePath(undefined);
-      setImageMetadata(undefined);
+      router.push(`/dashboard/releases/${releaseId}`);
     } catch (error) {
       console.error('Error creating press release:', error);
       toast({
