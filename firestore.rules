@@ -209,6 +209,18 @@ service cloud.firestore {
     }
 
     /**
+     * @description Rules for Web Content documents generated from partner submissions.
+     * @path /orgs/{orgId}/webContent/{contentId}
+     * @principle Team members only (Admin/User). Partners cannot access web content.
+     */
+    match /orgs/{orgId}/webContent/{contentId} {
+      allow read: if isTeamMember(orgId);
+      allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isTeamMember(orgId) && resource != null;
+    }
+
+    /**
      * @description Rules for Partner Submission documents.
      * @path /orgs/{orgId}/submissions/{submissionId}
      * @principle Team members can read all submissions. Partners can only read their own.

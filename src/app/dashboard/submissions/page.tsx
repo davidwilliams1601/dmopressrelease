@@ -6,7 +6,6 @@ import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, orderBy, query } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -17,7 +16,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { SubmissionsTable } from '@/components/submissions/submissions-table';
 import { GenerateDraftDialog } from '@/components/submissions/generate-draft-dialog';
-import { Inbox, Sparkles } from 'lucide-react';
+import { GenerateWebContentDialog } from '@/components/submissions/generate-web-content-dialog';
+import { Inbox } from 'lucide-react';
 import type { PartnerSubmission, Tag } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -83,12 +83,20 @@ export default function SubmissionsPage() {
           </p>
         </div>
         {selectedIds.length > 0 && orgId && (
-          <GenerateDraftDialog
-            orgId={orgId}
-            submissions={selectedSubmissions}
-            tags={tags}
-            onDraftCreated={() => setSelectedIds([])}
-          />
+          <div className="flex items-center gap-2">
+            <GenerateWebContentDialog
+              orgId={orgId}
+              submissions={selectedSubmissions}
+              tags={tags}
+              onContentCreated={() => setSelectedIds([])}
+            />
+            <GenerateDraftDialog
+              orgId={orgId}
+              submissions={selectedSubmissions}
+              tags={tags}
+              onDraftCreated={() => setSelectedIds([])}
+            />
+          </div>
         )}
       </div>
 

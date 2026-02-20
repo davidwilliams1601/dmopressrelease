@@ -155,6 +155,21 @@ export type MediaRequest = {
   updatedAt?: Date | any;
 };
 
+export type WebContent = {
+  id: string;
+  orgId: string;
+  title: string;
+  metaDescription: string;
+  introParagraph: string;
+  sections: Array<{ heading: string; body: string }>;
+  contentType: string;
+  targetMarket?: string;
+  status: 'Draft' | 'Ready' | 'Published';
+  sourceSubmissionIds: string[];
+  createdAt: Date | any;
+  updatedAt?: Date | any;
+};
+
 export type EmailEvent = {
   id: string;
   orgId: string;
