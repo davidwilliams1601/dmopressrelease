@@ -36,6 +36,17 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * Convert bare http/https URLs in already-escaped HTML text into clickable anchor tags.
+ * Must be called AFTER escapeHtml so that & in query strings is already &amp; (valid in href).
+ */
+function linkifyHtml(escapedText: string): string {
+  return escapedText.replace(
+    /https?:\/\/[^\s<>"']+/g,
+    (url) => `<a href="${url}" style="color: #2563eb;">${url}</a>`
+  );
+}
+
 // Validate that a URL is safe for use in email templates
 function isValidUrl(url: string): boolean {
   try {
@@ -213,7 +224,7 @@ async function sendEmail(recipient: any, release: any, orgId: string, org: any) 
  */
 function formatEmailHtml(release: any, recipient: any, org?: any): string {
   const headline = escapeHtml(release.headline || '');
-  const bodyCopy = escapeHtml(release.bodyCopy || '');
+  const bodyCopy = linkifyHtml(escapeHtml(release.bodyCopy || ''));
   const recipientName = escapeHtml(recipient.name || '');
   const recipientEmail = escapeHtml(recipient.email || '');
   const recipientOutlet = escapeHtml(recipient.outlet || '');

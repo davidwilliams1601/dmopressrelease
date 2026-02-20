@@ -179,6 +179,13 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
         ? admin.firestore.Timestamp.fromMillis(event.timestamp * 1000)
         : admin.firestore.Timestamp.now();
 
+      // Build metadata omitting undefined/empty fields — Firestore rejects undefined values
+      const metadata: Record<string, string> = {};
+      if (event.useragent) metadata.userAgent = event.useragent;
+      if (event.ip) metadata.ip = event.ip;
+      if (event.url) metadata.url = event.url;
+      if (event.reason) metadata.reason = event.reason;
+
       const eventData = {
         id: eventRef.id,
         orgId,
@@ -186,12 +193,7 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
         recipientEmail: event.email,
         eventType,
         timestamp: eventTimestamp,
-        metadata: {
-          userAgent: event.useragent || undefined,
-          ip: event.ip || undefined,
-          url: event.url || undefined,
-          reason: event.reason || undefined,
-        },
+        metadata,
       };
 
       const releaseRef = db
