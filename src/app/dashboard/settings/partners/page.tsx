@@ -5,6 +5,7 @@ import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, orderBy, query } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -15,8 +16,10 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GenerateInviteDialog } from '@/components/settings/generate-invite-dialog';
-import { Link as LinkIcon } from 'lucide-react';
-import type { PartnerInvite } from '@/lib/types';
+import { Link as LinkIcon, Users, Mail } from 'lucide-react';
+import { format } from 'date-fns';
+import { toDate } from '@/lib/utils';
+import type { PartnerInvite, User } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,10 +36,20 @@ export default function PartnersPage() {
     );
   }, [firestore, orgId]);
 
-  const { data: invitesData, isLoading: isInvitesLoading } = useCollection<PartnerInvite>(invitesRef);
-  const invites = invitesData || [];
+  const usersRef = useMemoFirebase(() => {
+    if (!orgId) return null;
+    return query(
+      collection(firestore, 'orgs', orgId, 'users'),
+      orderBy('createdAt', 'desc')
+    );
+  }, [firestore, orgId]);
 
-  if (isUserLoading) {
+  const { data: invitesData, isLoading: isInvitesLoading } = useCollection<PartnerInvite>(invitesRef);
+  const { data: usersData, isLoading: isUsersLoading } = useCollection<User>(usersRef);
+  const invites = invitesData || [];
+  const partnerAccounts = (usersData || []).filter((u) => u.role === 'Partner');
+
+  if (isUserLoading || isUsersLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
@@ -52,12 +65,6 @@ export default function PartnersPage() {
       </div>
     );
   }
-
-  const formatDate = (date: any) => {
-    if (!date) return '-';
-    const d = date.toDate ? date.toDate() : new Date(date);
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
 
   return (
     <div className="space-y-6">
@@ -121,7 +128,64 @@ export default function PartnersPage() {
                     <TableCell>
                       {invite.useCount}{invite.maxUses ? ` / ${invite.maxUses}` : ''}
                     </TableCell>
-                    <TableCell>{formatDate(invite.createdAt)}</TableCell>
+                    <TableCell>
+                      {invite.createdAt ? format(toDate(invite.createdAt), 'dd MMM yyyy') : '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Partner Accounts
+          </CardTitle>
+          <CardDescription>
+            {partnerAccounts.length} partner{partnerAccounts.length !== 1 ? 's' : ''} with active accounts
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {partnerAccounts.length === 0 ? (
+            <p className="py-8 text-center text-muted-foreground">
+              No partner accounts yet. Share an invite link above for partners to sign up.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Partner</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {partnerAccounts.map((partner) => (
+                  <TableRow key={partner.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+                          {partner.initials || partner.name?.slice(0, 2).toUpperCase()}
+                        </div>
+                        <span className="font-medium">{partner.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{partner.email}</TableCell>
+                    <TableCell>
+                      {partner.createdAt ? format(toDate(partner.createdAt), 'dd MMM yyyy') : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={`mailto:${partner.email}`}>
+                          <Mail className="h-4 w-4" />
+                          Email
+                        </a>
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

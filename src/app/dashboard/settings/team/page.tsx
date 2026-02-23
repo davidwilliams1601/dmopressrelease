@@ -65,7 +65,7 @@ export default function TeamPage() {
     }, [firestore, orgId])
   );
 
-  const users = usersQuery.data || [];
+  const users = (usersQuery.data || []).filter((u) => u.role !== 'Partner');
   const isAdmin = role === 'Admin';
 
   const handleRoleChange = async (userId: string, newRole: string) => {
@@ -178,7 +178,7 @@ export default function TeamPage() {
         <CardHeader>
           <CardTitle className="font-headline">Team Members</CardTitle>
           <CardDescription>
-            {users.length} {users.length === 1 ? 'member' : 'members'} in your organization
+            {users.length} staff {users.length === 1 ? 'member' : 'members'} — partners are managed separately under Partners
           </CardDescription>
         </CardHeader>
         <CardContent>
