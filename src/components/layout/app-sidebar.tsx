@@ -22,6 +22,7 @@ import {
   Link as LinkIcon,
   Newspaper,
   Globe,
+  Building2,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useUserData } from '@/hooks/use-user-data';
@@ -42,7 +43,7 @@ const navItems = [
 
 export default function AppSidebar() {
   const pathname = usePathname();
-  const { role } = useUserData();
+  const { role, isSuperAdmin } = useUserData();
   const isAdmin = role === 'Admin';
 
   const filteredNavItems = navItems.filter(
@@ -76,6 +77,25 @@ export default function AppSidebar() {
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
+        {isSuperAdmin && (
+          <>
+            <SidebarSeparator className="my-2" />
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/dashboard/admin')}
+                  tooltip={{ children: 'Organisations' }}
+                >
+                  <a href="/dashboard/admin/orgs">
+                    <Building2 />
+                    <span>Organisations</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-2">
         <SidebarMenu>

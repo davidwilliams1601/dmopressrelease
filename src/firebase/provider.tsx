@@ -21,6 +21,7 @@ interface UserAuthState {
   isUserLoading: boolean;
   userError: Error | null;
   orgId: string | null;
+  isSuperAdmin: boolean;
 }
 
 // Combined state for the Firebase context
@@ -35,6 +36,7 @@ export interface FirebaseContextState {
   isUserLoading: boolean; // True during initial auth check
   userError: Error | null; // Error from auth listener
   orgId: string | null; // Resolved once from token claims; shared so components don't re-resolve on remount
+  isSuperAdmin: boolean; // True if the user has the superAdmin custom claim
 }
 
 // Return type for useFirebase()
@@ -47,6 +49,7 @@ export interface FirebaseServicesAndUser {
   isUserLoading: boolean;
   userError: Error | null;
   orgId: string | null;
+  isSuperAdmin: boolean;
 }
 
 // Return type for useUser() - specific to user auth state
@@ -74,16 +77,17 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     isUserLoading: true, // Start loading until first auth event
     userError: null,
     orgId: null,
+    isSuperAdmin: false,
   });
 
   // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
     if (!auth) { // If no Auth service instance, cannot determine user state
-      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided."), orgId: null });
+      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided."), orgId: null, isSuperAdmin: false });
       return;
     }
 
-    setUserAuthState({ user: null, isUserLoading: true, userError: null, orgId: null }); // Reset on auth instance change
+    setUserAuthState({ user: null, isUserLoading: true, userError: null, orgId: null, isSuperAdmin: false }); // Reset on auth instance change
 
     const unsubscribe = onAuthStateChanged(
       auth,
@@ -102,17 +106,18 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
           try {
             const tokenResult = await firebaseUser.getIdTokenResult();
             const claimsOrgId = (tokenResult.claims.orgId as string | undefined) || 'visit-kent';
-            setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null, orgId: claimsOrgId });
+            const claimsSuperAdmin = (tokenResult.claims.superAdmin as boolean | undefined) || false;
+            setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null, orgId: claimsOrgId, isSuperAdmin: claimsSuperAdmin });
           } catch {
-            setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null, orgId: 'visit-kent' });
+            setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null, orgId: 'visit-kent', isSuperAdmin: false });
           }
         } else {
-          setUserAuthState({ user: null, isUserLoading: false, userError: null, orgId: null });
+          setUserAuthState({ user: null, isUserLoading: false, userError: null, orgId: null, isSuperAdmin: false });
         }
       },
       (error) => { // Auth listener error
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
-        setUserAuthState({ user: null, isUserLoading: false, userError: error, orgId: null });
+        setUserAuthState({ user: null, isUserLoading: false, userError: error, orgId: null, isSuperAdmin: false });
       }
     );
     return () => unsubscribe(); // Cleanup
@@ -131,6 +136,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,
       orgId: userAuthState.orgId,
+      isSuperAdmin: userAuthState.isSuperAdmin,
     };
   }, [firebaseApp, firestore, auth, storage, userAuthState]);
 
@@ -166,6 +172,7 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     isUserLoading: context.isUserLoading,
     userError: context.userError,
     orgId: context.orgId,
+    isSuperAdmin: context.isSuperAdmin,
   };
 };
 

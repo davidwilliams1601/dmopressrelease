@@ -331,3 +331,6 @@ export * from './submission-analysis';
 
 // Export media request functions
 export * from './media-requests';
+
+// Export super-admin functions
+export * from './super-admin';

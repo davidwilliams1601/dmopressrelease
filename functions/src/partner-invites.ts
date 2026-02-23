@@ -92,12 +92,19 @@ export const createPartnerInvite = functions.https.onCall(async (data, context) 
  * This function does NOT require authentication (new users calling it).
  */
 export const redeemPartnerInvite = functions.https.onCall(async (data) => {
-  const { code, email, password, name } = data;
+  const { code, email, password, name, consentContentUsage, consentMarketing } = data;
 
   if (!code || !email || !password || !name) {
     throw new functions.https.HttpsError(
       'invalid-argument',
       'Missing required fields: code, email, password, name'
+    );
+  }
+
+  if (!consentContentUsage) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'You must agree to the content usage terms to create a partner account.'
     );
   }
 
@@ -164,6 +171,8 @@ export const redeemPartnerInvite = functions.https.onCall(async (data) => {
     // Set custom claims with orgId
     await admin.auth().setCustomUserClaims(userRecord.uid, { orgId });
 
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
     // Create the Firestore user document with Partner role
     await db
       .collection('orgs')
@@ -178,7 +187,11 @@ export const redeemPartnerInvite = functions.https.onCall(async (data) => {
         initials,
         role: 'Partner',
         inviteId: inviteDoc.id,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        consentContentUsage: true,
+        consentContentUsageAt: now,
+        consentMarketing: consentMarketing === true,
+        consentMarketingAt: now,
+        createdAt: now,
       });
 
     // Increment the invite use count

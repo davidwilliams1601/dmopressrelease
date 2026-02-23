@@ -17,7 +17,7 @@ interface UserData {
  * Reads orgId from FirebaseProvider context (resolved once at auth time via token claims).
  */
 export function useUserData() {
-  const { firestore, user, isUserLoading, orgId } = useFirebase();
+  const { firestore, user, isUserLoading, orgId, isSuperAdmin } = useFirebase();
 
   const userDoc = useDoc<UserData>(
     useMemoFirebase(() => {
@@ -34,5 +34,6 @@ export function useUserData() {
     role: userDoc.data?.role,
     email: userDoc.data?.email,
     name: userDoc.data?.name,
+    isSuperAdmin,
   };
 }
