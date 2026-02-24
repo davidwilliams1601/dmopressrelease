@@ -29,9 +29,8 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useRouter } from 'next/navigation';
 import { generateWebContentFromSubmissions } from '@/ai/flows/generate-web-content-from-submissions';
+import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import type { PartnerSubmission, Tag, Organization } from '@/lib/types';
-
-const CONTENT_TYPES = ["What's New", 'Event Listing', 'Destination Guide', 'Seasonal Update', 'General'];
 
 type GenerateWebContentDialogProps = {
   orgId: string;
@@ -61,6 +60,7 @@ export function GenerateWebContentDialog({
   const { firestore } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
+  const { config } = useVerticalConfig(orgId);
 
   const tagMap = new Map(tags.map((t) => [t.id, t]));
 
@@ -87,11 +87,14 @@ export function GenerateWebContentDialog({
         contentType: contentType || undefined,
         targetMarket: targetMarket || undefined,
         additionalInstructions: instructions || undefined,
+        orgTypeDescription: config.ai.orgTypeDescription,
+        webContentStyle: config.ai.webContentStyle,
+        suggestedContentTypeInstruction: config.ai.suggestedContentTypeInstruction,
       });
 
       if (result.success) {
         setDraft(result.data);
-        if (result.data.suggestedContentType && CONTENT_TYPES.includes(result.data.suggestedContentType)) {
+        if (result.data.suggestedContentType && config.ai.webContentTypes.includes(result.data.suggestedContentType)) {
           setContentType(result.data.suggestedContentType);
         }
       } else {
@@ -238,7 +241,7 @@ export function GenerateWebContentDialog({
                     <SelectValue placeholder="Select content type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CONTENT_TYPES.map((type) => (
+                    {config.ai.webContentTypes.map((type) => (
                       <SelectItem key={type} value={type}>{type}</SelectItem>
                     ))}
                   </SelectContent>

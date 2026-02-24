@@ -16,6 +16,8 @@ import {
   Book,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { useUserData } from '@/hooks/use-user-data';
+import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import UserNav from './user-nav';
 
 const navItems = [
@@ -25,6 +27,8 @@ const navItems = [
 
 export default function PartnerSidebar() {
   const pathname = usePathname();
+  const { orgId } = useUserData();
+  const { config } = useVerticalConfig(orgId);
 
   return (
     <>
@@ -37,7 +41,7 @@ export default function PartnerSidebar() {
         </div>
         <div className="px-2">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Partner Portal
+            {config.nav.partnerPortalTitle}
           </span>
         </div>
       </SidebarHeader>

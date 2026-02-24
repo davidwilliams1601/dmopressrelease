@@ -15,6 +15,9 @@ const GenerateDraftInputSchema = z.object({
   brandToneNotes: z.string().describe('Organization brand and tone guidelines'),
   targetMarket: z.string().optional().describe('Target market for the press release'),
   additionalInstructions: z.string().optional().describe('Extra instructions for the AI'),
+  orgTypeDescription: z.string().optional().describe('Organisation type (e.g. "Destination Marketing Organization")'),
+  contentDomain: z.string().optional().describe('Content domain (e.g. "tourism experiences")'),
+  audienceOptions: z.array(z.string()).optional().describe('Valid audience options for the press release'),
 });
 
 export type GenerateDraftInput = z.infer<typeof GenerateDraftInputSchema>;
@@ -50,7 +53,7 @@ ${s.bodyCopy}`
       .join('\n\n');
 
     const {output} = await ai.generate({
-      prompt: `You are an expert PR writer for a Destination Marketing Organization. Given the following partner submissions about tourism experiences, generate a professional press release draft that weaves them into a cohesive narrative organized by theme.
+      prompt: `You are an expert PR writer for a ${input.orgTypeDescription ?? 'Destination Marketing Organization'}. Given the following partner submissions about ${input.contentDomain ?? 'tourism experiences'}, generate a professional press release draft that weaves them into a cohesive narrative organized by theme.
 
 Brand Tone: ${input.brandToneNotes}
 Target Market: ${input.targetMarket || 'General'}
@@ -63,7 +66,7 @@ Generate a press release with:
 1. A compelling headline
 2. Professional body copy that combines the submissions into a cohesive story
 3. A suggested campaign type (Seasonal, Product Launch, Event, Partnership, Award, or General)
-4. A suggested audience (Travel Trade, Consumer, or Hybrid)
+4. A suggested audience (${(input.audienceOptions ?? ['Travel Trade', 'Consumer', 'Hybrid']).join(', ')})
 
 The body copy should be well-structured with paragraphs, quotes where appropriate, and a professional journalistic tone.`,
       output: {schema: GenerateDraftOutputSchema},

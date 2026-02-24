@@ -1,3 +1,5 @@
+export type VerticalId = 'dmo' | 'charity' | 'trade-body';
+
 export type Organization = {
   id: string;
   name: string;
@@ -5,6 +7,7 @@ export type Organization = {
   boilerplate: string;
   brandToneNotes: string;
   createdAt?: any;
+  vertical?: VerticalId;
   pressContact?: {
     name: string;
     email: string;

@@ -59,6 +59,7 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
     pressContactEmail,
     adminName,
     adminEmail,
+    vertical,
   } = data;
 
   if (!orgName || !orgSlug || !adminName || !adminEmail) {
@@ -97,6 +98,7 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
       slug: orgSlug,
       boilerplate: boilerplate || '',
       brandToneNotes: brandToneNotes || '',
+      vertical: vertical || 'dmo',
       pressContact: {
         name: pressContactName || '',
         email: pressContactEmail || '',

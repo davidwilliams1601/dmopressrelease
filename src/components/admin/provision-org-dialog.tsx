@@ -15,9 +15,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Plus, Copy, Check, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { VERTICALS } from '@/lib/verticals';
+import type { VerticalId } from '@/lib/types';
 
 type ProvisionResult = {
   orgId: string;
@@ -45,6 +54,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
   const [pressContactEmail, setPressContactEmail] = useState('');
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const [vertical, setVertical] = useState<VerticalId>('dmo');
 
   const handleOrgNameChange = (value: string) => {
     setOrgName(value);
@@ -67,6 +77,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
         pressContactEmail,
         adminName,
         adminEmail,
+        vertical,
       });
       setResult(response.data);
       onOrgProvisioned();
@@ -93,6 +104,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
     setOrgName(''); setOrgSlug(''); setBoilerplate(''); setBrandToneNotes('');
     setPressContactName(''); setPressContactEmail('');
     setAdminName(''); setAdminEmail('');
+    setVertical('dmo');
   };
 
   return (
@@ -148,12 +160,25 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
             <DialogHeader>
               <DialogTitle>Provision New Organisation</DialogTitle>
               <DialogDescription>
-                Creates a new DMO org and its first admin account.
+                Creates a new organisation and its first admin account.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-6 py-4">
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Organisation</h3>
+                <div className="grid gap-2">
+                  <Label htmlFor="vertical">Sector / Vertical</Label>
+                  <Select value={vertical} onValueChange={(v) => setVertical(v as VerticalId)}>
+                    <SelectTrigger id="vertical">
+                      <SelectValue placeholder="Select sector" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.values(VERTICALS).map((v) => (
+                        <SelectItem key={v.id} value={v.id}>{v.displayName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid gap-2">
                   <Label htmlFor="orgName">Organisation Name *</Label>
                   <Input

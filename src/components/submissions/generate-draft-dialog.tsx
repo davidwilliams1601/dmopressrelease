@@ -22,6 +22,7 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useRouter } from 'next/navigation';
 import { generateDraftFromSubmissions } from '@/ai/flows/generate-draft-from-submissions';
+import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import type { PartnerSubmission, Tag, Organization } from '@/lib/types';
 
 type GenerateDraftDialogProps = {
@@ -50,6 +51,7 @@ export function GenerateDraftDialog({
   const { firestore } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
+  const { config } = useVerticalConfig(orgId);
 
   const tagMap = new Map(tags.map((t) => [t.id, t]));
 
@@ -75,6 +77,9 @@ export function GenerateDraftDialog({
         brandToneNotes: org?.brandToneNotes || '',
         targetMarket: targetMarket || undefined,
         additionalInstructions: instructions || undefined,
+        orgTypeDescription: config.ai.orgTypeDescription,
+        contentDomain: config.ai.contentDomain,
+        audienceOptions: config.ai.audienceOptions,
       });
 
       if (result.success) {

@@ -5,6 +5,8 @@ import {z} from 'genkit';
 const AnalyzeThemesInputSchema = z.object({
   title: z.string().describe('The submission title'),
   bodyCopy: z.string().describe('The submission content body'),
+  expertPersona: z.string().optional().describe('The expert persona for the AI (e.g. "tourism and travel PR expert")'),
+  themeExamples: z.string().optional().describe('Comma-separated examples of relevant themes'),
 });
 
 export type AnalyzeThemesInput = z.infer<typeof AnalyzeThemesInputSchema>;
@@ -27,14 +29,14 @@ export async function analyzeSubmissionThemes(
     const {ai} = await import('@/ai/genkit');
 
     const {output} = await ai.generate({
-      prompt: `You are a tourism and travel PR expert. Analyze the following content submission from a tourism partner and identify the key themes.
+      prompt: `You are a ${input.expertPersona ?? 'tourism and travel PR expert'}. Analyze the following content submission and identify the key themes.
 
 Title: ${input.title}
 
 Content:
 ${input.bodyCopy}
 
-Identify 2-5 themes relevant to travel and tourism PR (e.g., "Cultural Heritage", "Adventure Tourism", "Food & Drink", "Family Activities", "Sustainability", "Events & Festivals", "Accommodation", "Nature & Wildlife", etc.). Be specific and relevant to the content.`,
+Identify 2-5 relevant themes (e.g., ${input.themeExamples ?? '"Cultural Heritage", "Adventure Tourism", "Food & Drink", "Family Activities", "Sustainability", "Events & Festivals", "Accommodation", "Nature & Wildlife"'}, etc.). Be specific and relevant to the content.`,
       output: {schema: AnalyzeThemesOutputSchema},
     });
 

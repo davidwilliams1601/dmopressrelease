@@ -26,24 +26,26 @@ import {
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useUserData } from '@/hooks/use-user-data';
+import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import UserNav from './user-nav';
-
-const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', exact: true },
-  { href: '/dashboard/releases', icon: FileText, label: 'Releases' },
-  { href: '/dashboard/content', icon: Globe, label: 'Content' },
-  { href: '/dashboard/submissions', icon: Inbox, label: 'Submissions' },
-  { href: '/dashboard/media-requests', icon: Newspaper, label: 'Media Requests' },
-  { href: '/dashboard/outlets', icon: Users, label: 'Outlets' },
-  { href: '/dashboard/settings/team', icon: UserCog, label: 'Team' },
-  { href: '/dashboard/settings/tags', icon: Tag, label: 'Tags', adminOnly: true },
-  { href: '/dashboard/settings/partners', icon: LinkIcon, label: 'Partners', adminOnly: true },
-  { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
-];
 
 export default function AppSidebar() {
   const pathname = usePathname();
-  const { role, isSuperAdmin } = useUserData();
+  const { role, isSuperAdmin, orgId } = useUserData();
+  const { config } = useVerticalConfig(orgId);
+
+  const navItems = [
+    { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+    { href: '/dashboard/releases', icon: FileText, label: config.nav.releases },
+    { href: '/dashboard/content', icon: Globe, label: config.nav.content },
+    { href: '/dashboard/submissions', icon: Inbox, label: config.nav.submissions },
+    { href: '/dashboard/media-requests', icon: Newspaper, label: config.nav.mediaRequests },
+    { href: '/dashboard/outlets', icon: Users, label: config.nav.outlets },
+    { href: '/dashboard/settings/team', icon: UserCog, label: 'Team' },
+    { href: '/dashboard/settings/tags', icon: Tag, label: 'Tags', adminOnly: true },
+    { href: '/dashboard/settings/partners', icon: LinkIcon, label: config.nav.partnersSettings, adminOnly: true },
+    { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
+  ];
   const isAdmin = role === 'Admin';
 
   const filteredNavItems = navItems.filter(

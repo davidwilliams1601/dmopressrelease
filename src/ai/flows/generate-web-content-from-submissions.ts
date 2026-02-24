@@ -16,6 +16,9 @@ const GenerateWebContentInputSchema = z.object({
   contentType: z.string().optional().describe('Target content type for the web page section'),
   targetMarket: z.string().optional().describe('Target market for the web content'),
   additionalInstructions: z.string().optional().describe('Extra instructions for the AI'),
+  orgTypeDescription: z.string().optional().describe('Organisation type (e.g. "Destination Marketing Organization")'),
+  webContentStyle: z.string().optional().describe('Writing style guideline (e.g. "Action-oriented, visitor-focused language")'),
+  suggestedContentTypeInstruction: z.string().optional().describe('Instruction for which content type to suggest'),
 });
 
 export type GenerateWebContentInput = z.infer<typeof GenerateWebContentInputSchema>;
@@ -57,7 +60,7 @@ ${s.bodyCopy}`
       .join('\n\n');
 
     const {output} = await ai.generate({
-      prompt: `You are an expert digital content writer for a Destination Marketing Organization. Given the following partner submissions, generate structured, web-optimised content for the DMO's website.
+      prompt: `You are an expert digital content writer for a ${input.orgTypeDescription ?? 'Destination Marketing Organization'}. Given the following partner submissions, generate structured, web-optimised content for the organisation's website.
 
 Brand Tone: ${input.brandToneNotes}
 Content Type: ${input.contentType || 'General'}
@@ -75,10 +78,10 @@ Generate web content with:
 
 Writing style guidelines:
 - Use short paragraphs and scannable headings (not journalistic press release prose)
-- Action-oriented, visitor-focused language
+- ${input.webContentStyle ?? 'Action-oriented, visitor-focused language'}
 - Active voice throughout
 - Keep section body copy to 2-4 sentences each
-- Suggest the most appropriate content type from: "What's New", "Event Listing", "Destination Guide", "Seasonal Update", "General"`,
+- ${input.suggestedContentTypeInstruction ?? 'Suggest the most appropriate content type from: "What\'s New", "Event Listing", "Destination Guide", "Seasonal Update", "General"'}`,
       output: {schema: GenerateWebContentOutputSchema},
     });
 
