@@ -23,6 +23,8 @@ export type User = {
   role: 'Admin' | 'User' | 'Partner';
   createdAt: Date | any;
   inviteId?: string;
+  avatarUrl?: string;
+  avatarStoragePath?: string;
 };
 
 export type Release = {

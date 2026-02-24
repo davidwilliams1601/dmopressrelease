@@ -10,6 +10,8 @@ interface UserData {
   name?: string;
   initials?: string;
   createdAt: any;
+  avatarUrl?: string;
+  avatarStoragePath?: string;
 }
 
 /**

@@ -15,8 +15,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useAuth, useUser } from '@/firebase';
+import { useUserData } from '@/hooks/use-user-data';
 import { LogOut, User } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -24,9 +24,9 @@ import { Skeleton } from '../ui/skeleton';
 
 export default function UserNav() {
   const { user, isUserLoading } = useUser();
+  const { userData } = useUserData();
   const auth = useAuth();
   const router = useRouter();
-  const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -57,11 +57,7 @@ export default function UserNav() {
           className="relative size-8 rounded-full md:size-auto md:w-full md:justify-start md:gap-2 md:rounded-md md:p-2"
         >
           <Avatar className="size-8">
-            <AvatarImage
-              src={userAvatar?.imageUrl}
-              alt={userDisplayName}
-              data-ai-hint={userAvatar?.imageHint}
-            />
+            <AvatarImage src={userData?.avatarUrl} alt={userDisplayName} />
             <AvatarFallback>{userInitials}</AvatarFallback>
           </Avatar>
           <div className="hidden flex-col items-start md:flex">
@@ -72,11 +68,15 @@ export default function UserNav() {
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{userDisplayName}</p>
-            <p className="text-xs leading-none text-muted-foreground">
-              {userEmail}
-            </p>
+          <div className="flex items-center gap-2">
+            <Avatar className="size-8">
+              <AvatarImage src={userData?.avatarUrl} alt={userDisplayName} />
+              <AvatarFallback>{userInitials}</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col space-y-0.5">
+              <p className="text-sm font-medium leading-none">{userDisplayName}</p>
+              <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+            </div>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

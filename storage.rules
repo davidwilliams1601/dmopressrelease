@@ -44,6 +44,25 @@ service firebase.storage {
       allow delete: if isOrgMember();
     }
 
+    // User avatar images
+    match /orgs/{orgId}/users/{userId}/{fileName} {
+      function isOrgMember() {
+        return request.auth != null
+          && firestore.exists(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid));
+      }
+
+      // Any org member can view avatars (e.g. team list)
+      allow read: if isOrgMember();
+
+      // Only the user themselves can upload/replace their own avatar
+      allow write: if request.auth != null
+                      && request.auth.uid == userId
+                      && request.resource.size < 5 * 1024 * 1024
+                      && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Deny all other access by default
     match /{allPaths=**} {
       allow read, write: if false;

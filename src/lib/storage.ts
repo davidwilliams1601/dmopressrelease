@@ -128,6 +128,37 @@ export async function deleteSubmissionImage(
   }
 }
 
+/**
+ * Uploads a user avatar to Firebase Storage.
+ * Path: orgs/{orgId}/users/{userId}/avatar.{ext}
+ */
+export async function uploadAvatarImage(
+  storage: FirebaseStorage,
+  orgId: string,
+  userId: string,
+  file: File
+): Promise<{ storagePath: string; downloadUrl: string }> {
+  const validation = validateImageFile(file);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+
+  const fileExtension = file.name.split('.').pop() || 'jpg';
+  const storagePath = `orgs/${orgId}/users/${userId}/avatar.${fileExtension}`;
+  const storageRef = ref(storage, storagePath);
+
+  await uploadBytes(storageRef, file, {
+    contentType: file.type,
+    customMetadata: {
+      originalFileName: file.name,
+      uploadedAt: new Date().toISOString(),
+    },
+  });
+
+  const downloadUrl = await getDownloadURL(storageRef);
+  return { storagePath, downloadUrl };
+}
+
 export async function deleteReleaseImage(
   storage: FirebaseStorage,
   storagePath: string

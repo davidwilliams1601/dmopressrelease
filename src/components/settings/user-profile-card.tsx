@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -12,7 +12,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Save } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Save, Camera, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebase } from '@/firebase';
 import { useUserData } from '@/hooks/use-user-data';
@@ -23,27 +24,78 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { uploadAvatarImage } from '@/lib/storage';
+import { ref, deleteObject } from 'firebase/storage';
 
 export default function UserProfileCard() {
-  const { auth, user, firestore } = useFirebase();
+  const { user, firestore, storage } = useFirebase();
   const { userData, orgId } = useUserData();
   const { toast } = useToast();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
 
-  // Seed fields once userData is loaded
   useEffect(() => {
     if (userData) {
       setName(userData.name || '');
       setEmail(userData.email || '');
+      setAvatarUrl(userData.avatarUrl);
     }
   }, [userData]);
 
   const originalEmail = userData?.email || '';
   const emailChanged = email.trim().toLowerCase() !== originalEmail.toLowerCase();
+
+  const initials = (userData?.initials || userData?.name?.split(' ').map((n) => n[0]).join('') || '?')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !orgId) return;
+
+    setIsUploadingAvatar(true);
+    try {
+      // Delete old avatar from Storage if one exists
+      if (userData?.avatarStoragePath) {
+        try {
+          const oldRef = ref(storage, userData.avatarStoragePath);
+          await deleteObject(oldRef);
+        } catch {
+          // Ignore — old file may already be gone
+        }
+      }
+
+      const { storagePath, downloadUrl } = await uploadAvatarImage(storage, orgId, user.uid, file);
+
+      // Update Firebase Auth photoURL
+      await updateProfile(user, { photoURL: downloadUrl });
+
+      // Update Firestore
+      const userRef = doc(firestore, 'orgs', orgId, 'users', user.uid);
+      await updateDoc(userRef, {
+        avatarUrl: downloadUrl,
+        avatarStoragePath: storagePath,
+        updatedAt: serverTimestamp(),
+      });
+
+      setAvatarUrl(downloadUrl);
+      toast({ title: 'Avatar updated', description: 'Your profile photo has been saved.' });
+    } catch (error: any) {
+      toast({ title: 'Upload failed', description: error.message || 'Failed to upload avatar.', variant: 'destructive' });
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset input so the same file can be re-selected if needed
+      e.target.value = '';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -62,7 +114,6 @@ export default function UserProfileCard() {
 
     setIsSaving(true);
     try {
-      // Reauthenticate first if email is changing
       if (emailChanged) {
         if (!user.email) throw new Error('No current email on account.');
         const credential = EmailAuthProvider.credential(user.email, currentPassword);
@@ -70,22 +121,19 @@ export default function UserProfileCard() {
         await updateEmail(user, email.trim());
       }
 
-      // Update Firebase Auth display name
       await updateProfile(user, { displayName: trimmedName });
 
-      // Derive initials from name
-      const initials = trimmedName
+      const newInitials = trimmedName
         .split(' ')
         .map((n) => n[0])
         .join('')
         .toUpperCase()
         .slice(0, 2);
 
-      // Update Firestore user document
       const userRef = doc(firestore, 'orgs', orgId, 'users', user.uid);
       await updateDoc(userRef, {
         name: trimmedName,
-        initials,
+        initials: newInitials,
         ...(emailChanged ? { email: email.trim() } : {}),
         updatedAt: serverTimestamp(),
       });
@@ -94,15 +142,10 @@ export default function UserProfileCard() {
       setCurrentPassword('');
     } catch (error: any) {
       const isWrongPassword =
-        error.code === 'auth/wrong-password' ||
-        error.code === 'auth/invalid-credential';
+        error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential';
       const isEmailInUse = error.code === 'auth/email-already-in-use';
       toast({
-        title: isWrongPassword
-          ? 'Incorrect password'
-          : isEmailInUse
-          ? 'Email already in use'
-          : 'Failed to update profile',
+        title: isWrongPassword ? 'Incorrect password' : isEmailInUse ? 'Email already in use' : 'Failed to update profile',
         description: isWrongPassword
           ? 'The current password you entered is incorrect.'
           : isEmailInUse
@@ -121,10 +164,50 @@ export default function UserProfileCard() {
         <CardHeader>
           <CardTitle className="font-headline">Your Profile</CardTitle>
           <CardDescription>
-            Update your display name and login email address.
+            Update your profile photo, display name, and login email address.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4">
+        <CardContent className="grid gap-6">
+          {/* Avatar upload */}
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Avatar className="size-16">
+                <AvatarImage src={avatarUrl} alt={name} />
+                <AvatarFallback className="text-lg">{initials}</AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={handleAvatarClick}
+                disabled={isUploadingAvatar}
+                className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 hover:opacity-100 transition-opacity disabled:opacity-50"
+                aria-label="Upload profile photo"
+              >
+                {isUploadingAvatar
+                  ? <Loader2 className="size-5 text-white animate-spin" />
+                  : <Camera className="size-5 text-white" />}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Profile Photo</p>
+              <button
+                type="button"
+                onClick={handleAvatarClick}
+                disabled={isUploadingAvatar}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                {isUploadingAvatar ? 'Uploading…' : 'Upload new photo'}
+              </button>
+              <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG or WebP. Max 5 MB.</p>
+            </div>
+          </div>
+
           <div className="grid gap-2">
             <Label htmlFor="profile-name">Full Name</Label>
             <Input
@@ -170,7 +253,7 @@ export default function UserProfileCard() {
         <CardFooter className="border-t px-6 py-4">
           <Button type="submit" disabled={isSaving || !name}>
             <Save />
-            {isSaving ? 'Saving...' : 'Save Profile'}
+            {isSaving ? 'Saving…' : 'Save Profile'}
           </Button>
         </CardFooter>
       </Card>
