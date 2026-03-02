@@ -46,6 +46,13 @@ export default function GettingStartedChecklist({ orgId, releases }: Props) {
     )
   );
 
+  const webContentQuery = useCollection(
+    useMemoFirebase(
+      () => query(collection(firestore, 'orgs', orgId, 'webContent'), limit(1)),
+      [firestore, orgId]
+    )
+  );
+
   const org = orgDoc.data;
 
   const steps: Step[] = [
@@ -78,6 +85,12 @@ export default function GettingStartedChecklist({ orgId, releases }: Props) {
       description: 'Distribute a release to your outlet list.',
       href: '/dashboard/releases',
       done: releases.some((r) => r.status === 'Sent'),
+    },
+    {
+      label: 'Generate your first web content',
+      description: 'Turn partner submissions into web-ready content with AI.',
+      href: '/dashboard/submissions',
+      done: (webContentQuery.data?.length ?? 0) > 0,
     },
   ];
 
