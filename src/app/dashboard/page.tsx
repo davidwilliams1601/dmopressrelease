@@ -3,6 +3,7 @@
 import AiInsights from '@/components/dashboard/ai-insights';
 import StatCard from '@/components/dashboard/stat-card';
 import ReleasesTable from '@/components/releases/releases-table';
+import GettingStartedChecklist from '@/components/dashboard/getting-started-checklist';
 import {
   Card,
   CardContent,
@@ -94,6 +95,8 @@ export default function DashboardPage() {
           Here's a summary of your PR activities.
         </p>
       </div>
+
+      <GettingStartedChecklist orgId={orgId!} releases={recentReleases} />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
