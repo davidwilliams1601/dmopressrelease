@@ -1,8 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Book } from 'lucide-react';
-import StoryRequestForm from '@/components/media/story-request-form';
-
-export const dynamic = 'force-dynamic';
+import { Book, AlertCircle } from 'lucide-react';
 
 export default function MediaPage() {
   return (
@@ -19,20 +16,18 @@ export default function MediaPage() {
 
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle className="font-headline text-2xl">Story Request</CardTitle>
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="font-headline text-2xl">Organisation Link Required</CardTitle>
+          </div>
           <CardDescription>
-            Pitching a story? Tell us about your angle and we&apos;ll be in touch with
-            assets, contacts, and any other support you need.
+            To submit a story request, please use the specific link provided by the
+            organisation you&apos;re pitching to. Contact their press team if you need
+            the correct link.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <StoryRequestForm />
-        </CardContent>
+        <CardContent />
       </Card>
-
-      <p className="mt-6 text-sm text-muted-foreground text-center max-w-sm">
-        Fields marked with * are required. We aim to respond within 2 business days.
-      </p>
     </main>
   );
 }

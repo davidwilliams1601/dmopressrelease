@@ -9,7 +9,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Send, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-export default function StoryRequestForm() {
+type Props = {
+  orgSlug: string;
+};
+
+export default function StoryRequestForm({ orgSlug }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [outlet, setOutlet] = useState('');
@@ -37,7 +41,7 @@ export default function StoryRequestForm() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            data: { name, email, outlet, topic, destinations, deadline, additionalInfo, honeypot },
+            data: { orgSlug, name, email, outlet, topic, destinations, deadline, additionalInfo, honeypot },
           }),
         }
       );

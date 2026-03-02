@@ -32,6 +32,7 @@ function escapeHtml(str: string): string {
  */
 export const submitStoryRequest = functions.https.onCall(async (data) => {
   const {
+    orgSlug,
     name,
     email,
     outlet,
@@ -51,6 +52,9 @@ export const submitStoryRequest = functions.https.onCall(async (data) => {
   }
 
   // 2. Validate required fields
+  if (!orgSlug || typeof orgSlug !== 'string' || orgSlug.trim().length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'Organisation is required.');
+  }
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     throw new functions.https.HttpsError('invalid-argument', 'Name is required.');
   }
@@ -65,9 +69,21 @@ export const submitStoryRequest = functions.https.onCall(async (data) => {
   }
 
   const cleanEmail = email.trim().toLowerCase();
-  const orgId: string = functions.config().org?.id || 'visit-kent';
 
-  // 3. Rate limit: max 5 submissions from the same email in the last hour.
+  // 3. Resolve orgSlug to orgId
+  const orgQuery = await db
+    .collection('orgs')
+    .where('slug', '==', orgSlug.trim())
+    .limit(1)
+    .get();
+
+  if (orgQuery.empty) {
+    throw new functions.https.HttpsError('not-found', 'Organisation not found.');
+  }
+
+  const orgId: string = orgQuery.docs[0].id;
+
+  // 4. Rate limit: max 5 submissions from the same email in the last hour.
   // Single equality filter only — avoids requiring a composite index.
   // Time filtering is done in code after the query.
   const emailSnapshot = await db
@@ -91,7 +107,7 @@ export const submitStoryRequest = functions.https.onCall(async (data) => {
     );
   }
 
-  // 4. Write to Firestore
+  // 5. Write to Firestore
   const requestRef = db.collection('orgs').doc(orgId).collection('mediaRequests').doc();
   const requestData: Record<string, any> = {
     id: requestRef.id,
@@ -117,7 +133,7 @@ export const submitStoryRequest = functions.https.onCall(async (data) => {
   await requestRef.set(requestData);
   console.log(`Media request created: ${requestRef.id} for org ${orgId} from ${cleanEmail}`);
 
-  // 5. Send email notification to org's press contact (best-effort — don't fail the request)
+  // 6. Send email notification to org's press contact (best-effort — don't fail the request)
   try {
     await sendNotificationEmail(orgId, requestData);
   } catch (err) {

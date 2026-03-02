@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import SettingsForm from '@/components/settings/settings-form';
 import UserProfileCard from '@/components/settings/user-profile-card';
 import ChangePasswordCard from '@/components/settings/change-password-card';
+import MediaEnquiryLinkCard from '@/components/settings/media-enquiry-link-card';
 import { useUserData } from '@/hooks/use-user-data';
 import { useOrganization } from '@/hooks/use-organization';
 
@@ -44,6 +45,7 @@ export default function SettingsPage() {
         </p>
       </div>
       <SettingsForm organization={organization} />
+      <MediaEnquiryLinkCard orgSlug={organization.slug} />
       <UserProfileCard />
       <ChangePasswordCard />
     </div>
