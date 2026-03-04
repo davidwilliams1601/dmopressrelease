@@ -41,6 +41,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { AiHeadlineGenerator } from './ai-headline-generator';
+import { GenerateWebContentCard } from './generate-web-content-card';
 import { AiToneEnhancer } from './ai-tone-enhancer';
 import { SendReleaseDialog } from './send-release-dialog';
 import { SendJobsCard } from './send-jobs-card';
@@ -336,6 +337,13 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
             />
           </>
         )}
+
+        {/* Generate Web Content */}
+        <GenerateWebContentCard
+          release={{ ...release, bodyCopy: currentBodyCopy, headline: currentHeadline }}
+          orgId={orgId}
+          organization={organization}
+        />
 
         {/* Stats Card (if sent) */}
         {release.status === 'Sent' && (

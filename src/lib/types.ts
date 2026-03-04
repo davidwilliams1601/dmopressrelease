@@ -171,6 +171,7 @@ export type WebContent = {
   targetMarket?: string;
   status: 'Draft' | 'Ready' | 'Published';
   sourceSubmissionIds: string[];
+  sourceReleaseId?: string;
   createdAt: Date | any;
   updatedAt?: Date | any;
 };
