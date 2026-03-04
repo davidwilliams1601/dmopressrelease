@@ -2,15 +2,19 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { sendEnquiry } from '@/app/actions/send-enquiry';
-import { Sparkles, Send, Globe, CheckCircle2, BarChart3, Layers } from 'lucide-react';
+import { Sparkles, Send, Globe, BarChart3, Layers } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
+
+const HERO_IMG = 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80';
+const BANNER_IMG = 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1920&q=75';
 
 export default function LandingPage() {
   const { toast } = useToast();
@@ -80,13 +84,16 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Hero image placeholder */}
-        <div className="relative aspect-[3/2] overflow-hidden rounded-2xl border bg-muted flex items-center justify-center">
-          <div className="text-center text-muted-foreground/50 p-8">
-            <p className="text-sm font-medium">Hero image</p>
-            <p className="text-xs mt-1">Recommended: 1200 × 800 px</p>
-            <p className="text-xs">Place at public/images/hero.jpg</p>
-          </div>
+        {/* Hero image */}
+        <div className="relative aspect-[3/2] overflow-hidden rounded-2xl">
+          <Image
+            src={HERO_IMG}
+            alt="Traveller looking out over a scenic landscape"
+            fill
+            className="object-cover"
+            priority
+            sizes="(max-width: 768px) 100vw, 50vw"
+          />
         </div>
       </section>
 
@@ -145,13 +152,15 @@ export default function LandingPage() {
 
       {/* ── Feature Banner ────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
-        <div className="relative aspect-[16/5] bg-muted flex items-center justify-center">
-          <div className="text-center text-muted-foreground/50 p-8">
-            <p className="text-sm font-medium">Wide banner image</p>
-            <p className="text-xs mt-1">Recommended: 1920 × 600 px</p>
-            <p className="text-xs">Place at public/images/banner.jpg</p>
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 px-6">
+        <div className="relative aspect-[16/5]">
+          <Image
+            src={BANNER_IMG}
+            alt="Beautiful mountain lake landscape"
+            fill
+            className="object-cover"
+            sizes="100vw"
+          />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 px-6">
             <blockquote className="max-w-2xl text-center text-white">
               <p className="font-headline text-2xl font-semibold sm:text-3xl">
                 &ldquo;PR shouldn&apos;t take half your week. PressPilot gives that time back.&rdquo;
