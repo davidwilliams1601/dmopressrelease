@@ -30,7 +30,7 @@ export default function DashboardLayout({
     if (isUserLoading || isRoleLoading) return;
 
     if (!user) {
-      router.push('/');
+      router.push('/login');
       return;
     }
     // Redirect partners to the portal

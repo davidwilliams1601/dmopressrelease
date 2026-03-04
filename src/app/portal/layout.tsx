@@ -29,7 +29,7 @@ export default function PortalLayout({
     if (isUserLoading || isRoleLoading) return;
 
     if (!user) {
-      router.push('/');
+      router.push('/login');
       return;
     }
     // Redirect non-partners (Admin/User) to the dashboard.

@@ -30,7 +30,7 @@ export default function UserNav() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    router.push('/');
+    router.push('/login');
   };
 
   if (isUserLoading) {

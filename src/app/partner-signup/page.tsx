@@ -103,7 +103,7 @@ export default function PartnerSignupPage() {
             <div className="mt-4 text-center">
               <p className="text-sm text-muted-foreground">
                 Already have an account?{' '}
-                <Link href="/" className="font-medium text-primary hover:underline">
+                <Link href="/login" className="font-medium text-primary hover:underline">
                   Log in
                 </Link>
               </p>

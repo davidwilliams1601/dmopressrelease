@@ -1,23 +1,32 @@
 'use client';
-export const dynamic = 'force-dynamic';
-import SignupForm from '@/components/auth/signup-form';
+import LoginForm from '@/components/auth/login-form';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useUser } from '@/firebase';
+import { useUserData } from '@/hooks/use-user-data';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 
-export default function SignupPage() {
+// Disable static generation for this page since it uses Firebase
+export const dynamic = 'force-dynamic';
+
+export default function LoginPage() {
   const { user, isUserLoading } = useUser();
+  const { role } = useUserData();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isUserLoading && user) {
+    if (isUserLoading || !user || !role) return;
+
+    if (role === 'Partner') {
+      router.push('/portal');
+    } else {
       router.push('/dashboard');
     }
-  }, [user, isUserLoading, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isUserLoading, role]);
 
   if (isUserLoading || user) {
     return (
@@ -47,18 +56,18 @@ export default function SignupPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="font-headline text-2xl">
-            Create an Account
+            Welcome Back
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <SignupForm />
+          <LoginForm />
         </CardContent>
         <Separator className="my-4" />
         <CardFooter className="justify-center">
           <p className="text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link href="/login" className="font-medium text-primary hover:underline">
-              Log in
+            Don't have an account?{' '}
+            <Link href="/signup" className="font-medium text-primary hover:underline">
+              Sign up
             </Link>
           </p>
         </CardFooter>

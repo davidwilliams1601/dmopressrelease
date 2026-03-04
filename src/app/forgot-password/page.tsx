@@ -54,7 +54,7 @@ export default function ForgotPasswordPage() {
           <ForgotPasswordForm />
         </CardContent>
         <CardFooter>
-            <Link href="/" className="flex items-center text-sm font-medium text-primary hover:underline">
+            <Link href="/login" className="flex items-center text-sm font-medium text-primary hover:underline">
                 <ChevronLeft className="mr-1 h-4 w-4" />
                 Back to log in
             </Link>
