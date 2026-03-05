@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFirebase } from '@/firebase';
 import { useUserData } from '@/hooks/use-user-data';
 import { useRouter } from 'next/navigation';
@@ -39,11 +39,13 @@ export function SubmissionForm() {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Pre-generate submission ID for image uploads
-  const [submissionId] = useState(() => {
-    if (!orgId) return '';
-    return doc(collection(firestore, 'orgs', orgId || '_', 'submissions')).id;
-  });
+  // Pre-generate submission ID for image uploads — generated once orgId is available
+  const [submissionId, setSubmissionId] = useState('');
+  useEffect(() => {
+    if (orgId && !submissionId) {
+      setSubmissionId(doc(collection(firestore, 'orgs', orgId, 'submissions')).id);
+    }
+  }, [orgId, firestore, submissionId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,7 +99,7 @@ export function SubmissionForm() {
     }
   };
 
-  if (!orgId) return null;
+  if (!orgId || !submissionId) return null;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
