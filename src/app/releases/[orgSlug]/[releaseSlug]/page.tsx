@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import type { DocumentSnapshot } from 'firebase-admin/firestore';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getAdminFirestore } from '@/lib/firebase-admin';
@@ -34,18 +35,30 @@ async function getOrgAndRelease(
   try {
     const db = getAdminFirestore();
 
+    // Try slug field first, fall back to using orgSlug as the document ID directly
+    let orgDoc: DocumentSnapshot | null = null;
+
     const orgSnap = await db
       .collection('orgs')
       .where('slug', '==', orgSlug)
       .limit(1)
       .get();
 
-    if (orgSnap.empty) {
-      console.error(`[public-release] No org found with slug: ${orgSlug}`);
+    if (!orgSnap.empty) {
+      orgDoc = orgSnap.docs[0];
+    } else {
+      // Fallback: try orgSlug as document ID (common when org was provisioned manually)
+      const directDoc = await db.collection('orgs').doc(orgSlug).get();
+      if (directDoc.exists) {
+        orgDoc = directDoc;
+      }
+    }
+
+    if (!orgDoc) {
+      console.error(`[public-release] No org found with slug or id: ${orgSlug}`);
       return null;
     }
 
-    const orgDoc = orgSnap.docs[0];
     const org = { id: orgDoc.id, ...orgDoc.data() } as OrgData;
 
     const releaseSnap = await db
@@ -64,8 +77,9 @@ async function getOrgAndRelease(
     const releaseDoc = releaseSnap.docs[0];
     const release = { id: releaseDoc.id, ...releaseDoc.data() } as ReleaseData;
 
+    console.log(`[public-release] Found release: ${releaseDoc.id}, status: ${release.status}`);
     if (release.status !== 'Ready' && release.status !== 'Sent') {
-      console.error(`[public-release] Release ${releaseDoc.id} has status: ${release.status} — not public`);
+      console.error(`[public-release] Release ${releaseDoc.id} has status: ${release.status} — not public (only Ready/Sent are shown)`);
       return null;
     }
 
