@@ -345,6 +345,8 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
             headline={currentHeadline}
             bodyCopy={currentBodyCopy}
             orgName={organization.name}
+            orgSlug={organization.slug}
+            releaseSlug={release.slug}
             brandToneNotes={organization.brandToneNotes}
             targetMarket={release.targetMarket}
           />

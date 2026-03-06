@@ -27,6 +27,8 @@ type SocialPostGeneratorProps = {
   headline: string;
   bodyCopy: string;
   orgName: string;
+  orgSlug?: string;
+  releaseSlug?: string;
   brandToneNotes?: string;
   targetMarket?: string;
 };
@@ -35,9 +37,15 @@ export function SocialPostGenerator({
   headline,
   bodyCopy,
   orgName,
+  orgSlug,
+  releaseSlug,
   brandToneNotes,
   targetMarket,
 }: SocialPostGeneratorProps) {
+  const releaseUrl =
+    orgSlug && releaseSlug
+      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/releases/${orgSlug}/${releaseSlug}`
+      : null;
   const [isGenerating, setIsGenerating] = useState(false);
   const [posts, setPosts] = useState<GenerateSocialPostsOutput | null>(null);
   const [edited, setEdited] = useState<GenerateSocialPostsOutput | null>(null);
@@ -168,9 +176,25 @@ export function SocialPostGenerator({
               );
             })}
           </Tabs>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Posts are editable above. Replace <strong>[Link]</strong> with your URL before posting.
-          </p>
+          {releaseUrl ? (
+            <div className="mt-3 flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
+              <span className="text-xs text-muted-foreground shrink-0">Shareable URL:</span>
+              <span className="text-xs font-mono truncate flex-1">{releaseUrl}</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 shrink-0"
+                onClick={() => { navigator.clipboard.writeText(releaseUrl); }}
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Posts are editable above. Replace <strong>[Link]</strong> with your URL before posting.
+            </p>
+          )}
         </CardContent>
       )}
     </Card>
