@@ -40,7 +40,10 @@ async function getOrgAndRelease(
       .limit(1)
       .get();
 
-    if (orgSnap.empty) return null;
+    if (orgSnap.empty) {
+      console.error(`[public-release] No org found with slug: ${orgSlug}`);
+      return null;
+    }
 
     const orgDoc = orgSnap.docs[0];
     const org = { id: orgDoc.id, ...orgDoc.data() } as OrgData;
@@ -53,15 +56,22 @@ async function getOrgAndRelease(
       .limit(1)
       .get();
 
-    if (releaseSnap.empty) return null;
+    if (releaseSnap.empty) {
+      console.error(`[public-release] No release found with slug: ${releaseSlug} in org: ${org.id}`);
+      return null;
+    }
 
     const releaseDoc = releaseSnap.docs[0];
     const release = { id: releaseDoc.id, ...releaseDoc.data() } as ReleaseData;
 
-    if (release.status !== 'Ready' && release.status !== 'Sent') return null;
+    if (release.status !== 'Ready' && release.status !== 'Sent') {
+      console.error(`[public-release] Release ${releaseDoc.id} has status: ${release.status} — not public`);
+      return null;
+    }
 
     return { org, release };
-  } catch {
+  } catch (e) {
+    console.error('[public-release] Error fetching release:', e);
     return null;
   }
 }

@@ -7,7 +7,12 @@ function getAdminApp() {
   // Vercel: set FIREBASE_SERVICE_ACCOUNT_JSON to the full service account JSON string
   const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (json) {
-    return initializeApp({ credential: cert(JSON.parse(json)) });
+    try {
+      return initializeApp({ credential: cert(JSON.parse(json)) });
+    } catch (e) {
+      console.error('[firebase-admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', e);
+      throw e;
+    }
   }
 
   // Local dev: set GOOGLE_APPLICATION_CREDENTIALS=./service-account.json in .env.local
