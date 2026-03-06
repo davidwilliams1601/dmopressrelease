@@ -55,6 +55,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [vertical, setVertical] = useState<VerticalId>('dmo');
+  const [maxPartners, setMaxPartners] = useState('');
 
   const handleOrgNameChange = (value: string) => {
     setOrgName(value);
@@ -78,6 +79,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
         adminName,
         adminEmail,
         vertical,
+        maxPartners: maxPartners ? parseInt(maxPartners, 10) : undefined,
       });
       setResult(response.data);
       onOrgProvisioned();
@@ -104,7 +106,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
     setOrgName(''); setOrgSlug(''); setBoilerplate(''); setBrandToneNotes('');
     setPressContactName(''); setPressContactEmail('');
     setAdminName(''); setAdminEmail('');
-    setVertical('dmo');
+    setVertical('dmo'); setMaxPartners('');
   };
 
   return (
@@ -239,6 +241,20 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
                       placeholder="press@visitcornwall.com"
                     />
                   </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="maxPartners">Partner Limit</Label>
+                  <Input
+                    id="maxPartners"
+                    type="number"
+                    min="1"
+                    value={maxPartners}
+                    onChange={(e) => setMaxPartners(e.target.value)}
+                    placeholder="Unlimited"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Maximum number of partner accounts. Leave empty for unlimited.
+                  </p>
                 </div>
               </div>
 

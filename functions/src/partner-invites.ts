@@ -135,6 +135,24 @@ export const redeemPartnerInvite = functions.https.onCall(async (data) => {
     const invite = inviteDoc.data();
     const orgId = invite.orgId;
 
+    // Check org partner limit
+    const orgDoc = await db.collection('orgs').doc(orgId).get();
+    const maxPartners = orgDoc.data()?.maxPartners;
+    if (maxPartners && maxPartners > 0) {
+      const partnerSnap = await db
+        .collection('orgs')
+        .doc(orgId)
+        .collection('users')
+        .where('role', '==', 'Partner')
+        .get();
+      if (partnerSnap.size >= maxPartners) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'This organisation has reached its partner capacity. Please contact them directly.'
+        );
+      }
+    }
+
     // Check if invite has expired
     if (invite.expiresAt && invite.expiresAt.toDate() < new Date()) {
       await inviteDoc.ref.update({ status: 'expired' });

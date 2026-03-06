@@ -38,6 +38,9 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
     try {
       const orgRef = doc(firestore, 'orgs', organization.id);
 
+      const maxSubsStr = formData.get('max-submissions-per-partner') as string;
+      const maxSubmissionsPerPartner = maxSubsStr ? parseInt(maxSubsStr, 10) : null;
+
       await updateDocumentNonBlocking(orgRef, {
         name: formData.get('org-name') as string,
         pressContact: {
@@ -46,6 +49,9 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
         },
         boilerplate: formData.get('boilerplate') as string,
         brandToneNotes: formData.get('brand-tone-notes') as string,
+        ...(maxSubmissionsPerPartner && maxSubmissionsPerPartner > 0
+          ? { maxSubmissionsPerPartner }
+          : { maxSubmissionsPerPartner: null }),
         updatedAt: serverTimestamp(),
       });
 
@@ -132,6 +138,21 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
             />
             <p className="text-sm text-muted-foreground">
               Used to guide AI in generating and enhancing press release copy.
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="max-submissions-per-partner">Submission Limit per Partner</Label>
+            <Input
+              id="max-submissions-per-partner"
+              name="max-submissions-per-partner"
+              type="number"
+              min="1"
+              defaultValue={organization.maxSubmissionsPerPartner ?? ''}
+              placeholder="Unlimited"
+            />
+            <p className="text-sm text-muted-foreground">
+              Maximum number of submissions each partner can make. Leave empty for unlimited. Helps prevent any one partner from monopolising the queue.
             </p>
           </div>
         </CardContent>

@@ -12,6 +12,8 @@ export type Organization = {
     name: string;
     email: string;
   };
+  maxPartners?: number;
+  maxSubmissionsPerPartner?: number;
 };
 
 export type User = {

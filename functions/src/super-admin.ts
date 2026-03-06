@@ -60,6 +60,7 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
     adminName,
     adminEmail,
     vertical,
+    maxPartners,
   } = data;
 
   if (!orgName || !orgSlug || !adminName || !adminEmail) {
@@ -92,7 +93,7 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
   try {
     // 1. Create the org document
     const orgRef = db.collection('orgs').doc(orgSlug);
-    await orgRef.set({
+    const orgData: Record<string, any> = {
       id: orgSlug,
       name: orgName,
       slug: orgSlug,
@@ -105,7 +106,9 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
       },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       provisionedBy: context.auth!.uid,
-    });
+    };
+    if (maxPartners && maxPartners > 0) orgData.maxPartners = maxPartners;
+    await orgRef.set(orgData);
 
     // 2. Create the Firebase Auth user for the first admin
     let userRecord: admin.auth.UserRecord;
@@ -164,4 +167,45 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
       `Failed to provision org: ${error.message}`
     );
   }
+});
+
+/**
+ * Update partner/submission limits for an organisation. Super-admin only.
+ *
+ * Input:
+ *   orgId: string
+ *   maxPartners: number | null   — null removes the limit
+ */
+export const updateOrgLimits = functions.https.onCall(async (data, context) => {
+  requireSuperAdmin(context);
+
+  const { orgId, maxPartners } = data;
+
+  if (!orgId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required field: orgId');
+  }
+
+  const orgRef = db.collection('orgs').doc(orgId);
+  const orgDoc = await orgRef.get();
+  if (!orgDoc.exists) {
+    throw new functions.https.HttpsError('not-found', `Organisation ${orgId} not found.`);
+  }
+
+  const update: Record<string, any> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (maxPartners === null || maxPartners === undefined) {
+    update.maxPartners = admin.firestore.FieldValue.delete();
+  } else if (maxPartners > 0) {
+    update.maxPartners = maxPartners;
+  } else {
+    throw new functions.https.HttpsError('invalid-argument', 'maxPartners must be a positive number or null.');
+  }
+
+  await orgRef.update(update);
+
+  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'}`);
+
+  return { success: true };
 });

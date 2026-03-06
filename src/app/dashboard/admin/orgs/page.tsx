@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Building2 } from 'lucide-react';
 import { ProvisionOrgDialog } from '@/components/admin/provision-org-dialog';
+import { EditOrgLimitsDialog } from '@/components/admin/edit-org-limits-dialog';
 import { format } from 'date-fns';
 
 type OrgRow = {
@@ -25,6 +26,7 @@ type OrgRow = {
   name: string;
   slug: string;
   createdAt?: any;
+  maxPartners?: number;
 };
 
 export default function AdminOrgsPage() {
@@ -121,7 +123,9 @@ export default function AdminOrgsPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Slug / ID</TableHead>
+                  <TableHead>Partner Limit</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -131,7 +135,18 @@ export default function AdminOrgsPage() {
                     <TableCell>
                       <code className="rounded bg-muted px-2 py-1 text-xs font-mono">{org.slug || org.id}</code>
                     </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {org.maxPartners != null ? org.maxPartners : <span className="text-xs">Unlimited</span>}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{formatDate(org.createdAt)}</TableCell>
+                    <TableCell className="text-right">
+                      <EditOrgLimitsDialog
+                        orgId={org.id}
+                        orgName={org.name}
+                        currentMaxPartners={org.maxPartners}
+                        onUpdated={loadOrgs}
+                      />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

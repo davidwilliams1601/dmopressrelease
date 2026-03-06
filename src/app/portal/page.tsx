@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { PenSquare, Inbox } from 'lucide-react';
 import Link from 'next/link';
 import type { PartnerSubmission } from '@/lib/types';
+import { useOrganization } from '@/hooks/use-organization';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,7 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
 export default function PortalHomePage() {
   const { orgId, isLoading: isUserLoading } = useUserData();
   const { firestore, user } = useFirebase();
+  const { organization } = useOrganization(orgId);
 
   const submissionsRef = useMemoFirebase(() => {
     if (!orgId || !user) return null;
@@ -44,6 +46,8 @@ export default function PortalHomePage() {
   const { data: submissionsData, isLoading: isSubmissionsLoading } =
     useCollection<PartnerSubmission>(submissionsRef);
   const submissions = submissionsData || [];
+  const maxSubs = organization?.maxSubmissionsPerPartner;
+  const atSubmissionLimit = maxSubs != null && submissions.length >= maxSubs;
 
   if (isUserLoading) {
     return (
@@ -69,12 +73,26 @@ export default function PortalHomePage() {
             View and manage your content submissions.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/portal/submit">
-            <PenSquare />
-            New Submission
-          </Link>
-        </Button>
+        <div className="flex flex-col items-end gap-1">
+          {maxSubs != null && (
+            <p className="text-xs text-muted-foreground">
+              {submissions.length} / {maxSubs} submissions used
+            </p>
+          )}
+          <Button asChild disabled={atSubmissionLimit}>
+            {atSubmissionLimit ? (
+              <span>
+                <PenSquare />
+                Submission Limit Reached
+              </span>
+            ) : (
+              <Link href="/portal/submit">
+                <PenSquare />
+                New Submission
+              </Link>
+            )}
+          </Button>
+        </div>
       </div>
 
       <Card>
