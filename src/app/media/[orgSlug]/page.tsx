@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Book } from 'lucide-react';
 import StoryRequestForm from '@/components/media/story-request-form';
@@ -7,6 +8,30 @@ export const dynamic = 'force-dynamic';
 type Props = {
   params: Promise<{ orgSlug: string }>;
 };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { orgSlug } = await params;
+  const orgName = orgSlug
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+  const title = `${orgName} — Media & Press Enquiries`;
+  const description = `Pitching a story to ${orgName}? Submit your angle and the press team will be in touch with assets, contacts, and support.`;
+  return {
+    title,
+    description,
+    openGraph: {
+      type: 'website',
+      title,
+      description,
+    },
+    twitter: {
+      card: 'summary',
+      title,
+      description,
+    },
+  };
+}
 
 export default async function MediaOrgPage({ params }: Props) {
   const { orgSlug } = await params;

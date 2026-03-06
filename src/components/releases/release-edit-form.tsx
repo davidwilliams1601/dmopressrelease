@@ -43,6 +43,7 @@ import {
 import { AiHeadlineGenerator } from './ai-headline-generator';
 import { GenerateWebContentCard } from './generate-web-content-card';
 import { AiToneEnhancer } from './ai-tone-enhancer';
+import { SocialPostGenerator } from './social-post-generator';
 import { SendReleaseDialog } from './send-release-dialog';
 import { SendJobsCard } from './send-jobs-card';
 import { ImageUpload } from './image-upload';
@@ -336,6 +337,17 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
               onApplyEnhancement={handleApplyEnhancedCopy}
             />
           </>
+        )}
+
+        {/* Social Media Posts */}
+        {organization && (
+          <SocialPostGenerator
+            headline={currentHeadline}
+            bodyCopy={currentBodyCopy}
+            orgName={organization.name}
+            brandToneNotes={organization.brandToneNotes}
+            targetMarket={release.targetMarket}
+          />
         )}
 
         {/* Generate Web Content */}

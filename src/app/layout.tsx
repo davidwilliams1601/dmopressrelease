@@ -13,7 +13,20 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: 'PressPilot',
-  description: 'SaaS for Destination Marketing Organisations',
+  description: 'AI-powered PR platform for destination marketing teams. Collect partner stories, draft press releases, and distribute to journalists — all in one place.',
+  openGraph: {
+    type: 'website',
+    siteName: 'PressPilot',
+    title: 'PressPilot — AI-Powered PR for Destination Marketing',
+    description: 'Collect partner stories, draft press releases with AI, and distribute to journalists — all in one place.',
+    images: [{ url: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80', width: 1200, height: 800, alt: 'PressPilot' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'PressPilot — AI-Powered PR for Destination Marketing',
+    description: 'Collect partner stories, draft press releases with AI, and distribute to journalists — all in one place.',
+    images: ['https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80'],
+  },
 };
 
 // Disable static generation since app uses Firebase
