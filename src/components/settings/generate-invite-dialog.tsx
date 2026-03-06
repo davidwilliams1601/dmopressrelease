@@ -33,8 +33,6 @@ export function GenerateInviteDialog({ orgId, onInviteCreated }: GenerateInviteD
 
     const formData = new FormData(e.currentTarget);
     const label = formData.get('label') as string;
-    const maxUsesStr = formData.get('maxUses') as string;
-    const maxUses = maxUsesStr ? parseInt(maxUsesStr, 10) : undefined;
 
     try {
       const { getFunctions, httpsCallable } = await import('firebase/functions');
@@ -43,8 +41,7 @@ export function GenerateInviteDialog({ orgId, onInviteCreated }: GenerateInviteD
 
       const result = await createInvite({
         orgId,
-        label: label || undefined,
-        maxUses,
+        label,
       });
 
       const data = result.data as any;
@@ -123,34 +120,21 @@ export function GenerateInviteDialog({ orgId, onInviteCreated }: GenerateInviteD
             <DialogHeader>
               <DialogTitle>Generate Partner Invite</DialogTitle>
               <DialogDescription>
-                Create an invite link for partners to sign up to your organization.
+                Create a unique invite link for a specific partner. One link per partner makes it easy to track who has signed up.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="label">Label (optional)</Label>
+                  <Label htmlFor="label">Partner name *</Label>
                   <Input
                     id="label"
                     name="label"
-                    placeholder="e.g. Summer 2026 Hotels"
+                    placeholder="e.g. Canterbury Cathedral"
+                    required
                   />
                   <p className="text-xs text-muted-foreground">
-                    A friendly name to help you identify this invite.
-                  </p>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="maxUses">Max Uses (optional)</Label>
-                  <Input
-                    id="maxUses"
-                    name="maxUses"
-                    type="number"
-                    min="1"
-                    placeholder="Unlimited"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Leave empty for unlimited sign-ups.
+                    Name the link after the partner — this will appear in the Partner Accounts table so you can see who signed up via which link.
                   </p>
                 </div>
               </div>

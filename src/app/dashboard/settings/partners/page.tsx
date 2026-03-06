@@ -159,12 +159,17 @@ export default function PartnersPage() {
                 <TableRow>
                   <TableHead>Partner</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Invited via</TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {partnerAccounts.map((partner) => (
+                {partnerAccounts.map((partner) => {
+                  const inviteLabel = partner.inviteId
+                    ? invites.find((inv) => inv.id === partner.inviteId)?.label
+                    : undefined;
+                  return (
                   <TableRow key={partner.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -175,6 +180,13 @@ export default function PartnersPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{partner.email}</TableCell>
+                    <TableCell>
+                      {inviteLabel ? (
+                        <span className="text-sm">{inviteLabel}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {partner.createdAt ? format(toDate(partner.createdAt), 'dd MMM yyyy') : '—'}
                     </TableCell>
@@ -187,7 +199,8 @@ export default function PartnersPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}
