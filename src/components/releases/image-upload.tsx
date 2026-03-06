@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { SubmissionImagePicker } from './submission-image-picker';
 
 type ImageUploadProps = {
   orgId: string;
@@ -203,6 +204,22 @@ export function ImageUpload({
                 <p className="text-xs text-muted-foreground">
                   Supports: JPG, PNG, GIF, WEBP
                 </p>
+                <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                  <SubmissionImagePicker
+                    orgId={orgId}
+                    onPick={(image) => {
+                      setPreviewUrl(image.url);
+                      onUploadComplete(image.url, image.storagePath, {
+                        fileName: image.metadata.fileName,
+                        size: image.metadata.size,
+                        mimeType: image.metadata.mimeType,
+                        uploadedAt: image.metadata.uploadedAt instanceof Date
+                          ? image.metadata.uploadedAt
+                          : new Date(),
+                      });
+                    }}
+                  />
+                </div>
               </>
             )}
           </div>
