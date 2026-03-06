@@ -44,7 +44,7 @@ export function SocialPostGenerator({
 }: SocialPostGeneratorProps) {
   const releaseUrl =
     orgSlug && releaseSlug
-      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/releases/${orgSlug}/${releaseSlug}`
+      ? `${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/releases/${orgSlug}/${releaseSlug}`
       : null;
   const [isGenerating, setIsGenerating] = useState(false);
   const [posts, setPosts] = useState<GenerateSocialPostsOutput | null>(null);

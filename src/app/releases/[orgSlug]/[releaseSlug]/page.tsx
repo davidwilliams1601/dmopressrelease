@@ -77,11 +77,7 @@ async function getOrgAndRelease(
     const releaseDoc = releaseSnap.docs[0];
     const release = { id: releaseDoc.id, ...releaseDoc.data() } as ReleaseData;
 
-    console.log(`[public-release] Found release: ${releaseDoc.id}, status: ${release.status}`);
-    if (release.status !== 'Ready' && release.status !== 'Sent') {
-      console.error(`[public-release] Release ${releaseDoc.id} has status: ${release.status} — not public (only Ready/Sent are shown)`);
-      return null;
-    }
+    if (release.status !== 'Ready' && release.status !== 'Sent') return null;
 
     return { org, release };
   } catch (e) {
