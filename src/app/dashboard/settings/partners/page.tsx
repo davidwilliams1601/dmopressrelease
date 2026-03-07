@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GenerateInviteDialog } from '@/components/settings/generate-invite-dialog';
+import { SendQuarterlyReportDialog } from '@/components/settings/send-quarterly-report-dialog';
 import { Link as LinkIcon, Users, Mail } from 'lucide-react';
 import { format } from 'date-fns';
 import { toDate } from '@/lib/utils';
@@ -75,7 +76,12 @@ export default function PartnersPage() {
             Generate invite links for partners to join your organization.
           </p>
         </div>
-        {orgId && <GenerateInviteDialog orgId={orgId} onInviteCreated={() => {}} />}
+        <div className="flex items-center gap-2">
+          {orgId && partnerAccounts.length > 0 && (
+            <SendQuarterlyReportDialog orgId={orgId} partnerCount={partnerAccounts.length} />
+          )}
+          {orgId && <GenerateInviteDialog orgId={orgId} onInviteCreated={() => {}} />}
+        </div>
       </div>
 
       <Card>
