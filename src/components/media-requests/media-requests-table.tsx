@@ -10,6 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { MediaRequest } from '@/lib/types';
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
@@ -24,6 +25,8 @@ type MediaRequestsTableProps = {
 };
 
 export function MediaRequestsTable({ requests }: MediaRequestsTableProps) {
+  const router = useRouter();
+
   const formatDate = (date: any) => {
     if (!date) return '-';
     const d = date.toDate ? date.toDate() : new Date(date);
@@ -44,12 +47,12 @@ export function MediaRequestsTable({ requests }: MediaRequestsTableProps) {
       </TableHeader>
       <TableBody>
         {requests.map((req) => (
-          <TableRow key={req.id} className="cursor-pointer hover:bg-muted/50">
-            <TableCell className="font-medium">
-              <Link href={`/dashboard/media-requests/${req.id}`} className="hover:underline">
-                {req.name}
-              </Link>
-            </TableCell>
+          <TableRow
+            key={req.id}
+            className="cursor-pointer hover:bg-muted/50"
+            onClick={() => router.push(`/dashboard/media-requests/${req.id}`)}
+          >
+            <TableCell className="font-medium">{req.name}</TableCell>
             <TableCell className="text-sm text-muted-foreground">{req.outlet}</TableCell>
             <TableCell className="text-sm max-w-[260px]">
               <span className="line-clamp-1">{req.topic}</span>
