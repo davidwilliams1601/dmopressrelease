@@ -170,6 +170,78 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
 });
 
 /**
+ * Return usage stats for every organisation. Super-admin only.
+ *
+ * Returns per-org:
+ *   partnerCount, submissionCount, releaseSentCount, totalEmailsSent, lastActivityAt
+ *
+ * Plus platform-wide totals.
+ */
+export const getSuperAdminReport = functions.https.onCall(async (_data, context) => {
+  requireSuperAdmin(context);
+
+  const orgsSnap = await db.collection('orgs').get();
+
+  const orgStats = await Promise.all(
+    orgsSnap.docs.map(async (orgDoc) => {
+      const org = orgDoc.data();
+      const orgId = orgDoc.id;
+
+      const [usersSnap, submissionsSnap, releasesSnap] = await Promise.all([
+        db.collection('orgs').doc(orgId).collection('users').get(),
+        db.collection('orgs').doc(orgId).collection('submissions').get(),
+        db.collection('orgs').doc(orgId).collection('releases').get(),
+      ]);
+
+      const partnerCount = usersSnap.docs.filter((u) => u.data().role === 'Partner').length;
+      const submissionCount = submissionsSnap.size;
+
+      let releaseSentCount = 0;
+      let totalEmailsSent = 0;
+      let lastActivityAt: admin.firestore.Timestamp | null = null;
+
+      for (const rel of releasesSnap.docs) {
+        const r = rel.data();
+        if (r.status === 'Sent') {
+          releaseSentCount++;
+          totalEmailsSent += r.sends || 0;
+        }
+        const ts: admin.firestore.Timestamp | null = r.updatedAt || r.createdAt || null;
+        if (ts && (!lastActivityAt || ts.toMillis() > lastActivityAt.toMillis())) {
+          lastActivityAt = ts;
+        }
+      }
+
+      return {
+        id: orgId,
+        name: org.name || orgId,
+        slug: org.slug || orgId,
+        vertical: org.vertical || 'dmo',
+        maxPartners: org.maxPartners ?? null,
+        createdAt: org.createdAt ?? null,
+        partnerCount,
+        submissionCount,
+        releaseSentCount,
+        totalEmailsSent,
+        lastActivityAt: lastActivityAt ?? null,
+      };
+    })
+  );
+
+  const totals = orgStats.reduce(
+    (acc, o) => ({
+      orgCount: acc.orgCount + 1,
+      totalPartners: acc.totalPartners + o.partnerCount,
+      totalReleasesSent: acc.totalReleasesSent + o.releaseSentCount,
+      totalEmailsSent: acc.totalEmailsSent + o.totalEmailsSent,
+    }),
+    { orgCount: 0, totalPartners: 0, totalReleasesSent: 0, totalEmailsSent: 0 }
+  );
+
+  return { orgs: orgStats, totals };
+});
+
+/**
  * Update partner/submission limits for an organisation. Super-admin only.
  *
  * Input:
