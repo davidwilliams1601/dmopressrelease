@@ -13,8 +13,8 @@ import { Sparkles, Send, Globe, BarChart3, Layers } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-const HERO_IMG = 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80';
-const BANNER_IMG = 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1920&q=75';
+const HERO_IMG = 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80';
+const BANNER_IMG = 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=1920&q=75';
 
 export default function LandingPage() {
   const { toast } = useToast();
@@ -66,13 +66,13 @@ export default function LandingPage() {
         <div className="space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
             <Sparkles className="h-3 w-3 text-primary" />
-            AI-powered PR for tourism &amp; destinations
+            AI-powered UGC distribution for membership organisations
           </div>
           <h1 className="font-headline text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-            PR Made Simple for <span className="text-primary">Destination Marketing</span> Teams
+            Turn Member Content into <span className="text-primary">Published Stories</span>
           </h1>
           <p className="text-lg text-muted-foreground">
-            PressPilot helps DMOs, charities and trade bodies collect partner stories, draft press releases with AI, and distribute them to the right journalists — all in one place.
+            PressPilot helps membership organisations, trade bodies and networks collect partner content, draft press releases with AI, and distribute them to the right journalists — all in one place.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button size="lg" asChild>
@@ -88,7 +88,7 @@ export default function LandingPage() {
         <div className="relative aspect-[3/2] overflow-hidden rounded-2xl">
           <Image
             src={HERO_IMG}
-            alt="Traveller looking out over a scenic landscape"
+            alt="Team collaborating around a table"
             fill
             className="object-cover"
             priority
@@ -101,14 +101,14 @@ export default function LandingPage() {
       <section id="features" className="border-t bg-muted/30 py-20">
         <div className="mx-auto max-w-6xl px-6">
           <div className="mb-12 text-center">
-            <h2 className="font-headline text-3xl font-bold sm:text-4xl">Everything you need for travel-trade PR</h2>
-            <p className="mt-3 text-muted-foreground">Built for destination teams who want results, not complexity.</p>
+            <h2 className="font-headline text-3xl font-bold sm:text-4xl">Everything you need to distribute member content at scale</h2>
+            <p className="mt-3 text-muted-foreground">Built for membership teams who want results, not complexity.</p>
           </div>
           <div className="grid gap-8 sm:grid-cols-3">
             <BenefitCard
               icon={<Sparkles className="h-6 w-6 text-primary" />}
               title="AI-Powered Drafting"
-              description="Generate polished press releases in seconds. Our AI understands destination marketing and adapts to your brand voice."
+              description="Generate polished press releases in seconds. Our AI understands your sector and adapts to your organisation's brand voice."
             />
             <BenefitCard
               icon={<Send className="h-6 w-6 text-primary" />}
@@ -118,7 +118,7 @@ export default function LandingPage() {
             <BenefitCard
               icon={<Globe className="h-6 w-6 text-primary" />}
               title="Web-Ready Content"
-              description="Automatically generate SEO-friendly web copy alongside your press release — publish without the extra effort."
+              description="Automatically generate SEO-friendly web copy and social posts alongside your press release — publish without the extra effort."
             />
           </div>
         </div>
@@ -132,9 +132,9 @@ export default function LandingPage() {
             <p className="mt-3 text-muted-foreground">Three steps from submission to publication.</p>
           </div>
           <div className="grid gap-8 sm:grid-cols-3">
-            <StepCard number={1} title="Collect Partner Submissions" description="Partners submit their news and updates via a branded self-service portal — no chasing emails." />
+            <StepCard number={1} title="Collect Member Content" description="Members submit their news and updates via a branded self-service portal — no chasing emails." />
             <StepCard number={2} title="Generate with AI" description="Turn raw submissions into publication-ready press releases and web copy with a single click." />
-            <StepCard number={3} title="Distribute &amp; Track" description="Send to your media list, publish to your site, and monitor performance in real time." />
+            <StepCard number={3} title="Distribute &amp; Track" description="Send to your media list, publish to your site, and monitor engagement in real time." />
           </div>
         </div>
       </section>
@@ -163,7 +163,7 @@ export default function LandingPage() {
           <div className="absolute inset-0 flex items-center justify-center bg-black/50 px-6">
             <blockquote className="max-w-2xl text-center text-white">
               <p className="font-headline text-2xl font-semibold sm:text-3xl">
-                &ldquo;PR shouldn&apos;t take half your week. PressPilot gives that time back.&rdquo;
+                &ldquo;Your members have great stories. PressPilot makes sure the world hears them.&rdquo;
               </p>
             </blockquote>
           </div>
@@ -210,7 +210,7 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-6 text-center sm:flex-row sm:justify-between sm:text-left">
           <div>
             <span className="font-headline font-bold text-primary">PressPilot</span>
-            <p className="text-xs text-muted-foreground mt-0.5">Your Copilot for Travel-Trade PR</p>
+            <p className="text-xs text-muted-foreground mt-0.5">UGC distribution for membership organisations</p>
           </div>
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>

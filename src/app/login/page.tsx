@@ -49,7 +49,7 @@ export default function LoginPage() {
           PressPilot
         </h1>
         <p className="text-muted-foreground mt-2">
-          Your Copilot for Travel-Trade PR
+          UGC distribution for membership organisations
         </p>
       </div>
 

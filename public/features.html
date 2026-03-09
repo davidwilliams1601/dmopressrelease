@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PressPilot — Feature Sheet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --primary-light: #eff6ff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --bg: #ffffff;
+      --section-bg: #f8fafc;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      font-size: 13px;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; }
+
+    .page {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 36px 48px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 40px;
+    }
+
+    .logo {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: white;
+    }
+
+    .logo span {
+      display: block;
+      font-size: 12px;
+      font-weight: 400;
+      opacity: 0.75;
+      letter-spacing: 0;
+      margin-top: 2px;
+    }
+
+    .header-right {
+      text-align: right;
+    }
+
+    .header-right h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+      line-height: 1.2;
+    }
+
+    .header-right p {
+      font-size: 13px;
+      opacity: 0.8;
+      margin-top: 6px;
+    }
+
+    /* ── Intro strip ── */
+    .intro {
+      background: var(--section-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 48px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── Body ── */
+    .body {
+      padding: 32px 48px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    /* ── Feature section ── */
+    .section {
+      break-inside: avoid;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--primary-light);
+    }
+
+    .section-icon {
+      width: 30px;
+      height: 30px;
+      background: var(--primary);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.1px;
+    }
+
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .feature-list li {
+      font-size: 12.5px;
+      color: var(--text);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.45;
+    }
+
+    .feature-list li::before {
+      content: '✓';
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 11px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    /* Full-width section */
+    .section-full {
+      grid-column: 1 / -1;
+    }
+
+    .section-full .feature-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 7px 24px;
+    }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      background: var(--primary-light);
+      border-top: 1px solid #bfdbfe;
+      border-bottom: 1px solid #bfdbfe;
+      padding: 18px 48px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .stat {
+      text-align: center;
+      flex: 1;
+    }
+
+    .stat-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    .stat-divider {
+      width: 1px;
+      background: #bfdbfe;
+      align-self: stretch;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 22px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer-left p {
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .footer-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .cta-button {
+      background: var(--primary);
+      color: white;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 10px 24px;
+      border-radius: 7px;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .contact-detail {
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { font-size: 12px; }
+      .page { max-width: 100%; }
+      .header { padding: 28px 40px 24px; }
+      .intro { padding: 14px 40px; }
+      .body { padding: 24px 40px; gap: 20px; }
+      .stats-bar { padding: 14px 40px; }
+      .footer { padding: 18px 40px; }
+    }
+
+    @page {
+      size: A4;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">
+      PressPilot
+      <span>AI-powered UGC distribution for membership organisations</span>
+    </div>
+    <div class="header-right">
+      <h1>Everything your team needs to turn member content into media coverage.</h1>
+      <p>Built for membership organisations, trade bodies &amp; networks with partners who have stories to tell.</p>
+    </div>
+  </div>
+
+  <!-- INTRO -->
+  <div class="intro">
+    PressPilot replaces your press release spreadsheets, email threads, and disconnected tools with a single platform — from member content submission through to media distribution, analytics, and reporting.
+  </div>
+
+  <!-- MAIN FEATURE GRID -->
+  <div class="body">
+
+    <!-- Partner Management -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">🔗</div>
+        <div class="section-title">Member / Partner Management</div>
+      </div>
+      <ul class="feature-list">
+        <li>Named invite links — one per partner for precise tracking</li>
+        <li>Partner accounts table showing who joined via which invite</li>
+        <li>Partner capacity limits set per licence (adjustable mid-cycle)</li>
+        <li>Submission limits per partner to keep contributions balanced</li>
+        <li>Partner role with restricted portal-only access</li>
+      </ul>
+    </div>
+
+    <!-- Partner Portal -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">📥</div>
+        <div class="section-title">Member Content Submission Portal</div>
+      </div>
+      <ul class="feature-list">
+        <li>Branded self-service content form — no email chasing</li>
+        <li>Multi-image upload with drag-and-drop per submission</li>
+        <li>Partners track their own submission history and statuses</li>
+        <li>Submission counter shows usage against limit in real time</li>
+        <li>Consent capture built into sign-up flow</li>
+      </ul>
+    </div>
+
+    <!-- AI Press Release Generation -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">✨</div>
+        <div class="section-title">AI Press Release Generation</div>
+      </div>
+      <ul class="feature-list">
+        <li>Select one or more member submissions — AI combines them into a cohesive draft</li>
+        <li>AI headline generator with multiple alternatives</li>
+        <li>AI tone enhancer aligned to your brand voice guidelines</li>
+        <li>Full edit interface — headline, body copy, audience, market, status</li>
+        <li>Featured image upload or pick from partner submissions</li>
+        <li>Auto-generated slug-based URLs per release</li>
+      </ul>
+    </div>
+
+    <!-- Submissions Dashboard -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">📋</div>
+        <div class="section-title">Submissions Dashboard</div>
+      </div>
+      <ul class="feature-list">
+        <li>All partner submissions in one view with filtering</li>
+        <li>AI theme analysis — automatic tagging of each submission</li>
+        <li>Custom tag system for manual organisation</li>
+        <li>Status workflow: submitted → reviewed → used → archived</li>
+        <li>Select and combine multiple member submissions into a single release</li>
+      </ul>
+    </div>
+
+    <!-- Media Distribution -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">📨</div>
+        <div class="section-title">Media Distribution</div>
+      </div>
+      <ul class="feature-list">
+        <li>Manage outlet lists with journalist contact details</li>
+        <li>One-click send to one or more lists via SendGrid</li>
+        <li>Real-time open and click tracking per journalist per release</li>
+        <li>Engagement stats — sends, opens, clicks per release</li>
+        <li>Follow up with confidence using per-journalist data</li>
+      </ul>
+    </div>
+
+    <!-- Web & Social Content -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">🌐</div>
+        <div class="section-title">Web &amp; Social Content</div>
+      </div>
+      <ul class="feature-list">
+        <li>AI generates SEO-ready web copy from each release</li>
+        <li>Platform-tailored social posts: LinkedIn, X, Facebook, Instagram</li>
+        <li>Character count with over-limit warning per platform</li>
+        <li>Editable posts with one-click copy to clipboard</li>
+        <li>Shareable release URL included alongside each post</li>
+      </ul>
+    </div>
+
+    <!-- Public Pages -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">📰</div>
+        <div class="section-title">Public Press Pages</div>
+      </div>
+      <ul class="feature-list">
+        <li>Clean public release page for each press release</li>
+        <li>Open Graph &amp; Twitter Card tags — correct preview on every social platform</li>
+        <li>Public media hub per organisation for journalists to browse</li>
+        <li>Story request form for journalists to pitch directly</li>
+        <li>Pages only go live when release is marked Ready or Sent</li>
+      </ul>
+    </div>
+
+    <!-- Partner Notifications & Reporting -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-icon">📊</div>
+        <div class="section-title">Member Notifications &amp; Reporting</div>
+      </div>
+      <ul class="feature-list">
+        <li>Automatic congratulations email when a member's content is used in a release</li>
+        <li>Email includes release headline and link to the published release</li>
+        <li>Quarterly member reports — personalised per member</li>
+        <li>Each report shows: submissions made, featured count, links to releases</li>
+        <li>Admin triggers reports manually to align with reporting cycles</li>
+      </ul>
+    </div>
+
+    <!-- Platform -->
+    <div class="section-full section">
+      <div class="section-header">
+        <div class="section-icon">⚙️</div>
+        <div class="section-title">Platform &amp; Administration</div>
+      </div>
+      <ul class="feature-list">
+        <li>Multi-tenant — full data isolation between organisations</li>
+        <li>Role-based access: Super Admin, Admin, User, Partner</li>
+        <li>Super-admin platform dashboard: org count, total partners, releases sent, emails distributed</li>
+        <li>Per-org usage stats: partners, submissions, releases, emails, last active indicator</li>
+        <li>Multi-sector support: DMOs, Charities, Trade Bodies — each with tailored AI prompts and labels</li>
+        <li>Member capacity &amp; submission limits managed per licence</li>
+        <li>Firebase Auth with secure role-based custom claims</li>
+        <li>Vercel-hosted Next.js frontend — fast, globally distributed</li>
+        <li>SendGrid email delivery with open and click analytics</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- STATS BAR -->
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="stat-value">Minutes</div>
+      <div class="stat-label">from partner submission<br>to publication-ready release</div>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat">
+      <div class="stat-value">1 platform</div>
+      <div class="stat-label">for PR, web content, social posts<br>&amp; media analytics</div>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat">
+      <div class="stat-value">Real-time</div>
+      <div class="stat-label">journalist open &amp; click tracking<br>per release</div>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat">
+      <div class="stat-value">Zero</div>
+      <div class="stat-label">email threads needed<br>to chase member content</div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-left">
+      <p>PressPilot is built for membership organisations, trade bodies and networks that want to amplify member content without the manual overhead. Invoiced annually — no payment gateway required to get started.</p>
+    </div>
+    <div class="footer-right">
+      <a class="cta-button" href="mailto:hello@press-pilot.com">Book a Demo</a>
+      <div class="contact-detail">press-pilot.com &nbsp;·&nbsp; hello@press-pilot.com</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
