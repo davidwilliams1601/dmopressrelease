@@ -13,6 +13,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Settings2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -21,6 +28,8 @@ type EditOrgLimitsDialogProps = {
   orgId: string;
   orgName: string;
   currentMaxPartners?: number;
+  currentMaxUsers?: number;
+  currentTier?: string;
   onUpdated: () => void;
 };
 
@@ -28,6 +37,8 @@ export function EditOrgLimitsDialog({
   orgId,
   orgName,
   currentMaxPartners,
+  currentMaxUsers,
+  currentTier,
   onUpdated,
 }: EditOrgLimitsDialogProps) {
   const [open, setOpen] = useState(false);
@@ -35,6 +46,10 @@ export function EditOrgLimitsDialog({
   const [maxPartners, setMaxPartners] = useState(
     currentMaxPartners != null ? String(currentMaxPartners) : ''
   );
+  const [maxUsers, setMaxUsers] = useState(
+    currentMaxUsers != null ? String(currentMaxUsers) : ''
+  );
+  const [tier, setTier] = useState(currentTier ?? '');
   const { toast } = useToast();
 
   const handleSave = async () => {
@@ -47,7 +62,12 @@ export function EditOrgLimitsDialog({
         toast({ title: 'Invalid value', description: 'Partner limit must be a positive number.', variant: 'destructive' });
         return;
       }
-      await updateLimits({ orgId, maxPartners: parsed });
+      const parsedUsers = maxUsers.trim() ? parseInt(maxUsers, 10) : null;
+      if (parsedUsers !== null && (isNaN(parsedUsers) || parsedUsers < 1)) {
+        toast({ title: 'Invalid value', description: 'User limit must be a positive number.', variant: 'destructive' });
+        return;
+      }
+      await updateLimits({ orgId, maxPartners: parsed, maxUsers: parsedUsers, tier: tier || null });
       toast({ title: 'Limits updated', description: `${orgName} limits saved.` });
       onUpdated();
       setOpen(false);
@@ -75,6 +95,19 @@ export function EditOrgLimitsDialog({
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
+            <Label htmlFor="tier">Plan Tier</Label>
+            <Select value={tier} onValueChange={setTier}>
+              <SelectTrigger id="tier">
+                <SelectValue placeholder="Not set" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="starter">Starter</SelectItem>
+                <SelectItem value="professional">Professional</SelectItem>
+                <SelectItem value="organisation">Organisation</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
             <Label htmlFor="maxPartners">Partner Limit</Label>
             <Input
               id="maxPartners"
@@ -84,10 +117,21 @@ export function EditOrgLimitsDialog({
               onChange={(e) => setMaxPartners(e.target.value)}
               placeholder="Unlimited"
             />
-            <p className="text-xs text-muted-foreground">
-              Clear the field to remove the limit entirely.
-            </p>
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="maxUsers">Named User Limit</Label>
+            <Input
+              id="maxUsers"
+              type="number"
+              min="1"
+              value={maxUsers}
+              onChange={(e) => setMaxUsers(e.target.value)}
+              placeholder="Unlimited"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Clear a limit field to remove it entirely.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

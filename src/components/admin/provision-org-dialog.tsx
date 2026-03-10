@@ -56,6 +56,8 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
   const [adminEmail, setAdminEmail] = useState('');
   const [vertical, setVertical] = useState<VerticalId>('dmo');
   const [maxPartners, setMaxPartners] = useState('');
+  const [maxUsers, setMaxUsers] = useState('');
+  const [tier, setTier] = useState<'starter' | 'professional' | 'organisation' | ''>('');
 
   const handleOrgNameChange = (value: string) => {
     setOrgName(value);
@@ -80,6 +82,8 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
         adminEmail,
         vertical,
         maxPartners: maxPartners ? parseInt(maxPartners, 10) : undefined,
+        maxUsers: maxUsers ? parseInt(maxUsers, 10) : undefined,
+        tier: tier || undefined,
       });
       setResult(response.data);
       onOrgProvisioned();
@@ -106,7 +110,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
     setOrgName(''); setOrgSlug(''); setBoilerplate(''); setBrandToneNotes('');
     setPressContactName(''); setPressContactEmail('');
     setAdminName(''); setAdminEmail('');
-    setVertical('dmo'); setMaxPartners('');
+    setVertical('dmo'); setMaxPartners(''); setMaxUsers(''); setTier('');
   };
 
   return (
@@ -243,19 +247,45 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="maxPartners">Partner Limit</Label>
-                  <Input
-                    id="maxPartners"
-                    type="number"
-                    min="1"
-                    value={maxPartners}
-                    onChange={(e) => setMaxPartners(e.target.value)}
-                    placeholder="Unlimited"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Maximum number of partner accounts. Leave empty for unlimited.
-                  </p>
+                  <Label htmlFor="tier">Plan Tier</Label>
+                  <Select value={tier} onValueChange={(v) => setTier(v as any)}>
+                    <SelectTrigger id="tier">
+                      <SelectValue placeholder="Not set" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="starter">Starter</SelectItem>
+                      <SelectItem value="professional">Professional</SelectItem>
+                      <SelectItem value="organisation">Organisation</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="maxPartners">Partner Limit</Label>
+                    <Input
+                      id="maxPartners"
+                      type="number"
+                      min="1"
+                      value={maxPartners}
+                      onChange={(e) => setMaxPartners(e.target.value)}
+                      placeholder="Unlimited"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="maxUsers">Named User Limit</Label>
+                    <Input
+                      id="maxUsers"
+                      type="number"
+                      min="1"
+                      value={maxUsers}
+                      onChange={(e) => setMaxUsers(e.target.value)}
+                      placeholder="Unlimited"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave limits empty for unlimited. Partner limit excludes named users; user limit excludes partners.
+                </p>
               </div>
 
               <div className="space-y-4">

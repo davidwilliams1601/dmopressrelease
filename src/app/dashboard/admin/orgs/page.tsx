@@ -28,6 +28,8 @@ type OrgStat = {
   slug: string;
   vertical: string;
   maxPartners: number | null;
+  maxUsers: number | null;
+  tier: string | null;
   createdAt: any;
   partnerCount: number;
   submissionCount: number;
@@ -225,6 +227,7 @@ export default function AdminOrgsPage() {
                 <TableRow>
                   <TableHead>Organisation</TableHead>
                   <TableHead>Sector</TableHead>
+                  <TableHead>Plan</TableHead>
                   <TableHead className="text-right">Partners</TableHead>
                   <TableHead className="text-right">Submissions</TableHead>
                   <TableHead className="text-right">Releases Sent</TableHead>
@@ -247,6 +250,18 @@ export default function AdminOrgsPage() {
                       <Badge variant="outline" className="text-xs">
                         {VERTICAL_LABELS[org.vertical] || org.vertical}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        {org.tier ? (
+                          <Badge variant="secondary" className="text-xs w-fit capitalize">{org.tier}</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                        {org.maxUsers != null && (
+                          <span className="text-xs text-muted-foreground">{org.maxUsers} users</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={org.maxPartners != null && org.partnerCount >= org.maxPartners ? 'text-red-500 font-semibold' : ''}>
@@ -272,6 +287,8 @@ export default function AdminOrgsPage() {
                         orgId={org.id}
                         orgName={org.name}
                         currentMaxPartners={org.maxPartners ?? undefined}
+                        currentMaxUsers={org.maxUsers ?? undefined}
+                        currentTier={org.tier ?? undefined}
                         onUpdated={loadReport}
                       />
                     </TableCell>

@@ -61,6 +61,8 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
     adminEmail,
     vertical,
     maxPartners,
+    maxUsers,
+    tier,
   } = data;
 
   if (!orgName || !orgSlug || !adminName || !adminEmail) {
@@ -108,6 +110,8 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
       provisionedBy: context.auth!.uid,
     };
     if (maxPartners && maxPartners > 0) orgData.maxPartners = maxPartners;
+    if (maxUsers && maxUsers > 0) orgData.maxUsers = maxUsers;
+    if (tier) orgData.tier = tier;
     await orgRef.set(orgData);
 
     // 2. Create the Firebase Auth user for the first admin
@@ -218,6 +222,8 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         slug: org.slug || orgId,
         vertical: org.vertical || 'dmo',
         maxPartners: org.maxPartners ?? null,
+        maxUsers: org.maxUsers ?? null,
+        tier: org.tier ?? null,
         createdAt: org.createdAt ?? null,
         partnerCount,
         submissionCount,
@@ -251,7 +257,7 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
 export const updateOrgLimits = functions.https.onCall(async (data, context) => {
   requireSuperAdmin(context);
 
-  const { orgId, maxPartners } = data;
+  const { orgId, maxPartners, maxUsers, tier } = data;
 
   if (!orgId) {
     throw new functions.https.HttpsError('invalid-argument', 'Missing required field: orgId');
@@ -275,9 +281,25 @@ export const updateOrgLimits = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'maxPartners must be a positive number or null.');
   }
 
+  if (maxUsers === null || maxUsers === undefined) {
+    update.maxUsers = admin.firestore.FieldValue.delete();
+  } else if (maxUsers > 0) {
+    update.maxUsers = maxUsers;
+  } else {
+    throw new functions.https.HttpsError('invalid-argument', 'maxUsers must be a positive number or null.');
+  }
+
+  if (tier === null || tier === undefined || tier === '') {
+    update.tier = admin.firestore.FieldValue.delete();
+  } else if (['starter', 'professional', 'organisation'].includes(tier)) {
+    update.tier = tier;
+  } else {
+    throw new functions.https.HttpsError('invalid-argument', 'tier must be starter, professional, organisation, or null.');
+  }
+
   await orgRef.update(update);
 
-  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'}`);
+  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'}`);
 
   return { success: true };
 });

@@ -45,9 +45,6 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
       const maxSubsStr = formData.get('max-submissions-per-partner') as string;
       const maxSubmissionsPerPartner = maxSubsStr ? parseInt(maxSubsStr, 10) : null;
 
-      const maxUsersStr = formData.get('max-users') as string;
-      const maxUsers = maxUsersStr ? parseInt(maxUsersStr, 10) : null;
-
       await updateDocumentNonBlocking(orgRef, {
         name: formData.get('org-name') as string,
         pressContact: {
@@ -59,9 +56,6 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
         ...(maxSubmissionsPerPartner && maxSubmissionsPerPartner > 0
           ? { maxSubmissionsPerPartner }
           : { maxSubmissionsPerPartner: null }),
-        ...(maxUsers && maxUsers > 0
-          ? { maxUsers }
-          : { maxUsers: null }),
         approvalWorkflowEnabled: approvalEnabled,
         updatedAt: serverTimestamp(),
       });
@@ -164,21 +158,6 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
             />
             <p className="text-sm text-muted-foreground">
               Maximum number of submissions each partner can make. Leave empty for unlimited. Helps prevent any one partner from monopolising the queue.
-            </p>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="max-users">Named User Limit</Label>
-            <Input
-              id="max-users"
-              name="max-users"
-              type="number"
-              min="1"
-              defaultValue={organization.maxUsers ?? ''}
-              placeholder="Unlimited"
-            />
-            <p className="text-sm text-muted-foreground">
-              Maximum number of Admin/User accounts. Leave empty for unlimited. Does not affect partner accounts.
             </p>
           </div>
 
