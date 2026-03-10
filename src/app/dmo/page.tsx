@@ -15,7 +15,7 @@ export default function DmoLandingPage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <span className="font-headline text-xl font-bold tracking-tight">PressPilot</span>
           <a
-            href="mailto:demo@presspilot.co?subject=Demo Request — DMO"
+            href="mailto:david@press-pilot.com?subject=Demo Request — DMO"
             className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700"
           >
             Book a Demo
@@ -36,7 +36,7 @@ export default function DmoLandingPage() {
         </p>
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
           <a
-            href="mailto:demo@presspilot.co?subject=Demo Request — DMO"
+            href="mailto:david@press-pilot.com?subject=Demo Request — DMO"
             className="rounded-md bg-gray-900 px-8 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-700"
           >
             Book a 20-Minute Demo
@@ -213,15 +213,15 @@ export default function DmoLandingPage() {
             A 20-minute demo tailored to how your team works. No slides, no generic walkthrough — we&rsquo;ll show you exactly how PressPilot fits into your press office.
           </p>
           <a
-            href="mailto:demo@presspilot.co?subject=Demo Request — DMO"
+            href="mailto:david@press-pilot.com?subject=Demo Request — DMO"
             className="inline-block rounded-md bg-white px-10 py-4 text-sm font-semibold text-gray-900 transition hover:bg-gray-100"
           >
             Book a Demo
           </a>
           <p className="mt-4 text-sm text-gray-500">
             Or email us directly at{' '}
-            <a href="mailto:demo@presspilot.co" className="text-gray-300 underline underline-offset-2">
-              demo@presspilot.co
+            <a href="mailto:david@press-pilot.com" className="text-gray-300 underline underline-offset-2">
+              david@press-pilot.com
             </a>
           </p>
         </div>
