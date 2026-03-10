@@ -15,6 +15,10 @@ interface UserData {
   avatarUrl?: string;
   avatarStoragePath?: string;
   socialHandles?: SocialHandles;
+  notificationPrefs?: {
+    partnerSubmissions: boolean;
+    mediaRequests: boolean;
+  };
 }
 
 /**
@@ -40,6 +44,7 @@ export function useUserData() {
     email: userDoc.data?.email,
     name: userDoc.data?.name,
     socialHandles: userDoc.data?.socialHandles,
+    notificationPrefs: userDoc.data?.notificationPrefs,
     isSuperAdmin,
   };
 }

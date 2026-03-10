@@ -36,6 +36,10 @@ export type User = {
   avatarUrl?: string;
   avatarStoragePath?: string;
   socialHandles?: SocialHandles;
+  notificationPrefs?: {
+    partnerSubmissions: boolean;
+    mediaRequests: boolean;
+  };
 };
 
 export type Release = {

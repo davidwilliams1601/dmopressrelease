@@ -5,6 +5,7 @@ import SettingsForm from '@/components/settings/settings-form';
 import UserProfileCard from '@/components/settings/user-profile-card';
 import ChangePasswordCard from '@/components/settings/change-password-card';
 import MediaEnquiryLinkCard from '@/components/settings/media-enquiry-link-card';
+import NotificationPrefsCard from '@/components/settings/notification-prefs-card';
 import { useUserData } from '@/hooks/use-user-data';
 import { useOrganization } from '@/hooks/use-organization';
 
@@ -47,6 +48,7 @@ export default function SettingsPage() {
       <SettingsForm organization={organization} />
       <MediaEnquiryLinkCard orgSlug={organization.slug} />
       <UserProfileCard />
+      <NotificationPrefsCard />
       <ChangePasswordCard />
     </div>
   );
