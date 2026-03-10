@@ -58,6 +58,7 @@ export type Release = {
   sends?: number;
   opens?: number;
   clicks?: number;
+  pageViews?: number;
   imageUrl?: string;
   imageStoragePath?: string;
   imageMetadata?: {

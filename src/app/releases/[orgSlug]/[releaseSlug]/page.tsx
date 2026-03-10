@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { DocumentSnapshot } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getAdminFirestore } from '@/lib/firebase-admin';
@@ -129,6 +130,12 @@ export default async function PublicReleasePage({ params }: Props) {
   if (!result) notFound();
 
   const { org, release } = result;
+
+  // Fire-and-forget page view increment — don't await so it never blocks rendering
+  const db = getAdminFirestore();
+  db.collection('orgs').doc(org.id).collection('releases').doc(release.id)
+    .update({ pageViews: FieldValue.increment(1) })
+    .catch((err) => console.error('[pageView] Failed to increment:', err));
 
   const paragraphs = (release.bodyCopy ?? '')
     .split(/\n{2,}/)

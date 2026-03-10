@@ -65,7 +65,7 @@ export default function DashboardPage() {
       sends: totalSends,
       opens: totalOpens,
       clicks: totalClicks,
-      pageViews: 0, // Will be calculated from analytics later
+      pageViews: releases.reduce((sum, r) => sum + (r.pageViews || 0), 0),
     };
   }, [allReleasesQuery.data]);
 
