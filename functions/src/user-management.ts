@@ -49,6 +49,23 @@ export const createOrgUser = functions.https.onCall(async (data, context) => {
       );
     }
 
+    // Check named user limit (Partners are excluded — they have their own limit)
+    const orgDoc = await db.collection('orgs').doc(orgId).get();
+    const maxUsers = orgDoc.data()?.maxUsers;
+    if (maxUsers && maxUsers > 0 && ['Admin', 'User'].includes(role)) {
+      const existingSnap = await db
+        .collection('orgs').doc(orgId)
+        .collection('users')
+        .where('role', 'in', ['Admin', 'User'])
+        .get();
+      if (existingSnap.size >= maxUsers) {
+        throw new functions.https.HttpsError(
+          'resource-exhausted',
+          `User limit reached. This organisation allows a maximum of ${maxUsers} named users.`
+        );
+      }
+    }
+
     // Generate a temporary password
     const tempPassword = generateTempPassword();
 

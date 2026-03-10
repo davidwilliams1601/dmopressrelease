@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState } from 'react';
 import { useUserData } from '@/hooks/use-user-data';
+import { useOrganization } from '@/hooks/use-organization';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -42,7 +43,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AddUserDialog } from '@/components/settings/add-user-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, Shield, User as UserIcon } from 'lucide-react';
+import { Trash2, Shield, User as UserIcon, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { toDate } from '@/lib/utils';
 import type { User } from '@/lib/types';
@@ -50,6 +51,7 @@ import type { User } from '@/lib/types';
 export default function TeamPage() {
   const { firestore, user: currentUser } = useFirebase();
   const { orgId, role, isLoading: isUserDataLoading } = useUserData();
+  const { organization } = useOrganization(orgId);
   const { toast } = useToast();
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -67,6 +69,8 @@ export default function TeamPage() {
 
   const users = (usersQuery.data || []).filter((u) => u.role !== 'Partner');
   const isAdmin = role === 'Admin';
+  const maxUsers = organization?.maxUsers;
+  const atUserLimit = maxUsers != null && users.length >= maxUsers;
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     if (!orgId) return;
@@ -171,7 +175,23 @@ export default function TeamPage() {
             Manage users and permissions for your organization.
           </p>
         </div>
-        {orgId && <AddUserDialog orgId={orgId} onUserAdded={() => { /* Data refreshes automatically via onSnapshot */ }} />}
+        <div className="flex flex-col items-end gap-1">
+          {maxUsers != null && (
+            <p className="text-xs text-muted-foreground">
+              {users.length} / {maxUsers} users
+            </p>
+          )}
+          {orgId && (
+            atUserLimit ? (
+              <Button disabled>
+                <UserPlus />
+                User Limit Reached
+              </Button>
+            ) : (
+              <AddUserDialog orgId={orgId} onUserAdded={() => {}} />
+            )
+          )}
+        </div>
       </div>
 
       <Card>

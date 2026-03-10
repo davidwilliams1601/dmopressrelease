@@ -22,6 +22,8 @@ export type Organization = {
   };
   maxPartners?: number;
   maxSubmissionsPerPartner?: number;
+  maxUsers?: number;
+  tier?: 'starter' | 'professional' | 'organisation';
   approvalWorkflowEnabled?: boolean;
 };
 
