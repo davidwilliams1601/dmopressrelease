@@ -5,7 +5,7 @@ import { useFirebase } from '@/firebase';
 import { useUserData } from '@/hooks/use-user-data';
 import { useRouter } from 'next/navigation';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { TagSelector } from '@/components/shared/tag-selector';
 import { MultiImageUpload } from '@/components/portal/multi-image-upload';
 import { useToast } from '@/hooks/use-toast';
 import { Send } from 'lucide-react';
+import type { SocialHandles } from '@/lib/types';
 
 type UploadedImage = {
   url: string;
@@ -27,9 +28,17 @@ type UploadedImage = {
   };
 };
 
+const SOCIAL_FIELDS: { key: keyof SocialHandles; label: string; placeholder: string }[] = [
+  { key: 'instagram', label: 'Instagram', placeholder: '@yourhandle' },
+  { key: 'twitter', label: 'X / Twitter', placeholder: '@yourhandle' },
+  { key: 'facebook', label: 'Facebook', placeholder: 'facebook.com/yourpage' },
+  { key: 'linkedin', label: 'LinkedIn', placeholder: 'linkedin.com/company/yourorg' },
+  { key: 'tiktok', label: 'TikTok', placeholder: '@yourhandle' },
+];
+
 export function SubmissionForm() {
   const { firestore, user } = useFirebase();
-  const { orgId, name: userName, email: userEmail } = useUserData();
+  const { orgId, name: userName, email: userEmail, socialHandles: savedHandles } = useUserData();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -37,7 +46,15 @@ export function SubmissionForm() {
   const [bodyCopy, setBodyCopy] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [images, setImages] = useState<UploadedImage[]>([]);
+  const [socialHandles, setSocialHandles] = useState<SocialHandles>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Pre-populate social handles from saved profile
+  useEffect(() => {
+    if (savedHandles) {
+      setSocialHandles(savedHandles);
+    }
+  }, [savedHandles]);
 
   // Pre-generate submission ID for image uploads — generated once orgId is available
   const [submissionId, setSubmissionId] = useState('');
@@ -64,6 +81,11 @@ export function SubmissionForm() {
     setIsSubmitting(true);
 
     try {
+      // Strip empty handle values before saving
+      const cleanHandles = Object.fromEntries(
+        Object.entries(socialHandles).filter(([, v]) => v && v.trim())
+      ) as SocialHandles;
+
       const submissionRef = doc(firestore, 'orgs', orgId, 'submissions', submissionId);
       setDocumentNonBlocking(submissionRef, {
         id: submissionId,
@@ -78,8 +100,15 @@ export function SubmissionForm() {
         imageStoragePaths: images.map((img) => img.storagePath),
         imageMetadata: images.map((img) => img.metadata),
         status: 'submitted',
+        partnerSocialHandles: cleanHandles,
         createdAt: serverTimestamp(),
       }, {});
+
+      // Persist handles back to user profile so future submissions pre-populate
+      if (Object.keys(cleanHandles).length > 0) {
+        const userRef = doc(firestore, 'orgs', orgId, 'users', user.uid);
+        updateDocumentNonBlocking(userRef, { socialHandles: cleanHandles });
+      }
 
       toast({
         title: 'Submission sent',
@@ -142,6 +171,32 @@ export function SubmissionForm() {
             Select tags that best describe your content to help the team organize submissions.
           </p>
           <TagSelector orgId={orgId} selectedTagIds={tagIds} onTagsChange={setTagIds} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Social Profiles (Optional)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Add your social handles so the press team can tag you in coverage. Saved to your profile for future submissions.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {SOCIAL_FIELDS.map(({ key, label, placeholder }) => (
+              <div key={key} className="space-y-1.5">
+                <Label htmlFor={`social-${key}`}>{label}</Label>
+                <Input
+                  id={`social-${key}`}
+                  placeholder={placeholder}
+                  value={socialHandles[key] || ''}
+                  onChange={(e) =>
+                    setSocialHandles((prev) => ({ ...prev, [key]: e.target.value }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

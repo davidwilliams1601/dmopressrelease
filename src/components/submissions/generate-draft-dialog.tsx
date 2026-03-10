@@ -73,6 +73,7 @@ export function GenerateDraftDialog({
           partnerName: s.partnerName,
           tags: (s.tagIds || []).map((id) => tagMap.get(id)?.name || id),
           aiThemes: s.aiThemes,
+          socialHandles: s.partnerSocialHandles,
         })),
         brandToneNotes: org?.brandToneNotes || '',
         targetMarket: targetMarket || undefined,

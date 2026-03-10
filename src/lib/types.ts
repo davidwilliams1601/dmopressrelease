@@ -1,5 +1,13 @@
 export type VerticalId = 'dmo' | 'charity' | 'trade-body';
 
+export type SocialHandles = {
+  instagram?: string;
+  twitter?: string;
+  facebook?: string;
+  linkedin?: string;
+  tiktok?: string;
+};
+
 export type Organization = {
   id: string;
   name: string;
@@ -27,6 +35,7 @@ export type User = {
   inviteId?: string;
   avatarUrl?: string;
   avatarStoragePath?: string;
+  socialHandles?: SocialHandles;
 };
 
 export type Release = {
@@ -145,6 +154,7 @@ export type PartnerSubmission = {
   updatedAt?: Date | any;
   reviewNotes?: string;
   usedInReleaseIds?: string[];
+  partnerSocialHandles?: SocialHandles;
 };
 
 export type MediaRequest = {

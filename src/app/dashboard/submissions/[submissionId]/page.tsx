@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Loader2, Instagram, Twitter, Facebook, Linkedin } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { analyzeSubmissionThemes } from '@/ai/flows/analyze-submission-themes';
@@ -257,6 +257,46 @@ export default function SubmissionDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {submission.partnerSocialHandles && Object.values(submission.partnerSocialHandles).some(Boolean) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Social Profiles</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {submission.partnerSocialHandles.instagram && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Instagram className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{submission.partnerSocialHandles.instagram}</span>
+                  </div>
+                )}
+                {submission.partnerSocialHandles.twitter && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Twitter className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{submission.partnerSocialHandles.twitter}</span>
+                  </div>
+                )}
+                {submission.partnerSocialHandles.facebook && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Facebook className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{submission.partnerSocialHandles.facebook}</span>
+                  </div>
+                )}
+                {submission.partnerSocialHandles.linkedin && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Linkedin className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{submission.partnerSocialHandles.linkedin}</span>
+                  </div>
+                )}
+                {submission.partnerSocialHandles.tiktok && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="h-4 w-4 text-muted-foreground shrink-0 text-xs font-bold">TT</span>
+                    <span>{submission.partnerSocialHandles.tiktok}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

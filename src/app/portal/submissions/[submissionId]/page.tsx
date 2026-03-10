@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Instagram, Twitter, Facebook, Linkedin } from 'lucide-react';
 import Link from 'next/link';
 import type { PartnerSubmission, Tag } from '@/lib/types';
 
@@ -164,6 +164,44 @@ export default function PartnerSubmissionDetailPage() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">AI Analysis</p>
                   <p className="mt-1 text-sm">{submission.aiThemeAnalysis}</p>
+                </div>
+              )}
+
+              {submission.partnerSocialHandles && Object.values(submission.partnerSocialHandles).some(Boolean) && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Social Profiles</p>
+                  <div className="mt-1 space-y-1">
+                    {submission.partnerSocialHandles.instagram && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Instagram className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{submission.partnerSocialHandles.instagram}</span>
+                      </div>
+                    )}
+                    {submission.partnerSocialHandles.twitter && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Twitter className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{submission.partnerSocialHandles.twitter}</span>
+                      </div>
+                    )}
+                    {submission.partnerSocialHandles.facebook && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Facebook className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{submission.partnerSocialHandles.facebook}</span>
+                      </div>
+                    )}
+                    {submission.partnerSocialHandles.linkedin && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Linkedin className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{submission.partnerSocialHandles.linkedin}</span>
+                      </div>
+                    )}
+                    {submission.partnerSocialHandles.tiktok && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-xs font-bold text-muted-foreground">TT</span>
+                        <span>{submission.partnerSocialHandles.tiktok}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </CardContent>

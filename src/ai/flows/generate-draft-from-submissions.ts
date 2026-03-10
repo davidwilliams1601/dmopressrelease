@@ -2,12 +2,21 @@
 
 import {z} from 'genkit';
 
+const SocialHandlesSchema = z.object({
+  instagram: z.string().optional(),
+  twitter: z.string().optional(),
+  facebook: z.string().optional(),
+  linkedin: z.string().optional(),
+  tiktok: z.string().optional(),
+});
+
 const SubmissionInputSchema = z.object({
   title: z.string(),
   bodyCopy: z.string(),
   partnerName: z.string(),
   tags: z.array(z.string()),
   aiThemes: z.array(z.string()).optional(),
+  socialHandles: SocialHandlesSchema.optional(),
 });
 
 const GenerateDraftInputSchema = z.object({
@@ -42,14 +51,20 @@ export async function generateDraftFromSubmissions(
     const {ai} = await import('@/ai/genkit');
 
     const submissionsText = input.submissions
-      .map(
-        (s, i) => `--- Submission ${i + 1} (from ${s.partnerName}) ---
+      .map((s, i) => {
+        const handles = s.socialHandles
+          ? Object.entries(s.socialHandles)
+              .filter(([, v]) => v)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(', ')
+          : '';
+        return `--- Submission ${i + 1} (from ${s.partnerName}) ---
 Title: ${s.title}
 Tags: ${s.tags.join(', ')}
-Themes: ${s.aiThemes?.join(', ') || 'Not analyzed'}
+Themes: ${s.aiThemes?.join(', ') || 'Not analyzed'}${handles ? `\nSocial: ${handles}` : ''}
 Content:
-${s.bodyCopy}`
-      )
+${s.bodyCopy}`;
+      })
       .join('\n\n');
 
     const {output} = await ai.generate({

@@ -3,6 +3,8 @@
 import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
+import type { SocialHandles } from '@/lib/types';
+
 interface UserData {
   email: string;
   orgId: string;
@@ -12,6 +14,7 @@ interface UserData {
   createdAt: any;
   avatarUrl?: string;
   avatarStoragePath?: string;
+  socialHandles?: SocialHandles;
 }
 
 /**
@@ -36,6 +39,7 @@ export function useUserData() {
     role: userDoc.data?.role,
     email: userDoc.data?.email,
     name: userDoc.data?.name,
+    socialHandles: userDoc.data?.socialHandles,
     isSuperAdmin,
   };
 }
