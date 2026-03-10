@@ -40,23 +40,30 @@ export default function ReleasesTable({ releases }: ReleasesTableProps) {
             onClick={() => router.push(`/dashboard/releases/${release.id}`)}
           >
             <TableCell>
-              <Badge
-                variant={
-                  release.status === 'Sent'
-                    ? 'default'
-                    : release.status === 'Ready'
-                    ? 'secondary'
-                    : 'outline'
-                }
-                className={cn(
-                  release.status === 'Ready' &&
-                    'bg-yellow-200 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
-                  release.status === 'Sent' &&
-                    'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
+              <div className="flex flex-wrap gap-1">
+                <Badge
+                  variant={
+                    release.status === 'Sent'
+                      ? 'default'
+                      : release.status === 'Ready'
+                      ? 'secondary'
+                      : 'outline'
+                  }
+                  className={cn(
+                    release.status === 'Ready' &&
+                      'bg-yellow-200 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
+                    release.status === 'Sent' &&
+                      'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
+                  )}
+                >
+                  {release.status}
+                </Badge>
+                {release.approvalStatus === 'pending' && (
+                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                    Awaiting Approval
+                  </Badge>
                 )}
-              >
-                {release.status}
-              </Badge>
+              </div>
             </TableCell>
             <TableCell className="font-medium">{release.headline}</TableCell>
             <TableCell className="hidden text-right md:table-cell">

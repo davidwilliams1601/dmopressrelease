@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Lock } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, doc, serverTimestamp, getDocs } from 'firebase/firestore';
@@ -25,9 +25,10 @@ import { Separator } from '@/components/ui/separator';
 type SendReleaseDialogProps = {
   release: Release;
   orgId: string;
+  approvalBlocked?: boolean;
 };
 
-export function SendReleaseDialog({ release, orgId }: SendReleaseDialogProps) {
+export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendReleaseDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [selectedLists, setSelectedLists] = useState<string[]>([]);
@@ -133,6 +134,15 @@ export function SendReleaseDialog({ release, orgId }: SendReleaseDialogProps) {
     const list = outletLists.find((l) => l.id === listId);
     return sum + (list?.recipientCount || 0);
   }, 0);
+
+  if (approvalBlocked) {
+    return (
+      <Button disabled title="Awaiting approval before this release can be sent.">
+        <Lock />
+        <span>Approval Required</span>
+      </Button>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { AnalyticsChart } from './analytics-chart';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
-import type { EmailEvent } from '@/lib/types';
+import type { EmailEvent, Release } from '@/lib/types';
 import { format } from 'date-fns';
 import { toDate } from '@/lib/utils';
 import { Mail, MousePointerClick, ExternalLink, AlertCircle, Ban } from 'lucide-react';
@@ -46,6 +46,31 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
 
   const { data: rawEvents, isLoading, error } = useCollection<EmailEvent>(eventsQuery);
   const events = rawEvents ?? [];
+
+  // Fetch all sent releases for benchmarking
+  const orgReleasesQuery = useMemoFirebase(
+    () => {
+      const releasesRef = collection(firestore, 'orgs', orgId, 'releases');
+      return query(releasesRef, where('status', '==', 'Sent'));
+    },
+    [firestore, orgId]
+  );
+
+  const { data: rawOrgReleases } = useCollection<Release>(orgReleasesQuery);
+  const orgReleases = rawOrgReleases ?? [];
+
+  // Compute org average open rate (excluding current release)
+  const orgBenchmark = useMemo(() => {
+    const otherReleases = orgReleases.filter(
+      (r) => r.id !== releaseId && (r.sends ?? 0) > 0
+    );
+    if (otherReleases.length === 0) return null;
+    const totalRate = otherReleases.reduce((sum, r) => {
+      const rate = ((r.opens ?? 0) / (r.sends ?? 1)) * 100;
+      return sum + rate;
+    }, 0);
+    return { avg: totalRate / otherReleases.length, count: otherReleases.length };
+  }, [orgReleases, releaseId]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -138,6 +163,56 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
 
   return (
     <div className="grid gap-6">
+      {/* Benchmark Card */}
+      {stats.delivered > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline">Open Rate Benchmark</CardTitle>
+            <CardDescription>How does this release compare?</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">This release</p>
+                <p
+                  className={`text-2xl font-bold ${
+                    orgBenchmark
+                      ? stats.openRate >= orgBenchmark.avg + 5
+                        ? 'text-green-600'
+                        : stats.openRate <= orgBenchmark.avg - 5
+                        ? 'text-red-600'
+                        : 'text-amber-600'
+                      : ''
+                  }`}
+                >
+                  {stats.openRate.toFixed(1)}%
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Your average</p>
+                <p className="text-2xl font-bold">
+                  {orgBenchmark ? `${orgBenchmark.avg.toFixed(1)}%` : '—'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Industry benchmark</p>
+                <p className="text-2xl font-bold">38%</p>
+                <p className="text-xs text-muted-foreground">(DMO sector estimate)</p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-muted-foreground">
+              {!orgBenchmark
+                ? "This is your first sent release — your average will build over time."
+                : stats.openRate >= orgBenchmark.avg + 5
+                ? `This release performed ${(stats.openRate - orgBenchmark.avg).toFixed(1)} points above your average.`
+                : stats.openRate <= orgBenchmark.avg - 5
+                ? `This release performed ${(orgBenchmark.avg - stats.openRate).toFixed(1)} points below your average.`
+                : `This release is broadly in line with your average of ${orgBenchmark.avg.toFixed(1)}%.`}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Overview Stats */}
       <Card>
         <CardHeader>

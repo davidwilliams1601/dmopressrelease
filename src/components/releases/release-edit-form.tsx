@@ -47,6 +47,7 @@ import { SocialPostGenerator } from './social-post-generator';
 import { SendReleaseDialog } from './send-release-dialog';
 import { SendJobsCard } from './send-jobs-card';
 import { ImageUpload } from './image-upload';
+import { ApprovalWorkflowCard } from './approval-workflow-card';
 
 type ReleaseEditFormProps = {
   release: Release;
@@ -359,6 +360,11 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
           organization={organization}
         />
 
+        {/* Approval Workflow Card */}
+        {organization?.approvalWorkflowEnabled && release.status !== 'Sent' && (
+          <ApprovalWorkflowCard release={release} orgId={orgId} />
+        )}
+
         {/* Stats Card (if sent) */}
         {release.status === 'Sent' && (
           <Card>
@@ -421,7 +427,14 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
           </AlertDialog>
 
           <div className="flex gap-2">
-            <SendReleaseDialog release={release} orgId={orgId} />
+            <SendReleaseDialog
+              release={release}
+              orgId={orgId}
+              approvalBlocked={
+                organization?.approvalWorkflowEnabled === true &&
+                release.approvalStatus !== 'approved'
+              }
+            />
             <Button type="submit" disabled={isSaving}>
               <Save />
               {isSaving ? 'Saving...' : 'Save Changes'}

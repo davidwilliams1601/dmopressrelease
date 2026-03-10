@@ -340,3 +340,6 @@ export * from './partner-notifications';
 
 // Export org-user notification functions
 export * from './org-user-notifications';
+
+// Export approval notification functions
+export * from './approval-notifications';

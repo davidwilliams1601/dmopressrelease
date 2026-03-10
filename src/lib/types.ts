@@ -22,6 +22,7 @@ export type Organization = {
   };
   maxPartners?: number;
   maxSubmissionsPerPartner?: number;
+  approvalWorkflowEnabled?: boolean;
 };
 
 export type User = {
@@ -65,6 +66,16 @@ export type Release = {
     mimeType: string;
     uploadedAt: Date | any;
   };
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  approverId?: string;
+  approverName?: string;
+  approverEmail?: string;
+  approvalRequestedAt?: Date | any;
+  approvalRequestedById?: string;
+  approvalRequestedByName?: string;
+  approvalRequestedByEmail?: string;
+  approvalResolvedAt?: Date | any;
+  approvalNotes?: string;
 };
 
 export type EngagementStats = {

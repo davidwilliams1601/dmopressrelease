@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { Organization } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Save } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { updateDocumentNonBlocking } from '@/firebase';
@@ -28,6 +29,9 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [approvalEnabled, setApprovalEnabled] = useState(
+    organization.approvalWorkflowEnabled ?? false
+  );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -52,6 +56,7 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
         ...(maxSubmissionsPerPartner && maxSubmissionsPerPartner > 0
           ? { maxSubmissionsPerPartner }
           : { maxSubmissionsPerPartner: null }),
+        approvalWorkflowEnabled: approvalEnabled,
         updatedAt: serverTimestamp(),
       });
 
@@ -154,6 +159,20 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
             <p className="text-sm text-muted-foreground">
               Maximum number of submissions each partner can make. Leave empty for unlimited. Helps prevent any one partner from monopolising the queue.
             </p>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="approval-workflow" className="text-base">Approval Workflow</Label>
+              <p className="text-sm text-muted-foreground">
+                Require approval before a release can be sent.
+              </p>
+            </div>
+            <Switch
+              id="approval-workflow"
+              checked={approvalEnabled}
+              onCheckedChange={setApprovalEnabled}
+            />
           </div>
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
