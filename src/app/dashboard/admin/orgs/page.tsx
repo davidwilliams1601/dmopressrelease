@@ -20,6 +20,7 @@ import { Building2, Users, Send, Mail, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProvisionOrgDialog } from '@/components/admin/provision-org-dialog';
 import { EditOrgLimitsDialog } from '@/components/admin/edit-org-limits-dialog';
+import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
 import { format, formatDistanceToNow } from 'date-fns';
 
 type OrgStat = {
@@ -283,14 +284,21 @@ export default function AdminOrgsPage() {
                       {formatDate(org.createdAt)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <EditOrgLimitsDialog
-                        orgId={org.id}
-                        orgName={org.name}
-                        currentMaxPartners={org.maxPartners ?? undefined}
-                        currentMaxUsers={org.maxUsers ?? undefined}
-                        currentTier={org.tier ?? undefined}
-                        onUpdated={loadReport}
-                      />
+                      <div className="flex items-center justify-end gap-1">
+                        <EditOrgLimitsDialog
+                          orgId={org.id}
+                          orgName={org.name}
+                          currentMaxPartners={org.maxPartners ?? undefined}
+                          currentMaxUsers={org.maxUsers ?? undefined}
+                          currentTier={org.tier ?? undefined}
+                          onUpdated={loadReport}
+                        />
+                        <DeleteOrgDialog
+                          orgId={org.id}
+                          orgName={org.name}
+                          onDeleted={loadReport}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

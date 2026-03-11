@@ -248,6 +248,60 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
 });
 
 /**
+ * Permanently delete an organisation and all associated data. Super-admin only.
+ *
+ * Deletes:
+ *   1. All Firebase Auth users belonging to the org
+ *   2. All Firestore data (org doc + all subcollections, recursively)
+ *   3. All Storage files under orgs/{orgId}/
+ */
+export const deleteOrg = functions
+  .runWith({ timeoutSeconds: 300 })
+  .https.onCall(async (data, context) => {
+    requireSuperAdmin(context);
+
+    const { orgId } = data;
+    if (!orgId) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing required field: orgId');
+    }
+
+    const orgRef = db.collection('orgs').doc(orgId);
+    const orgDoc = await orgRef.get();
+    if (!orgDoc.exists) {
+      throw new functions.https.HttpsError('not-found', `Organisation ${orgId} not found.`);
+    }
+
+    // 1. Delete all Firebase Auth users in this org
+    const usersSnap = await orgRef.collection('users').get();
+    const uids = usersSnap.docs.map((d) => d.id);
+
+    if (uids.length > 0) {
+      // deleteUsers accepts up to 1000 at a time
+      for (let i = 0; i < uids.length; i += 1000) {
+        await admin.auth().deleteUsers(uids.slice(i, i + 1000));
+      }
+      console.log(`[deleteOrg] Deleted ${uids.length} Auth user(s) for org ${orgId}`);
+    }
+
+    // 2. Recursively delete all Firestore data under the org
+    await db.recursiveDelete(orgRef);
+    console.log(`[deleteOrg] Deleted Firestore data for org ${orgId}`);
+
+    // 3. Delete Storage files (best-effort — don't fail if storage is empty)
+    try {
+      const storage = admin.storage();
+      const bucket = storage.bucket();
+      await bucket.deleteFiles({ prefix: `orgs/${orgId}/` });
+      console.log(`[deleteOrg] Deleted Storage files for org ${orgId}`);
+    } catch (err: any) {
+      console.warn(`[deleteOrg] Storage cleanup failed (non-fatal): ${err.message}`);
+    }
+
+    console.log(`[deleteOrg] Organisation ${orgId} fully deleted by ${context.auth!.uid}`);
+    return { success: true };
+  });
+
+/**
  * Update partner/submission limits for an organisation. Super-admin only.
  *
  * Input:
