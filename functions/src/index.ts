@@ -192,12 +192,15 @@ async function sendEmail(recipient: any, release: any, orgId: string, org: any) 
     throw new Error('Missing sendgrid.from_email config. Set it with: firebase functions:config:set sendgrid.from_email="you@yourdomain.com"');
   }
 
-  const msg = {
+  const replyToEmail = org?.pressContact?.email;
+
+  const msg: any = {
     to: recipient.email,
     from: {
       email: fromEmail,
       name: org?.name || 'Press Release',
     },
+    ...(replyToEmail ? { replyTo: { email: replyToEmail, name: org?.name || '' } } : {}),
     subject: release.headline,
     text: release.bodyCopy || 'No content',
     html: formatEmailHtml(release, recipient, org),
