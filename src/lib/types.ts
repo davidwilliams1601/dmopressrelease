@@ -127,6 +127,19 @@ export type SendJob = {
   error?: string;
 };
 
+export type PartnerEmail = {
+  id: string;
+  orgId: string;
+  subject: string;
+  sentBy: string;
+  sentAt: Date | any;
+  recipientCount: number;
+  sentCount: number;
+  opens: number;
+  clicks: number;
+  recipients: Array<{ id: string; name: string; email: string }>;
+};
+
 export type PartnerInvite = {
   id: string;
   orgId: string;

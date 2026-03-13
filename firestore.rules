@@ -177,6 +177,26 @@ service cloud.firestore {
      * @path /orgs/{orgId}/invites/{inviteId}
      * @principle Only admins can manage invites.
      */
+    /**
+     * @description Partner email send records with open/click stats.
+     * @path /orgs/{orgId}/partnerEmails/{emailId}
+     * @principle Team members read. Cloud Functions write (no client creates).
+     */
+    match /orgs/{orgId}/partnerEmails/{emailId} {
+      allow read: if isTeamMember(orgId);
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Individual tracking events for partner emails.
+     * @path /orgs/{orgId}/partnerEmailEvents/{eventId}
+     * @principle Team members read. Cloud Functions write only.
+     */
+    match /orgs/{orgId}/partnerEmailEvents/{eventId} {
+      allow read: if isTeamMember(orgId);
+      allow create, update, delete: if false;
+    }
+
     match /orgs/{orgId}/invites/{inviteId} {
       allow read: if isOrgAdmin(orgId);
       allow create: if isOrgAdmin(orgId) && hasCorrectOrgIdOnCreate(orgId);

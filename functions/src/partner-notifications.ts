@@ -386,7 +386,6 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
   // Fetch target partners
   let partnersSnap;
   if (partnerIds && partnerIds.length > 0) {
-    // Individual send — fetch only the specified users
     const docs = await Promise.all(
       partnerIds.map((id: string) =>
         db.collection('orgs').doc(orgId).collection('users').doc(id).get()
@@ -394,7 +393,6 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
     );
     partnersSnap = docs.filter((d) => d.exists && d.data()?.role === 'Partner');
   } else {
-    // Bulk send — all partners
     const snap = await db
       .collection('orgs').doc(orgId)
       .collection('users')
@@ -406,6 +404,26 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
   if (partnersSnap.length === 0) {
     return { sentCount: 0 };
   }
+
+  // Create a partnerEmails record before sending so we have an ID for tracking
+  const emailRef = db.collection('orgs').doc(orgId).collection('partnerEmails').doc();
+  const partnerEmailId = emailRef.id;
+  const recipients = partnersSnap
+    .map((d: any) => ({ id: d.id, name: d.data()?.name || '', email: d.data()?.email || '' }))
+    .filter((r: any) => r.email);
+
+  await emailRef.set({
+    id: partnerEmailId,
+    orgId,
+    subject: subject.trim(),
+    sentBy: context.auth.uid,
+    sentAt: admin.firestore.FieldValue.serverTimestamp(),
+    recipientCount: recipients.length,
+    sentCount: 0,
+    opens: 0,
+    clicks: 0,
+    recipients,
+  });
 
   const safeOrgName = escapeHtml(orgName);
   const safeSubject = escapeHtml(subject.trim());
@@ -454,11 +472,19 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
         subject: subject.trim(),
         html,
         text,
+        customArgs: { orgId, partnerEmailId },
+        trackingSettings: {
+          clickTracking: { enable: true },
+          openTracking: { enable: true },
+        },
       });
 
       sentCount++;
     })
   );
+
+  // Update the record with actual sent count
+  await emailRef.update({ sentCount });
 
   return { sentCount, recipientCount: partnersSnap.length };
 });

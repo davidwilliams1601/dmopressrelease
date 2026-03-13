@@ -44,26 +44,19 @@ function verifySendGridSignature(
  * Extract orgId and releaseId from custom args in SendGrid event
  * SendGrid allows us to pass custom arguments with each email
  */
-function extractMetadataFromEvent(event: any): { orgId?: string; releaseId?: string } {
-  // SendGrid includes custom args in the event object
-  // They can be at the root level or in a custom_args object
-  if (event.orgId && event.releaseId) {
-    return {
-      orgId: event.orgId,
-      releaseId: event.releaseId,
-    };
+function extractMetadataFromEvent(event: any): { orgId?: string; releaseId?: string; partnerEmailId?: string } {
+  const root = event;
+  const nested = event.custom_args || {};
+
+  const orgId = root.orgId || nested.orgId;
+  const releaseId = root.releaseId || nested.releaseId;
+  const partnerEmailId = root.partnerEmailId || nested.partnerEmailId;
+
+  if (orgId && (releaseId || partnerEmailId)) {
+    return { orgId, releaseId, partnerEmailId };
   }
 
-  // Check in custom_args object (SendGrid sometimes nests them here)
-  if (event.custom_args?.orgId && event.custom_args?.releaseId) {
-    return {
-      orgId: event.custom_args.orgId,
-      releaseId: event.custom_args.releaseId,
-    };
-  }
-
-  // Fallback: try to extract from sg_message_id or other fields
-  console.warn('Could not extract orgId/releaseId from event:', event.event);
+  console.warn('Could not extract orgId/releaseId or partnerEmailId from event:', event.event);
   return {};
 }
 
@@ -120,7 +113,7 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
     const operations: Array<{
       eventRef: FirebaseFirestore.DocumentReference;
       eventData: any;
-      releaseRef: FirebaseFirestore.DocumentReference;
+      statRef: FirebaseFirestore.DocumentReference;
       eventType: string;
     }> = [];
 
@@ -132,35 +125,23 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
       }
 
       // Extract metadata
-      const { orgId, releaseId } = extractMetadataFromEvent(event);
+      const { orgId, releaseId, partnerEmailId } = extractMetadataFromEvent(event);
 
-      if (!orgId || !releaseId) {
-        console.warn('Skipping event without orgId/releaseId:', event.event);
+      if (!orgId || (!releaseId && !partnerEmailId)) {
+        console.warn('Skipping event without orgId and releaseId/partnerEmailId:', event.event);
         continue;
       }
 
       // Map SendGrid event types to our event types
       let eventType: string;
       switch (event.event) {
-        case 'delivered':
-          eventType = 'delivered';
-          break;
-        case 'open':
-          eventType = 'open';
-          break;
-        case 'click':
-          eventType = 'click';
-          break;
+        case 'delivered': eventType = 'delivered'; break;
+        case 'open': eventType = 'open'; break;
+        case 'click': eventType = 'click'; break;
         case 'bounce':
-        case 'dropped':
-          eventType = 'bounce';
-          break;
-        case 'spamreport':
-          eventType = 'spam_report';
-          break;
-        case 'unsubscribe':
-          eventType = 'unsubscribe';
-          break;
+        case 'dropped': eventType = 'bounce'; break;
+        case 'spamreport': eventType = 'spam_report'; break;
+        case 'unsubscribe': eventType = 'unsubscribe'; break;
         default:
           console.log(`Ignoring event type: ${event.event}`);
           continue;
@@ -168,45 +149,65 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
 
       // Use deterministic ID for idempotency
       const eventId = generateEventId(event);
-      const eventRef = db
-        .collection('orgs')
-        .doc(orgId)
-        .collection('events')
-        .doc(eventId);
 
       // Validate and convert timestamp
       const eventTimestamp = isValidTimestamp(event.timestamp)
         ? admin.firestore.Timestamp.fromMillis(event.timestamp * 1000)
         : admin.firestore.Timestamp.now();
 
-      // Build metadata omitting undefined/empty fields — Firestore rejects undefined values
+      // Build metadata omitting undefined/empty fields
       const metadata: Record<string, string> = {};
       if (event.useragent) metadata.userAgent = event.useragent;
       if (event.ip) metadata.ip = event.ip;
       if (event.url) metadata.url = event.url;
       if (event.reason) metadata.reason = event.reason;
 
-      const eventData = {
-        id: eventRef.id,
-        orgId,
-        releaseId,
-        recipientEmail: event.email,
-        eventType,
-        timestamp: eventTimestamp,
-        metadata,
-      };
+      if (partnerEmailId) {
+        // Partner email event — store in partnerEmailEvents, update partnerEmails doc
+        const eventRef = db
+          .collection('orgs').doc(orgId!)
+          .collection('partnerEmailEvents').doc(eventId);
 
-      const releaseRef = db
-        .collection('orgs')
-        .doc(orgId)
-        .collection('releases')
-        .doc(releaseId);
+        const eventData = {
+          id: eventRef.id,
+          orgId,
+          partnerEmailId,
+          recipientEmail: event.email,
+          eventType,
+          timestamp: eventTimestamp,
+          metadata,
+        };
 
-      operations.push({ eventRef, eventData, releaseRef, eventType });
+        const statRef = db
+          .collection('orgs').doc(orgId!)
+          .collection('partnerEmails').doc(partnerEmailId);
+
+        operations.push({ eventRef, eventData, statRef, eventType });
+      } else {
+        // Press release event — existing behaviour
+        const eventRef = db
+          .collection('orgs').doc(orgId!)
+          .collection('events').doc(eventId);
+
+        const eventData = {
+          id: eventRef.id,
+          orgId,
+          releaseId,
+          recipientEmail: event.email,
+          eventType,
+          timestamp: eventTimestamp,
+          metadata,
+        };
+
+        const statRef = db
+          .collection('orgs').doc(orgId!)
+          .collection('releases').doc(releaseId!);
+
+        operations.push({ eventRef, eventData, statRef, eventType });
+      }
     }
 
     // Commit in batches of 250 (each event may need 2 ops: set + update)
-    // Firestore limit is 500 operations per batch
     const BATCH_LIMIT = 250;
     let totalCommitted = 0;
 
@@ -218,13 +219,9 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
         batch.set(op.eventRef, op.eventData);
 
         if (op.eventType === 'open') {
-          batch.update(op.releaseRef, {
-            opens: admin.firestore.FieldValue.increment(1),
-          });
+          batch.update(op.statRef, { opens: admin.firestore.FieldValue.increment(1) });
         } else if (op.eventType === 'click') {
-          batch.update(op.releaseRef, {
-            clicks: admin.firestore.FieldValue.increment(1),
-          });
+          batch.update(op.statRef, { clicks: admin.firestore.FieldValue.increment(1) });
         }
       }
 

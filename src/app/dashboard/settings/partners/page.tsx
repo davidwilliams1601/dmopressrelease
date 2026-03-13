@@ -19,11 +19,11 @@ import { GenerateInviteDialog } from '@/components/settings/generate-invite-dial
 import { SendQuarterlyReportDialog } from '@/components/settings/send-quarterly-report-dialog';
 import { SendPartnerEmailDialog } from '@/components/settings/send-partner-email-dialog';
 import { useVerticalConfig } from '@/hooks/use-vertical-config';
-import { Link as LinkIcon, Users, Mail, Copy, Send } from 'lucide-react';
+import { Link as LinkIcon, Users, Mail, Copy, Send, MailOpen, MousePointerClick } from 'lucide-react';
 import { format } from 'date-fns';
 import { toDate } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import type { PartnerInvite, User } from '@/lib/types';
+import type { PartnerInvite, PartnerEmail, User } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,8 +50,18 @@ export default function PartnersPage() {
     );
   }, [firestore, orgId]);
 
+  const partnerEmailsRef = useMemoFirebase(() => {
+    if (!orgId) return null;
+    return query(
+      collection(firestore, 'orgs', orgId, 'partnerEmails'),
+      orderBy('sentAt', 'desc')
+    );
+  }, [firestore, orgId]);
+
   const { data: invitesData, isLoading: isInvitesLoading } = useCollection<PartnerInvite>(invitesRef);
   const { data: usersData, isLoading: isUsersLoading } = useCollection<User>(usersRef);
+  const { data: partnerEmailsData } = useCollection<PartnerEmail>(partnerEmailsRef);
+  const partnerEmails = partnerEmailsData || [];
   const invites = invitesData || [];
   const partnerAccounts = (usersData || []).filter((u) => u.role === 'Partner');
 
@@ -259,6 +269,63 @@ export default function PartnersPage() {
                       )}
                     </TableCell>
                   </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Email History
+          </CardTitle>
+          <CardDescription>
+            Opens and clicks tracked via SendGrid for emails sent to partners.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {partnerEmails.length === 0 ? (
+            <p className="py-8 text-center text-muted-foreground">
+              No partner emails sent yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subject</TableHead>
+                  <TableHead className="text-right">Recipients</TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1"><MailOpen className="h-3.5 w-3.5" /> Opens</span>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1"><MousePointerClick className="h-3.5 w-3.5" /> Clicks</span>
+                  </TableHead>
+                  <TableHead>Sent</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {partnerEmails.map((email) => {
+                  const openRate = email.sentCount > 0 ? Math.round((email.opens / email.sentCount) * 100) : 0;
+                  const clickRate = email.sentCount > 0 ? Math.round((email.clicks / email.sentCount) * 100) : 0;
+                  return (
+                    <TableRow key={email.id}>
+                      <TableCell className="font-medium">{email.subject}</TableCell>
+                      <TableCell className="text-right">{email.sentCount}</TableCell>
+                      <TableCell className="text-right">
+                        <span className="tabular-nums">{email.opens}</span>
+                        <span className="text-muted-foreground text-xs ml-1">({openRate}%)</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="tabular-nums">{email.clicks}</span>
+                        <span className="text-muted-foreground text-xs ml-1">({clickRate}%)</span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {email.sentAt ? format(toDate(email.sentAt), 'dd MMM yyyy') : '—'}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
               </TableBody>
