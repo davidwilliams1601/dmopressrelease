@@ -37,6 +37,7 @@ export type VerticalConfig = {
   ai: AiContext;
   consent: ConsentText;
   provision: ProvisionText;
+  partnerCategories: string[];
 };
 
 export const VERTICALS: Record<VerticalId, VerticalConfig> = {
@@ -73,6 +74,20 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     provision: {
       description: 'Creates a new organisation and its first admin account.',
     },
+    partnerCategories: [
+      'Accommodation',
+      'Attraction',
+      'Activity & Adventure',
+      'Food & Drink',
+      'Events & Festivals',
+      'Transport',
+      'Retail',
+      'Spa & Wellness',
+      'Arts & Culture',
+      'Nature & Outdoor',
+      'Sport',
+      'Other',
+    ],
   },
 
   charity: {
@@ -108,6 +123,17 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     provision: {
       description: 'Creates a new organisation and its first admin account.',
     },
+    partnerCategories: [
+      'Community Group',
+      'Health & Wellbeing',
+      'Education & Training',
+      'Social Care',
+      'Environment & Conservation',
+      'Arts & Culture',
+      'Housing & Homelessness',
+      'International Aid',
+      'Other',
+    ],
   },
 
   'trade-body': {
@@ -143,6 +169,18 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     provision: {
       description: 'Creates a new organisation and its first admin account.',
     },
+    partnerCategories: [
+      'Manufacturer',
+      'Retailer',
+      'Service Provider',
+      'Consultant & Advisory',
+      'Technology',
+      'Media & Communications',
+      'Professional Services',
+      'Start-up & SME',
+      'Enterprise',
+      'Other',
+    ],
   },
 };
 

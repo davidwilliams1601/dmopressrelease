@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, UserPlus } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
@@ -20,6 +21,7 @@ export default function PartnerSignupForm({ inviteCode }: PartnerSignupFormProps
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [businessDescription, setBusinessDescription] = useState('');
   const [consentContentUsage, setConsentContentUsage] = useState(false);
   const [consentMarketing, setConsentMarketing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export default function PartnerSignupForm({ inviteCode }: PartnerSignupFormProps
         email,
         password,
         name,
+        businessDescription,
         consentContentUsage,
         consentMarketing,
       });
@@ -117,6 +120,21 @@ export default function PartnerSignupForm({ inviteCode }: PartnerSignupFormProps
           onChange={(e) => setPassword(e.target.value)}
         />
         <p className="text-xs text-muted-foreground">Must be at least 6 characters.</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="businessDescription">Tell us about your business</Label>
+        <Textarea
+          id="businessDescription"
+          name="businessDescription"
+          placeholder="e.g. We're a family-run hotel in the heart of Canterbury with 24 rooms, a restaurant, and a spa. We specialise in leisure breaks and have been operating since 1998."
+          rows={4}
+          value={businessDescription}
+          onChange={(e) => setBusinessDescription(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          A short description helps us match you with the most relevant press opportunities. (Optional)
+        </p>
       </div>
 
       <div className="space-y-3 rounded-md border p-4">

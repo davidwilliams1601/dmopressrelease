@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GenerateInviteDialog } from '@/components/settings/generate-invite-dialog';
 import { SendQuarterlyReportDialog } from '@/components/settings/send-quarterly-report-dialog';
 import { SendPartnerEmailDialog } from '@/components/settings/send-partner-email-dialog';
+import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import { Link as LinkIcon, Users, Mail, Copy, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { toDate } from '@/lib/utils';
@@ -30,6 +31,7 @@ export default function PartnersPage() {
   const { orgId, role, isLoading: isUserLoading } = useUserData();
   const { firestore } = useFirebase();
   const { toast } = useToast();
+  const { config: verticalConfig } = useVerticalConfig(orgId);
   const isAdmin = role === 'Admin';
 
   const invitesRef = useMemoFirebase(() => {
@@ -84,7 +86,8 @@ export default function PartnersPage() {
             <>
               <SendPartnerEmailDialog
                 orgId={orgId}
-                recipients={partnerAccounts.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
+                recipients={partnerAccounts.map((p) => ({ id: p.id, name: p.name, email: p.email, businessCategories: p.businessCategories }))}
+                availableCategories={verticalConfig.partnerCategories}
                 trigger={
                   <Button variant="outline">
                     <Send className="h-4 w-4" />
@@ -194,7 +197,7 @@ export default function PartnersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Partner</TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead>Categories</TableHead>
                   <TableHead>Invited via</TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -212,10 +215,25 @@ export default function PartnersPage() {
                         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
                           {partner.initials || partner.name?.slice(0, 2).toUpperCase()}
                         </div>
-                        <span className="font-medium">{partner.name}</span>
+                        <div>
+                          <span className="font-medium">{partner.name}</span>
+                          {partner.businessDescription && (
+                            <p className="text-xs text-muted-foreground max-w-[220px] truncate">{partner.businessDescription}</p>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{partner.email}</TableCell>
+                    <TableCell>
+                      {partner.businessCategories && partner.businessCategories.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {partner.businessCategories.map((cat) => (
+                            <Badge key={cat} variant="secondary" className="text-xs">{cat}</Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {inviteLabel ? (
                         <span className="text-sm">{inviteLabel}</span>

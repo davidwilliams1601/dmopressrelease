@@ -91,8 +91,43 @@ export const createPartnerInvite = functions.https.onCall(async (data, context) 
  * Creates a new user account with the Partner role.
  * This function does NOT require authentication (new users calling it).
  */
+async function classifyPartnerBusiness(
+  description: string,
+  categories: string[],
+  geminiApiKey: string
+): Promise<string[]> {
+  try {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+    const prompt = `You are categorising a business based on a short description. Choose one or more categories from the list below that best describe this business. Return ONLY a JSON array of strings, e.g. ["Accommodation", "Food & Drink"]. Do not include any other text.
+
+Categories: ${categories.join(', ')}
+
+Business description: "${description}"`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+
+    // Extract JSON array from response
+    const match = text.match(/\[.*\]/s);
+    if (!match) return ['Other'];
+
+    const parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed)) return ['Other'];
+
+    // Filter to only valid categories
+    const valid = parsed.filter((c: any) => typeof c === 'string' && categories.includes(c));
+    return valid.length > 0 ? valid : ['Other'];
+  } catch (err) {
+    console.warn('[classifyPartnerBusiness] Classification failed, defaulting to Other:', err);
+    return ['Other'];
+  }
+}
+
 export const redeemPartnerInvite = functions.https.onCall(async (data) => {
-  const { code, email, password, name, consentContentUsage, consentMarketing } = data;
+  const { code, email, password, name, consentContentUsage, consentMarketing, businessDescription } = data;
 
   if (!code || !email || !password || !name) {
     throw new functions.https.HttpsError(
@@ -191,26 +226,49 @@ export const redeemPartnerInvite = functions.https.onCall(async (data) => {
 
     const now = admin.firestore.FieldValue.serverTimestamp();
 
+    // Classify business description if provided
+    const orgData = orgDoc.data()!;
+    const vertical: string = orgData.vertical || 'dmo';
+    const categoryMap: Record<string, string[]> = {
+      dmo: ['Accommodation', 'Attraction', 'Activity & Adventure', 'Food & Drink', 'Events & Festivals', 'Transport', 'Retail', 'Spa & Wellness', 'Arts & Culture', 'Nature & Outdoor', 'Sport', 'Other'],
+      charity: ['Community Group', 'Health & Wellbeing', 'Education & Training', 'Social Care', 'Environment & Conservation', 'Arts & Culture', 'Housing & Homelessness', 'International Aid', 'Other'],
+      'trade-body': ['Manufacturer', 'Retailer', 'Service Provider', 'Consultant & Advisory', 'Technology', 'Media & Communications', 'Professional Services', 'Start-up & SME', 'Enterprise', 'Other'],
+    };
+    const categories = categoryMap[vertical] || categoryMap['dmo'];
+
+    let businessCategories: string[] = [];
+    const cleanDescription = typeof businessDescription === 'string' ? businessDescription.trim() : '';
+    if (cleanDescription) {
+      const geminiApiKey = functions.config().gemini?.key || process.env.GEMINI_API_KEY;
+      if (geminiApiKey) {
+        businessCategories = await classifyPartnerBusiness(cleanDescription, categories, geminiApiKey);
+      }
+    }
+
     // Create the Firestore user document with Partner role
+    const userDoc: Record<string, any> = {
+      id: userRecord.uid,
+      orgId,
+      email,
+      name,
+      initials,
+      role: 'Partner',
+      inviteId: inviteDoc.id,
+      consentContentUsage: true,
+      consentContentUsageAt: now,
+      consentMarketing: consentMarketing === true,
+      consentMarketingAt: now,
+      createdAt: now,
+    };
+    if (cleanDescription) userDoc.businessDescription = cleanDescription;
+    if (businessCategories.length > 0) userDoc.businessCategories = businessCategories;
+
     await db
       .collection('orgs')
       .doc(orgId)
       .collection('users')
       .doc(userRecord.uid)
-      .set({
-        id: userRecord.uid,
-        orgId,
-        email,
-        name,
-        initials,
-        role: 'Partner',
-        inviteId: inviteDoc.id,
-        consentContentUsage: true,
-        consentContentUsageAt: now,
-        consentMarketing: consentMarketing === true,
-        consentMarketingAt: now,
-        createdAt: now,
-      });
+      .set(userDoc);
 
     // Increment the invite use count
     await inviteDoc.ref.update({

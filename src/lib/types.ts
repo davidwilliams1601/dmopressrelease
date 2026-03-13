@@ -36,6 +36,8 @@ export type User = {
   role: 'Admin' | 'User' | 'Partner';
   createdAt: Date | any;
   inviteId?: string;
+  businessDescription?: string;
+  businessCategories?: string[];
   avatarUrl?: string;
   avatarStoragePath?: string;
   socialHandles?: SocialHandles;
