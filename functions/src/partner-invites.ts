@@ -229,12 +229,22 @@ export const redeemPartnerInvite = functions.https.onCall(async (data) => {
     // Classify business description if provided
     const orgData = orgDoc.data()!;
     const vertical: string = orgData.vertical || 'dmo';
-    const categoryMap: Record<string, string[]> = {
+    const defaultCategoryMap: Record<string, string[]> = {
       dmo: ['Accommodation', 'Attraction', 'Activity & Adventure', 'Food & Drink', 'Events & Festivals', 'Transport', 'Retail', 'Spa & Wellness', 'Arts & Culture', 'Nature & Outdoor', 'Sport', 'Other'],
       charity: ['Community Group', 'Health & Wellbeing', 'Education & Training', 'Social Care', 'Environment & Conservation', 'Arts & Culture', 'Housing & Homelessness', 'International Aid', 'Other'],
       'trade-body': ['Manufacturer', 'Retailer', 'Service Provider', 'Consultant & Advisory', 'Technology', 'Media & Communications', 'Professional Services', 'Start-up & SME', 'Enterprise', 'Other'],
     };
-    const categories = categoryMap[vertical] || categoryMap['dmo'];
+    // Read categories from Firestore platform config, falling back to hardcoded defaults
+    let categories = defaultCategoryMap[vertical] || defaultCategoryMap['dmo'];
+    try {
+      const platformDoc = await db.collection('platform').doc('config').get();
+      const storedCategories = platformDoc.data()?.verticals?.[vertical]?.partnerCategories;
+      if (Array.isArray(storedCategories) && storedCategories.length > 0) {
+        categories = storedCategories;
+      }
+    } catch (err) {
+      console.warn('[redeemPartnerInvite] Could not read platform config, using defaults:', err);
+    }
 
     let businessCategories: string[] = [];
     const cleanDescription = typeof businessDescription === 'string' ? businessDescription.trim() : '';

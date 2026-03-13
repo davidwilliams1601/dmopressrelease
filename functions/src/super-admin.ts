@@ -301,6 +301,61 @@ export const deleteOrg = functions
     return { success: true };
   });
 
+const DEFAULT_VERTICAL_CATEGORIES: Record<string, string[]> = {
+  dmo: ['Accommodation', 'Attraction', 'Activity & Adventure', 'Food & Drink', 'Events & Festivals', 'Transport', 'Retail', 'Spa & Wellness', 'Arts & Culture', 'Nature & Outdoor', 'Sport', 'Other'],
+  charity: ['Community Group', 'Health & Wellbeing', 'Education & Training', 'Social Care', 'Environment & Conservation', 'Arts & Culture', 'Housing & Homelessness', 'International Aid', 'Other'],
+  'trade-body': ['Manufacturer', 'Retailer', 'Service Provider', 'Consultant & Advisory', 'Technology', 'Media & Communications', 'Professional Services', 'Start-up & SME', 'Enterprise', 'Other'],
+};
+
+/**
+ * Get the current partner category lists for all verticals. Super-admin only.
+ * Returns Firestore overrides merged with hardcoded defaults.
+ */
+export const getVerticalCategories = functions.https.onCall(async (_data, context) => {
+  requireSuperAdmin(context);
+
+  const doc = await db.collection('platform').doc('config').get();
+  const stored = doc.exists ? (doc.data()?.verticals || {}) : {};
+
+  const result: Record<string, string[]> = {};
+  for (const verticalId of Object.keys(DEFAULT_VERTICAL_CATEGORIES)) {
+    result[verticalId] = stored[verticalId]?.partnerCategories ?? DEFAULT_VERTICAL_CATEGORIES[verticalId];
+  }
+
+  return { verticals: result };
+});
+
+/**
+ * Update the partner category list for a single vertical. Super-admin only.
+ * Writes to /platform/config in Firestore.
+ *
+ * Input: { verticalId: string, categories: string[] }
+ */
+export const updateVerticalCategories = functions.https.onCall(async (data, context) => {
+  requireSuperAdmin(context);
+
+  const { verticalId, categories } = data;
+
+  if (!verticalId || !Object.keys(DEFAULT_VERTICAL_CATEGORIES).includes(verticalId)) {
+    throw new functions.https.HttpsError('invalid-argument', 'verticalId must be one of: dmo, charity, trade-body.');
+  }
+  if (!Array.isArray(categories) || categories.length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'categories must be a non-empty array of strings.');
+  }
+  const clean = categories.map((c: any) => String(c).trim()).filter(Boolean);
+  if (clean.length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'categories must contain at least one non-empty string.');
+  }
+
+  await db.collection('platform').doc('config').set(
+    { verticals: { [verticalId]: { partnerCategories: clean } } },
+    { merge: true }
+  );
+
+  console.log(`[updateVerticalCategories] ${verticalId} updated by ${context.auth!.uid}: ${clean.join(', ')}`);
+  return { success: true, categories: clean };
+});
+
 /**
  * Update partner/submission limits for an organisation. Super-admin only.
  *

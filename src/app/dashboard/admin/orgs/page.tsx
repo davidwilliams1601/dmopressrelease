@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { ProvisionOrgDialog } from '@/components/admin/provision-org-dialog';
 import { EditOrgLimitsDialog } from '@/components/admin/edit-org-limits-dialog';
 import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
+import { VerticalCategoriesCard } from '@/components/admin/vertical-categories-card';
 import { format, formatDistanceToNow } from 'date-fns';
 
 type OrgStat = {
@@ -307,6 +308,7 @@ export default function AdminOrgsPage() {
           )}
         </CardContent>
       </Card>
+      <VerticalCategoriesCard />
     </div>
   );
 }

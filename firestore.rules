@@ -228,6 +228,17 @@ service cloud.firestore {
      *            Team members can update (status, notes). Only admins can delete.
      * @note For partner list queries, the query MUST include where('partnerId', '==', uid).
      */
+    /**
+     * @description Platform-wide configuration (e.g. vertical category lists).
+     * @path /platform/{docId}
+     * @principle Any authenticated user can read (needed for partner signup + category filters).
+     *            Writes are Cloud Function only — no client can write.
+     */
+    match /platform/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     match /orgs/{orgId}/submissions/{submissionId} {
       // Team members read all; partners can only read their own (enforced by client query filter)
       allow get: if isTeamMember(orgId) || (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
