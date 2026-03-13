@@ -17,9 +17,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { GenerateInviteDialog } from '@/components/settings/generate-invite-dialog';
 import { SendQuarterlyReportDialog } from '@/components/settings/send-quarterly-report-dialog';
-import { Link as LinkIcon, Users, Mail } from 'lucide-react';
+import { SendPartnerEmailDialog } from '@/components/settings/send-partner-email-dialog';
+import { Link as LinkIcon, Users, Mail, Copy, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { toDate } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 import type { PartnerInvite, User } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +29,7 @@ export const dynamic = 'force-dynamic';
 export default function PartnersPage() {
   const { orgId, role, isLoading: isUserLoading } = useUserData();
   const { firestore } = useFirebase();
+  const { toast } = useToast();
   const isAdmin = role === 'Admin';
 
   const invitesRef = useMemoFirebase(() => {
@@ -78,7 +81,19 @@ export default function PartnersPage() {
         </div>
         <div className="flex items-center gap-2">
           {orgId && partnerAccounts.length > 0 && (
-            <SendQuarterlyReportDialog orgId={orgId} partnerCount={partnerAccounts.length} />
+            <>
+              <SendPartnerEmailDialog
+                orgId={orgId}
+                recipients={partnerAccounts.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
+                trigger={
+                  <Button variant="outline">
+                    <Send className="h-4 w-4" />
+                    Email all partners
+                  </Button>
+                }
+              />
+              <SendQuarterlyReportDialog orgId={orgId} partnerCount={partnerAccounts.length} />
+            </>
           )}
           {orgId && <GenerateInviteDialog orgId={orgId} onInviteCreated={() => {}} />}
         </div>
@@ -113,6 +128,7 @@ export default function PartnersPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Uses</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Link</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -136,6 +152,20 @@ export default function PartnersPage() {
                     </TableCell>
                     <TableCell>
                       {invite.createdAt ? format(toDate(invite.createdAt), 'dd MMM yyyy') : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const link = `${window.location.origin}/partner-signup?code=${invite.code}`;
+                          navigator.clipboard.writeText(link);
+                          toast({ title: 'Copied!', description: 'Invite link copied to clipboard.' });
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy link
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -197,12 +227,18 @@ export default function PartnersPage() {
                       {partner.createdAt ? format(toDate(partner.createdAt), 'dd MMM yyyy') : '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild>
-                        <a href={`mailto:${partner.email}`}>
-                          <Mail className="h-4 w-4" />
-                          Email
-                        </a>
-                      </Button>
+                      {orgId && (
+                        <SendPartnerEmailDialog
+                          orgId={orgId}
+                          recipients={[{ id: partner.id, name: partner.name, email: partner.email }]}
+                          trigger={
+                            <Button variant="ghost" size="sm">
+                              <Mail className="h-4 w-4" />
+                              Email
+                            </Button>
+                          }
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                   );

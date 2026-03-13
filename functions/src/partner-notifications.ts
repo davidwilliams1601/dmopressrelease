@@ -344,3 +344,121 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
     quarter: quarterLabel,
   };
 });
+
+/**
+ * Callable: send a custom ad-hoc email to one or all partners.
+ * Org-admin only. Each recipient receives an individual email.
+ *
+ * Input: { orgId, subject, body, partnerIds?: string[] }
+ *   - partnerIds omitted / empty = send to all partners
+ */
+export const sendPartnerEmail = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+  }
+
+  const { orgId, subject, body, partnerIds } = data;
+
+  if (!orgId || !subject?.trim() || !body?.trim()) {
+    throw new functions.https.HttpsError('invalid-argument', 'orgId, subject, and body are required.');
+  }
+
+  // Verify caller is an admin of this org
+  const callerDoc = await db.collection('orgs').doc(orgId).collection('users').doc(context.auth.uid).get();
+  if (!callerDoc.exists || callerDoc.data()?.role !== 'Admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Only organisation admins can send partner emails.');
+  }
+
+  const key = getSendGridKey();
+  const fromEmail = getFromEmail();
+  if (!key || !fromEmail) {
+    throw new functions.https.HttpsError('failed-precondition', 'Email is not configured for this organisation.');
+  }
+  sgMail.setApiKey(key);
+
+  const orgDoc = await db.collection('orgs').doc(orgId).get();
+  if (!orgDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Organisation not found.');
+  }
+  const org = orgDoc.data()!;
+  const orgName: string = org.name || 'Your organisation';
+
+  // Fetch target partners
+  let partnersSnap;
+  if (partnerIds && partnerIds.length > 0) {
+    // Individual send — fetch only the specified users
+    const docs = await Promise.all(
+      partnerIds.map((id: string) =>
+        db.collection('orgs').doc(orgId).collection('users').doc(id).get()
+      )
+    );
+    partnersSnap = docs.filter((d) => d.exists && d.data()?.role === 'Partner');
+  } else {
+    // Bulk send — all partners
+    const snap = await db
+      .collection('orgs').doc(orgId)
+      .collection('users')
+      .where('role', '==', 'Partner')
+      .get();
+    partnersSnap = snap.docs;
+  }
+
+  if (partnersSnap.length === 0) {
+    return { sentCount: 0 };
+  }
+
+  const safeOrgName = escapeHtml(orgName);
+  const safeSubject = escapeHtml(subject.trim());
+
+  // Convert plain-text body to simple HTML paragraphs
+  const bodyHtml = body
+    .trim()
+    .split(/\n\n+/)
+    .map((para: string) => `<p>${escapeHtml(para.trim()).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+
+  let sentCount = 0;
+
+  await Promise.all(
+    partnersSnap.map(async (partnerDoc: any) => {
+      const partner = partnerDoc.data();
+      if (!partner?.email) return;
+
+      const safePartnerName = escapeHtml(partner.name || 'Partner');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background-color: #2563eb; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+            <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 13px;">${safeOrgName}</p>
+            <h1 style="margin: 4px 0 0; color: white; font-size: 22px;">${safeSubject}</h1>
+          </div>
+          <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
+            <p style="margin-top: 0;">Hi ${safePartnerName},</p>
+            ${bodyHtml}
+          </div>
+          <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
+            Sent by ${safeOrgName} via PressPilot
+          </div>
+        </body>
+        </html>
+      `;
+
+      const text = `Hi ${partner.name || 'Partner'},\n\n${body.trim()}\n\n${orgName}`;
+
+      await sgMail.send({
+        to: partner.email,
+        from: { email: fromEmail, name: orgName },
+        subject: subject.trim(),
+        html,
+        text,
+      });
+
+      sentCount++;
+    })
+  );
+
+  return { sentCount, recipientCount: partnersSnap.length };
+});
