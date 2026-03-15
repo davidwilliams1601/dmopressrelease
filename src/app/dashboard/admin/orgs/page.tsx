@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { ProvisionOrgDialog } from '@/components/admin/provision-org-dialog';
 import { EditOrgLimitsDialog } from '@/components/admin/edit-org-limits-dialog';
 import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
+import { SeedDemoDialog } from '@/components/admin/seed-demo-dialog';
 import { VerticalCategoriesCard } from '@/components/admin/vertical-categories-card';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -286,6 +287,12 @@ export default function AdminOrgsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <SeedDemoDialog
+                          orgId={org.id}
+                          orgName={org.name}
+                          mode={org.releaseSentCount === 0 && org.partnerCount === 0 ? 'seed' : 'reset'}
+                          onDone={loadReport}
+                        />
                         <EditOrgLimitsDialog
                           orgId={org.id}
                           orgName={org.name}

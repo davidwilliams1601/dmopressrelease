@@ -346,3 +346,6 @@ export * from './org-user-notifications';
 
 // Export approval notification functions
 export * from './approval-notifications';
+
+// Export demo functions
+export * from './demo';

@@ -22,9 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Copy, Check, Loader2 } from 'lucide-react';
+import { Plus, Copy, Check, Loader2, FlaskConical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Switch } from '@/components/ui/switch';
 import { VERTICALS } from '@/lib/verticals';
 import type { VerticalId } from '@/lib/types';
 
@@ -58,6 +59,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
   const [maxPartners, setMaxPartners] = useState('');
   const [maxUsers, setMaxUsers] = useState('');
   const [tier, setTier] = useState<'starter' | 'professional' | 'organisation' | ''>('');
+  const [seedDemo, setSeedDemo] = useState(false);
 
   const handleOrgNameChange = (value: string) => {
     setOrgName(value);
@@ -86,6 +88,14 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
         tier: tier || undefined,
       });
       setResult(response.data);
+      if (seedDemo) {
+        try {
+          const seedFn = httpsCallable(functions, 'seedDemoData');
+          await seedFn({ orgId: response.data.orgId });
+        } catch (seedError: any) {
+          toast({ title: 'Demo seeding failed', description: seedError.message, variant: 'destructive' });
+        }
+      }
       onOrgProvisioned();
     } catch (error: any) {
       let message = 'Failed to provision organisation.';
@@ -110,7 +120,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
     setOrgName(''); setOrgSlug(''); setBoilerplate(''); setBrandToneNotes('');
     setPressContactName(''); setPressContactEmail('');
     setAdminName(''); setAdminEmail('');
-    setVertical('dmo'); setMaxPartners(''); setMaxUsers(''); setTier('');
+    setVertical('dmo'); setMaxPartners(''); setMaxUsers(''); setTier(''); setSeedDemo(false);
   };
 
   return (
@@ -154,6 +164,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
                 <AlertTitle>Next steps</AlertTitle>
                 <AlertDescription>
                   Send the admin their email and temporary password. They should log in at <strong>/</strong> and change their password immediately via Settings.
+                  {seedDemo && <><br /><br />Demo data has been seeded — the org is ready for a prospect walkthrough.</>}
                 </AlertDescription>
               </Alert>
             </div>
@@ -316,6 +327,19 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
                 <p className="text-xs text-muted-foreground">
                   A temporary password will be generated. You must share it with the admin securely.
                 </p>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                    <FlaskConical className="h-4 w-4 text-muted-foreground" />
+                    Seed with demo data
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Pre-populate with sample releases, partners, outlet lists, and submissions. Use for prospect demos.
+                  </p>
+                </div>
+                <Switch checked={seedDemo} onCheckedChange={setSeedDemo} />
               </div>
             </div>
             <DialogFooter>
