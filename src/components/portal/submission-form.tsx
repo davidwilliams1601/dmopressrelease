@@ -14,8 +14,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { TagSelector } from '@/components/shared/tag-selector';
 import { MultiImageUpload } from '@/components/portal/multi-image-upload';
 import { useToast } from '@/hooks/use-toast';
-import { Send } from 'lucide-react';
+import { Send, Sparkles, Loader2, Check, X } from 'lucide-react';
 import type { SocialHandles } from '@/lib/types';
+import { improveSubmissionCopy } from '@/ai/flows/improve-submission-copy';
 
 type UploadedImage = {
   url: string;
@@ -48,6 +49,10 @@ export function SubmissionForm() {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [socialHandles, setSocialHandles] = useState<SocialHandles>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // AI improve state
+  const [isImproving, setIsImproving] = useState(false);
+  const [improvedCopy, setImprovedCopy] = useState<string | null>(null);
 
   // Pre-populate social handles from saved profile
   useEffect(() => {
@@ -128,6 +133,49 @@ export function SubmissionForm() {
     }
   };
 
+  const handleImprove = async () => {
+    if (!bodyCopy.trim()) {
+      toast({
+        title: 'Nothing to improve',
+        description: 'Write some content first, then use AI to polish it.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsImproving(true);
+    setImprovedCopy(null);
+
+    try {
+      const result = await improveSubmissionCopy({
+        title: title.trim() || 'Untitled',
+        bodyCopy: bodyCopy.trim(),
+        partnerName: userName || undefined,
+      });
+
+      if (result.success) {
+        setImprovedCopy(result.data.improvedCopy);
+      } else {
+        toast({ title: 'Improvement failed', description: result.error, variant: 'destructive' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsImproving(false);
+    }
+  };
+
+  const acceptImprovedCopy = () => {
+    if (improvedCopy) {
+      setBodyCopy(improvedCopy);
+      setImprovedCopy(null);
+    }
+  };
+
+  const dismissImprovedCopy = () => {
+    setImprovedCopy(null);
+  };
+
   if (!orgId || !submissionId) return null;
 
   return (
@@ -158,6 +206,75 @@ export function SubmissionForm() {
               required
               className="min-h-[250px]"
             />
+
+            {/* AI improve suggestion panel */}
+            {improvedCopy ? (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    AI suggestion
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={dismissImprovedCopy}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="rounded-md border bg-background p-3 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
+                  {improvedCopy}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={acceptImprovedCopy}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Use this
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleImprove}
+                    disabled={isImproving}
+                  >
+                    {isImproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    Try again
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={dismissImprovedCopy}
+                  >
+                    Keep original
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs text-muted-foreground"
+                  onClick={handleImprove}
+                  disabled={isImproving || !bodyCopy.trim()}
+                >
+                  {isImproving ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Improving...</>
+                  ) : (
+                    <><Sparkles className="h-3.5 w-3.5" /> Improve with AI</>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

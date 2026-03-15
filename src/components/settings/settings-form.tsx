@@ -14,12 +14,15 @@ import { Textarea } from '@/components/ui/textarea';
 import type { Organization } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Save } from 'lucide-react';
+import { Save, Sparkles, Loader2 } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { updateDocumentNonBlocking } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { getVerticalConfig } from '@/lib/verticals';
+import { generateBoilerplate } from '@/ai/flows/generate-boilerplate';
+import { generateToneNotes } from '@/ai/flows/generate-tone-notes';
 
 type SettingsFormProps = {
   organization: Organization;
@@ -32,6 +35,19 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
   const [approvalEnabled, setApprovalEnabled] = useState(
     organization.approvalWorkflowEnabled ?? false
   );
+
+  const [boilerplate, setBoilerplate] = useState(organization.boilerplate ?? '');
+  const [brandToneNotes, setBrandToneNotes] = useState(organization.brandToneNotes ?? '');
+
+  // Boilerplate AI
+  const [showBoilerplateAI, setShowBoilerplateAI] = useState(false);
+  const [boilerplateHints, setBoilerplateHints] = useState('');
+  const [isGeneratingBoilerplate, setIsGeneratingBoilerplate] = useState(false);
+
+  // Tone notes AI
+  const [isGeneratingTone, setIsGeneratingTone] = useState(false);
+
+  const verticalConfig = getVerticalConfig(organization.vertical);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -51,8 +67,8 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
           name: formData.get('press-contact-name') as string,
           email: formData.get('press-contact-email') as string,
         },
-        boilerplate: formData.get('boilerplate') as string,
-        brandToneNotes: formData.get('brand-tone-notes') as string,
+        boilerplate,
+        brandToneNotes,
         ...(maxSubmissionsPerPartner && maxSubmissionsPerPartner > 0
           ? { maxSubmissionsPerPartner }
           : { maxSubmissionsPerPartner: null }),
@@ -73,6 +89,61 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleGenerateBoilerplate = async () => {
+    if (!boilerplateHints.trim()) {
+      toast({
+        title: 'Add a description first',
+        description: 'Tell us a bit about your organisation so AI can write your boilerplate.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsGeneratingBoilerplate(true);
+    try {
+      const result = await generateBoilerplate({
+        orgName: organization.name,
+        vertical: verticalConfig.displayName,
+        description: boilerplateHints,
+      });
+
+      if (result.success) {
+        setBoilerplate(result.data.boilerplate);
+        setShowBoilerplateAI(false);
+        setBoilerplateHints('');
+        toast({ title: 'Boilerplate generated', description: 'Review and save when ready.' });
+      } else {
+        toast({ title: 'Generation failed', description: result.error, variant: 'destructive' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsGeneratingBoilerplate(false);
+    }
+  };
+
+  const handleGenerateToneNotes = async () => {
+    setIsGeneratingTone(true);
+    try {
+      const result = await generateToneNotes({
+        orgName: organization.name,
+        vertical: verticalConfig.displayName,
+        boilerplate: boilerplate || undefined,
+      });
+
+      if (result.success) {
+        setBrandToneNotes(result.data.toneNotes);
+        toast({ title: 'Tone notes generated', description: 'Review and save when ready.' });
+      } else {
+        toast({ title: 'Generation failed', description: result.error, variant: 'destructive' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsGeneratingTone(false);
     }
   };
 
@@ -122,22 +193,90 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="boilerplate">Boilerplate Text</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="boilerplate">Boilerplate Text</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-xs text-muted-foreground"
+                onClick={() => setShowBoilerplateAI((v) => !v)}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Generate with AI
+              </Button>
+            </div>
+
+            {showBoilerplateAI && (
+              <div className="rounded-lg border bg-muted/40 p-3 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Describe your organisation in a few sentences or bullet points — what you do, where you operate, what makes you distinctive.
+                </p>
+                <Textarea
+                  placeholder="e.g. We're the official tourism body for Kent. We work with 200+ partners across hospitality, attractions and events. Known for our garden and coast..."
+                  value={boilerplateHints}
+                  onChange={(e) => setBoilerplateHints(e.target.value)}
+                  className="min-h-20 bg-background text-sm"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setShowBoilerplateAI(false); setBoilerplateHints(''); }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleGenerateBoilerplate}
+                    disabled={isGeneratingBoilerplate}
+                  >
+                    {isGeneratingBoilerplate ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating...</>
+                    ) : (
+                      <><Sparkles className="h-3.5 w-3.5" /> Generate</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <Textarea
               id="boilerplate"
               name="boilerplate"
-              defaultValue={organization.boilerplate}
+              value={boilerplate}
+              onChange={(e) => setBoilerplate(e.target.value)}
               className="min-h-32"
               placeholder="Your standard organization description..."
             />
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="brand-tone-notes">Brand / Tone Notes</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="brand-tone-notes">Brand / Tone Notes</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-xs text-muted-foreground"
+                onClick={handleGenerateToneNotes}
+                disabled={isGeneratingTone}
+              >
+                {isGeneratingTone ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {isGeneratingTone ? 'Generating...' : 'Suggest with AI'}
+              </Button>
+            </div>
             <Textarea
               id="brand-tone-notes"
               name="brand-tone-notes"
-              defaultValue={organization.brandToneNotes}
+              value={brandToneNotes}
+              onChange={(e) => setBrandToneNotes(e.target.value)}
               className="min-h-32"
               placeholder="Describe your brand's voice and tone for AI generation..."
             />
