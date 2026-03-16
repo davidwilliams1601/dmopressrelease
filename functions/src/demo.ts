@@ -30,16 +30,6 @@ function daysAgo(n: number): admin.firestore.Timestamp {
 // Demo seed data
 // ---------------------------------------------------------------------------
 
-const DEMO_ORG_INFO = {
-  name: 'Visit Cornish Riviera',
-  boilerplate:
-    'Visit Cornish Riviera is the official Destination Marketing Organisation for the Cornish Riviera, promoting the region\'s world-class coastline, culinary scene, and rich heritage to domestic and international visitors. Working in partnership with over 200 local tourism businesses, we inspire and welcome millions of visitors each year to one of the UK\'s most-loved destinations.',
-  brandToneNotes:
-    'Warm, evocative, and aspirational. Celebrate authenticity and a strong sense of place. Use sensory language to bring the destination to life. Avoid corporate jargon and superlatives without substance. Speak directly to the reader\'s desire for discovery, escape, and genuine experience. Always lead with what makes Cornwall unique.',
-  pressContact: { name: 'Sarah Mitchell', email: 'press@visitcornishriviera.co.uk' },
-  vertical: 'dmo',
-};
-
 const DEMO_PARTNERS = [
   { id: 'demo-partner-1', name: 'The Harbour Hotel', email: 'enquiries@harbourhotel.co.uk', category: 'Accommodation' },
   { id: 'demo-partner-2', name: 'St Ives Surf School', email: 'hello@stivessurfschool.co.uk', category: 'Activity & Adventure' },
