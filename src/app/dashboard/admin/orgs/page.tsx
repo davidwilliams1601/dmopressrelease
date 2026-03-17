@@ -22,6 +22,7 @@ import { ProvisionOrgDialog } from '@/components/admin/provision-org-dialog';
 import { EditOrgLimitsDialog } from '@/components/admin/edit-org-limits-dialog';
 import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
 import { SeedDemoDialog } from '@/components/admin/seed-demo-dialog';
+import { ResetPasswordDialog } from '@/components/admin/reset-password-dialog';
 import { VerticalCategoriesCard } from '@/components/admin/vertical-categories-card';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -33,6 +34,7 @@ type OrgStat = {
   maxPartners: number | null;
   maxUsers: number | null;
   tier: string | null;
+  adminEmail: string | null;
   createdAt: any;
   partnerCount: number;
   submissionCount: number;
@@ -300,6 +302,10 @@ export default function AdminOrgsPage() {
                           currentMaxUsers={org.maxUsers ?? undefined}
                           currentTier={org.tier ?? undefined}
                           onUpdated={loadReport}
+                        />
+                        <ResetPasswordDialog
+                          orgName={org.name}
+                          adminEmail={org.adminEmail}
                         />
                         <DeleteOrgDialog
                           orgId={org.id}

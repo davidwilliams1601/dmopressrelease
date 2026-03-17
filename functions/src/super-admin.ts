@@ -198,6 +198,8 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
       ]);
 
       const partnerCount = usersSnap.docs.filter((u) => u.data().role === 'Partner').length;
+      const adminUser = usersSnap.docs.find((u) => u.data().role === 'Admin');
+      const adminEmail: string | null = adminUser?.data().email ?? null;
       const submissionCount = submissionsSnap.size;
 
       let releaseSentCount = 0;
@@ -225,6 +227,7 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         maxUsers: org.maxUsers ?? null,
         tier: org.tier ?? null,
         createdAt: org.createdAt ?? null,
+        adminEmail,
         partnerCount,
         submissionCount,
         releaseSentCount,
