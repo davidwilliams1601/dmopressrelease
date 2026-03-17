@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PressPilot — Sales Demo Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --primary-light: #eff6ff;
+      --accent: #0ea5e9;
+      --green: #16a34a;
+      --green-light: #f0fdf4;
+      --amber: #d97706;
+      --amber-light: #fffbeb;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --bg: #ffffff;
+      --section-bg: #f8fafc;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      font-size: 13px;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    h1, h2, h3, h4, h5 { font-family: 'Space Grotesk', sans-serif; }
+
+    .page {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 36px 48px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 40px;
+    }
+    .logo {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: white;
+    }
+    .logo span {
+      display: block;
+      font-size: 12px;
+      font-weight: 400;
+      opacity: 0.7;
+      margin-top: 3px;
+    }
+    .header-right { text-align: right; }
+    .header-right h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+      line-height: 1.2;
+    }
+    .header-right p {
+      font-size: 12px;
+      opacity: 0.75;
+      margin-top: 6px;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-top: 8px;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── SECTIONS ── */
+    .section {
+      padding: 32px 48px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section:last-child { border-bottom: none; }
+    .section-alt { background: var(--section-bg); }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 6px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .section-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    /* ── PROBLEM CARDS ── */
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .problem-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .problem-icon {
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+    .problem-card h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+    .problem-card p {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── WORKFLOW DIAGRAM ── */
+    .workflow {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin-top: 24px;
+      position: relative;
+    }
+    .workflow-step {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+    }
+    .workflow-step:not(:last-child)::after {
+      content: '→';
+      position: absolute;
+      right: -10px;
+      top: 22px;
+      font-size: 18px;
+      color: var(--primary);
+      font-weight: 700;
+      z-index: 1;
+    }
+    .step-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .step-num {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+    }
+    .step-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .step-desc {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+      padding: 0 6px;
+    }
+    .step-value {
+      margin-top: 8px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      line-height: 1.4;
+    }
+
+    /* ── DEMO WALKTHROUGH ── */
+    .demo-step {
+      display: flex;
+      gap: 16px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .demo-step:last-child { border-bottom: none; }
+    .demo-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .demo-content { flex: 1; }
+    .demo-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .demo-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .demo-col-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .show-label { color: var(--accent); }
+    .say-label { color: var(--green); }
+    .demo-col-content {
+      background: var(--section-bg);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .demo-col-content ul {
+      padding-left: 14px;
+    }
+    .demo-col-content li {
+      margin-bottom: 3px;
+    }
+    .demo-col-content .quote {
+      font-style: italic;
+      color: var(--muted);
+    }
+    .tip {
+      margin-top: 10px;
+      background: var(--amber-light);
+      border-left: 3px solid var(--amber);
+      border-radius: 0 6px 6px 0;
+      padding: 7px 10px;
+      font-size: 11px;
+      color: #92400e;
+    }
+    .tip strong { color: var(--amber); }
+
+    /* ── BENEFITS ── */
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .benefit-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .benefit-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--primary-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .benefit-card h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .benefit-card p {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* ── OBJECTIONS ── */
+    .objection {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .objection:last-child { margin-bottom: 0; }
+    .obj-q {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .obj-q::before {
+      content: '"';
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 0;
+      vertical-align: -3px;
+      margin-right: 1px;
+    }
+    .obj-q::after {
+      content: '"';
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 0;
+      vertical-align: -3px;
+      margin-left: 1px;
+    }
+    .obj-a {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      border-left: 2px solid var(--green);
+      padding-left: 10px;
+    }
+    .obj-a strong { color: var(--green); display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+
+    /* ── NEXT STEPS ── */
+    .next-steps {
+      background: var(--primary);
+      padding: 32px 48px;
+      color: white;
+    }
+    .next-steps .section-label { color: rgba(255,255,255,0.6); }
+    .next-steps .section-title { color: white; }
+    .next-steps .section-sub { color: rgba(255,255,255,0.7); }
+    .steps-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .next-step-card {
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .next-step-num {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.3);
+      margin-bottom: 6px;
+    }
+    .next-step-card h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 4px;
+    }
+    .next-step-card p {
+      font-size: 12px;
+      color: rgba(255,255,255,0.65);
+      line-height: 1.4;
+    }
+    .contact-row {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.15);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .contact-row p {
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+    }
+    .contact-row a {
+      color: white;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    /* ── PRINT ── */
+    @media print {
+      body { font-size: 12px; }
+      .page { max-width: 100%; }
+      .section { padding: 24px 40px; }
+      .header { padding: 28px 40px; }
+      .next-steps { padding: 24px 40px; }
+      .no-print { display: none; }
+
+      .workflow-page-break { page-break-before: always; }
+
+      .demo-step { page-break-inside: avoid; }
+      .objection { page-break-inside: avoid; }
+      .benefit-card { page-break-inside: avoid; }
+    }
+
+    @page {
+      margin: 0;
+      size: A4;
+    }
+
+    /* ── PRINT BUTTON ── */
+    .print-bar {
+      background: #0f172a;
+      padding: 12px 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .print-bar p { color: rgba(255,255,255,0.5); font-size: 12px; }
+    .print-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .print-btn:hover { background: var(--primary-dark); }
+
+    @media print {
+      .print-bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="print-bar no-print">
+  <p>PressPilot — Sales Demo Guide</p>
+  <button class="print-btn" onclick="window.print()">⬇ Save as PDF</button>
+</div>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div>
+      <div class="logo">PressPilot <span>Your Copilot for Travel-Trade PR</span></div>
+      <div class="badge">Internal Sales Guide</div>
+    </div>
+    <div class="header-right">
+      <h1>Demo Walkthrough &amp;<br>Conversation Guide</h1>
+      <p>For use with the demo account during prospect meetings</p>
+    </div>
+  </div>
+
+  <!-- THE PROBLEM -->
+  <div class="section">
+    <div class="section-label">Set the scene</div>
+    <div class="section-title">Start with the problem they recognise</div>
+    <div class="section-sub">Open by reflecting their current reality. Marketing managers at DMOs, charities and trade bodies all share the same frustrations.</div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-icon">📥</div>
+        <h4>Members have news — but it never surfaces</h4>
+        <p>Partner stories stay stuck in inboxes or never get submitted at all. You end up chasing people for content you know is out there.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">⏱</div>
+        <h4>Drafting releases takes hours</h4>
+        <p>A single press release can take half a day to write, check, format and get approved — even before you've thought about who to send it to.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">📊</div>
+        <h4>No visibility on what lands</h4>
+        <p>You send releases into the void. No data on who opened them, who clicked, or which stories resonated. Proving PR value to your board is guesswork.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div class="section section-alt">
+    <div class="section-label">The solution</div>
+    <div class="section-title">How PressPilot works — the core loop</div>
+    <div class="section-sub">Show this diagram early. It gives prospects a mental model before you dive into the demo.</div>
+    <div class="workflow">
+      <div class="workflow-step">
+        <div class="step-circle">📬</div>
+        <div class="step-num">Step 1</div>
+        <div class="step-title">Partners Submit</div>
+        <div class="step-desc">Members share their news via a simple branded portal — no emails, no chasing</div>
+        <div class="step-value">Zero friction for members</div>
+      </div>
+      <div class="workflow-step">
+        <div class="step-circle">✍️</div>
+        <div class="step-num">Step 2</div>
+        <div class="step-title">AI Drafts</div>
+        <div class="step-desc">PressPilot turns submissions into polished press releases in your tone of voice</div>
+        <div class="step-value">Minutes, not hours</div>
+      </div>
+      <div class="workflow-step">
+        <div class="step-circle">✅</div>
+        <div class="step-num">Step 3</div>
+        <div class="step-title">You Approve</div>
+        <div class="step-desc">Review, refine and approve. Full editorial control — the AI does the heavy lifting</div>
+        <div class="step-value">You stay in control</div>
+      </div>
+      <div class="workflow-step">
+        <div class="step-circle">📤</div>
+        <div class="step-num">Step 4</div>
+        <div class="step-title">Send to Media</div>
+        <div class="step-desc">Distribute to targeted journalist lists with one click, personalised at scale</div>
+        <div class="step-value">Right story, right desk</div>
+      </div>
+      <div class="workflow-step">
+        <div class="step-circle">📈</div>
+        <div class="step-num">Step 5</div>
+        <div class="step-title">Track Results</div>
+        <div class="step-desc">See exactly who opened, clicked and engaged. Prove PR value with real data</div>
+        <div class="step-value">ROI you can show the board</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEMO WALKTHROUGH -->
+  <div class="section workflow-page-break">
+    <div class="section-label">Demo walkthrough</div>
+    <div class="section-title">Step-by-step — what to show &amp; what to say</div>
+    <div class="section-sub">Use the <strong>Visit Cornish Riviera</strong> demo account. Log in at <strong>press-pilot.com</strong> with the credentials your account manager has provided.</div>
+
+    <div class="demo-step">
+      <div class="demo-num">1</div>
+      <div class="demo-content">
+        <div class="demo-title">The Dashboard — Command Centre</div>
+        <div class="demo-cols">
+          <div>
+            <div class="demo-col-label show-label">What to show</div>
+            <div class="demo-col-content">
+              <ul>
+                <li>The main dashboard overview</li>
+                <li>Stats at a glance (partners, releases, emails sent)</li>
+                <li>Recent activity feed</li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <div class="demo-col-label say-label">What to say</div>
+            <div class="demo-col-content">
+              <span class="quote">"This is the command centre — everything in one place. At a glance you can see how many partners are active, how many releases have gone out, and how your latest campaign performed."</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-num">2</div>
+      <div class="demo-content">
+        <div class="demo-title">The Partner Portal — Collecting Member Stories</div>
+        <div class="demo-cols">
+          <div>
+            <div class="demo-col-label show-label">What to show</div>
+            <div class="demo-col-content">
+              <ul>
+                <li>The Partners section — list of members</li>
+                <li>Open the partner-facing portal in a new tab</li>
+                <li>Show the submission form a partner sees</li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <div class="demo-col-label say-label">What to say</div>
+            <div class="demo-col-content">
+              <span class="quote">"Your members get their own portal — they log in, fill in a simple form about their news, and it lands straight in your inbox. No emails, no spreadsheets, no chasing."</span>
+            </div>
+          </div>
+        </div>
+        <div class="tip"><strong>Tip:</strong> Ask the prospect — "How do your members currently send you their news?" This almost always opens up a pain point conversation.</div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-num">3</div>
+      <div class="demo-content">
+        <div class="demo-title">Partner Submissions — Stories Ready to Use</div>
+        <div class="demo-cols">
+          <div>
+            <div class="demo-col-label show-label">What to show</div>
+            <div class="demo-col-content">
+              <ul>
+                <li>The Submissions inbox</li>
+                <li>Open an existing submission</li>
+                <li>Show the content, category tags and images</li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <div class="demo-col-label say-label">What to say</div>
+            <div class="demo-col-content">
+              <span class="quote">"Once a partner submits, it appears here — structured, categorised, ready to act on. You can review it, approve it for a release, or request more detail. Nothing gets lost."</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-num">4</div>
+      <div class="demo-content">
+        <div class="demo-title">AI Press Release Drafting — The Time Saver</div>
+        <div class="demo-cols">
+          <div>
+            <div class="demo-col-label show-label">What to show</div>
+            <div class="demo-col-content">
+              <ul>
+                <li>Open the Releases section</li>
+                <li>Open an existing drafted release</li>
+                <li>Show the AI-generated draft with brand tone</li>
+                <li>Highlight the edit and publish controls</li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <div class="demo-col-label say-label">What to say</div>
+            <div class="demo-col-content">
+              <span class="quote">"The AI takes the submission and produces a full press release — in your tone of voice, with your boilerplate, ready to send. You review it, tweak anything you want, and it's done. What used to take half a day now takes minutes."</span>
+            </div>
+          </div>
+        </div>
+        <div class="tip"><strong>Tip:</strong> This is usually the biggest reaction moment. Pause here and let them absorb it. Ask: "How long does it currently take your team to draft a release?"</div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-num">5</div>
+      <div class="demo-content">
+        <div class="demo-title">Outlet Lists &amp; Sending — Right Story, Right Desk</div>
+        <div class="demo-cols">
+          <div>
+            <div class="demo-col-label show-label">What to show</div>
+            <div class="demo-col-content">
+              <ul>
+                <li>The Outlets section — journalist lists</li>
+                <li>Show how lists are organised (regional, trade, national)</li>
+                <li>Show the send flow from a release</li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <div class="demo-col-label say-label">What to say</div>
+            <div class="demo-col-content">
+              <span class="quote">"Your journalist contacts live here — organised into lists however makes sense for you. When you're ready to send, you choose your list, review the send, and that's it. One click."</span>
+            </div>
+          </div>
+        </div>
+        <div class="tip"><strong>Tip:</strong> If they say their contacts are in a spreadsheet, reassure them — "We can import that in minutes. You don't lose anything you've already built."</div>
+      </div>
+    </div>
+
+    <div class="demo-step">
+      <div class="demo-num">6</div>
+      <div class="demo-content">
+        <div class="demo-title">Analytics — Prove the Value</div>
+        <div class="demo-cols">
+          <div>
+            <div class="demo-col-label show-label">What to show</div>
+            <div class="demo-col-content">
+              <ul>
+                <li>Open a sent release's analytics view</li>
+                <li>Show open rate, click rate, delivery stats</li>
+                <li>Show the per-journalist breakdown</li>
+              </ul>
+            </div>
+          </div>
+          <div>
+            <div class="demo-col-label say-label">What to say</div>
+            <div class="demo-col-content">
+              <span class="quote">"After every send, you can see exactly who opened it, who clicked through, and who engaged. For the first time, you have data to take back to your board and your members — not just 'we sent 40 releases' but 'here's who noticed.'"</span>
+            </div>
+          </div>
+        </div>
+        <div class="tip"><strong>Tip:</strong> Close the loop here — "This data also helps your members feel the value. They can see their story actually reached journalists." Members feeling valued reduces churn.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEY BENEFITS -->
+  <div class="section section-alt">
+    <div class="section-label">Key messages</div>
+    <div class="section-title">The benefits that matter to a marketing manager</div>
+    <div class="section-sub">Anchor your conversation around these outcomes — not features.</div>
+    <div class="benefits-grid">
+      <div class="benefit-card">
+        <div class="benefit-icon">⚡</div>
+        <div>
+          <h4>Dramatically less time on each release</h4>
+          <p>AI drafting and a structured submission process removes the back-and-forth that eats up a marketing team's week.</p>
+        </div>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">📰</div>
+        <div>
+          <h4>More member stories become coverage</h4>
+          <p>When submitting is easy and drafting is fast, nothing gets left on the table. Every member's news gets its shot.</p>
+        </div>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">📊</div>
+        <div>
+          <h4>PR value you can actually prove</h4>
+          <p>Open rates, click-throughs, journalist engagement — the data that makes your work visible to leadership and boards.</p>
+        </div>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">🤝</div>
+        <div>
+          <h4>Members feel heard and valued</h4>
+          <p>A dedicated partner portal and visibility of their stories being shared strengthens the relationship between you and your membership.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OBJECTIONS -->
+  <div class="section">
+    <div class="section-label">Handling objections</div>
+    <div class="section-title">Common questions and how to respond</div>
+    <div class="section-sub">Stay confident and curious — most objections are really just requests for more information.</div>
+
+    <div class="objection">
+      <div class="obj-q">We already manage this in email and Word</div>
+      <div class="obj-a"><strong>Your response</strong>PressPilot doesn't replace your process — it makes it structured and measurable. You keep full editorial control, but the AI does the drafting and the data does the proving. Most teams see the difference within the first release.</div>
+    </div>
+    <div class="objection">
+      <div class="obj-q">Our journalist contacts are in a spreadsheet</div>
+      <div class="obj-a"><strong>Your response</strong>Perfect — that's exactly what we'd import on day one. You don't lose what you've already built. We just make it easier to use, segment and track.</div>
+    </div>
+    <div class="objection">
+      <div class="obj-q">Our members won't bother using a portal</div>
+      <div class="obj-a"><strong>Your response</strong>The portal is designed to be as simple as a contact form — it takes under two minutes to submit. And because members can see their stories going out, they tend to engage more, not less.</div>
+    </div>
+    <div class="objection">
+      <div class="obj-q">We don't have the budget right now</div>
+      <div class="obj-a"><strong>Your response</strong>Understood — worth asking though: how many hours a week does your team spend drafting releases and chasing member content? Most organisations find PressPilot pays for itself within the first month of use.</div>
+    </div>
+    <div class="objection">
+      <div class="obj-q">Can the AI really write in our tone?</div>
+      <div class="obj-a"><strong>Your response</strong>Yes — during setup we configure your brand tone, boilerplate and style guidelines. The AI uses these every time. You'll still review and edit, but the starting point is already on-brand.</div>
+    </div>
+  </div>
+
+  <!-- NEXT STEPS -->
+  <div class="next-steps">
+    <div class="section-label">Closing the demo</div>
+    <div class="section-title">Suggested next steps</div>
+    <div class="section-sub">End every demo with a clear, low-friction ask.</div>
+    <div class="steps-row">
+      <div class="next-step-card">
+        <div class="next-step-num">01</div>
+        <h4>Send a follow-up summary</h4>
+        <p>Email a one-page recap within 24 hours. Include the workflow diagram and the benefits relevant to their specific pain points.</p>
+      </div>
+      <div class="next-step-card">
+        <div class="next-step-num">02</div>
+        <h4>Offer a scoped trial</h4>
+        <p>Invite them to run one real release through PressPilot — their content, their journalist list. Low commitment, high impact.</p>
+      </div>
+      <div class="next-step-card">
+        <div class="next-step-num">03</div>
+        <h4>Involve a decision maker</h4>
+        <p>If you're speaking to a marketing manager, ask who signs off on tools. Offer a second short demo for their director or CEO.</p>
+      </div>
+    </div>
+    <div class="contact-row">
+      <p>PressPilot — <a href="https://press-pilot.com">press-pilot.com</a></p>
+      <p>Questions? Contact your PressPilot account manager</p>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
