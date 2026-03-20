@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { callWithRetry } from './ai-helpers';
 
 const db = admin.firestore();
 
@@ -107,7 +108,14 @@ Categories: ${categories.join(', ')}
 
 Business description: "${description}"`;
 
-    const result = await model.generateContent(prompt);
+    const result = await callWithRetry(
+      () => model.generateContent(prompt),
+      null,
+      'classifyPartnerBusiness',
+    );
+
+    if (!result) return ['Other'];
+
     const text = result.response.text().trim();
 
     // Extract JSON array from response

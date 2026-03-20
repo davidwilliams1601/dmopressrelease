@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { callWithRetry } from './ai-helpers';
 
 /**
  * Cloud Function triggered when a new partner submission is created.
@@ -42,7 +43,17 @@ Please respond in valid JSON format with this exact structure:
 
 Identify 2-5 themes relevant to travel and tourism PR (e.g., "Cultural Heritage", "Adventure Tourism", "Food & Drink", "Family Activities", "Sustainability", "Events & Festivals", "Accommodation", "Nature & Wildlife", etc.). Be specific and relevant to the content.`;
 
-      const result = await model.generateContent(prompt);
+      const result = await callWithRetry(
+        () => model.generateContent(prompt),
+        null,
+        'analyzeSubmissionThemes',
+      );
+
+      if (!result) {
+        console.warn(`AI analysis returned fallback for submission ${submissionId}. Skipping theme update.`);
+        return;
+      }
+
       const responseText = result.response.text();
 
       // Parse the JSON response - handle markdown code blocks

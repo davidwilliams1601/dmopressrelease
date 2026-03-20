@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
+import { sendWithRetry } from './sendgrid-retry';
 
 const db = admin.firestore();
 
@@ -110,13 +111,13 @@ export const onSubmissionUsed = functions.firestore
         </html>
       `;
 
-      await sgMail.send({
+      await sendWithRetry({
         to: after.partnerEmail,
         from: { email: fromEmail, name: orgName },
         subject: `Your content has been selected — ${orgName}`,
         html,
         text: `Hi ${after.partnerName},\n\nYour submission "${after.title}" has been selected for an upcoming press release from ${orgName}${releaseHeadline ? `: "${releaseHeadline}"` : ''}.\n\n${releaseUrl ? `Read it here: ${releaseUrl}\n\n` : ''}Thank you for contributing!\n\n${orgName}`,
-      });
+      } as any);
 
       // Mark as notified to prevent duplicates
       await change.after.ref.update({
@@ -218,6 +219,7 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
 
   let sentCount = 0;
+  const failedRecipients: string[] = [];
 
   await Promise.all(
     partnersSnap.docs.map(async (partnerDoc) => {
@@ -325,21 +327,28 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
         `Thank you for contributing to ${orgName}.`,
       ].filter((l) => l !== undefined).join('\n');
 
-      await sgMail.send({
-        to: partnerEmail,
-        from: { email: fromEmail, name: orgName },
-        subject: `Your ${quarterLabel} submissions report — ${orgName}`,
-        html,
-        text,
-      });
+      try {
+        await sendWithRetry({
+          to: partnerEmail,
+          from: { email: fromEmail, name: orgName },
+          subject: `Your ${quarterLabel} submissions report — ${orgName}`,
+          html,
+          text,
+        } as any);
 
-      sentCount++;
-      console.log(`[sendQuarterlyPartnerReport] Sent ${quarterLabel} report to ${partnerEmail}`);
+        sentCount++;
+        console.log(`[sendQuarterlyPartnerReport] Sent ${quarterLabel} report to ${partnerEmail}`);
+      } catch (error: any) {
+        console.error(`[sendQuarterlyPartnerReport] Failed to send to ${partnerEmail} after retries:`, error);
+        failedRecipients.push(partnerEmail);
+      }
     })
   );
 
   return {
     sentCount,
+    failedCount: failedRecipients.length,
+    ...(failedRecipients.length > 0 ? { failedRecipients } : {}),
     partnerCount: partnersSnap.size,
     quarter: quarterLabel,
   };
@@ -436,6 +445,7 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
     .join('');
 
   let sentCount = 0;
+  const failedRecipients: string[] = [];
 
   await Promise.all(
     partnersSnap.map(async (partnerDoc: any) => {
@@ -466,25 +476,39 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
 
       const text = `Hi ${partner.name || 'Partner'},\n\n${body.trim()}\n\n${orgName}`;
 
-      await sgMail.send({
-        to: partner.email,
-        from: { email: fromEmail, name: orgName },
-        subject: subject.trim(),
-        html,
-        text,
-        customArgs: { orgId, partnerEmailId },
-        trackingSettings: {
-          clickTracking: { enable: true },
-          openTracking: { enable: true },
-        },
-      });
+      try {
+        await sendWithRetry({
+          to: partner.email,
+          from: { email: fromEmail, name: orgName },
+          subject: subject.trim(),
+          html,
+          text,
+          customArgs: { orgId, partnerEmailId },
+          trackingSettings: {
+            clickTracking: { enable: true },
+            openTracking: { enable: true },
+          },
+        } as any);
 
-      sentCount++;
+        sentCount++;
+      } catch (error: any) {
+        console.error(`[sendPartnerEmail] Failed to send to ${partner.email} after retries:`, error);
+        failedRecipients.push(partner.email);
+      }
     })
   );
 
-  // Update the record with actual sent count
-  await emailRef.update({ sentCount });
+  // Update the record with actual sent/failed counts
+  await emailRef.update({
+    sentCount,
+    failedCount: failedRecipients.length,
+    ...(failedRecipients.length > 0 ? { failedRecipients } : {}),
+  });
 
-  return { sentCount, recipientCount: partnersSnap.length };
+  return {
+    sentCount,
+    failedCount: failedRecipients.length,
+    ...(failedRecipients.length > 0 ? { failedRecipients } : {}),
+    recipientCount: partnersSnap.length,
+  };
 });

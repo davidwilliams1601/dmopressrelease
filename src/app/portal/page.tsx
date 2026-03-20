@@ -1,8 +1,19 @@
 'use client';
 
+import { useState, useEffect, useCallback } from 'react';
 import { useUserData } from '@/hooks/use-user-data';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, orderBy, query, where } from 'firebase/firestore';
+import { useFirebase } from '@/firebase';
+import {
+  collection,
+  orderBy,
+  query,
+  where,
+  getDocs,
+  limit,
+  startAfter,
+  QueryDocumentSnapshot,
+  DocumentData,
+} from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -15,12 +26,14 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { PenSquare, Inbox } from 'lucide-react';
+import { PenSquare, Inbox, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import type { PartnerSubmission } from '@/lib/types';
 import { useOrganization } from '@/hooks/use-organization';
 
 export const dynamic = 'force-dynamic';
+
+const PAGE_SIZE = 20;
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   submitted: 'default',
@@ -34,18 +47,70 @@ export default function PortalHomePage() {
   const { firestore, user } = useFirebase();
   const { organization } = useOrganization(orgId);
 
-  const submissionsRef = useMemoFirebase(() => {
-    if (!orgId || !user) return null;
-    return query(
-      collection(firestore, 'orgs', orgId, 'submissions'),
-      where('partnerId', '==', user.uid),
-      orderBy('createdAt', 'desc')
-    );
+  // Pagination state
+  const [submissions, setSubmissions] = useState<(PartnerSubmission & { id: string })[]>([]);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isSubmissionsLoading, setIsSubmissionsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Initial fetch
+  useEffect(() => {
+    if (!orgId || !user) return;
+
+    let cancelled = false;
+    setIsSubmissionsLoading(true);
+    setSubmissions([]);
+    setLastDoc(null);
+    setHasMore(true);
+
+    const fetchInitial = async () => {
+      const q = query(
+        collection(firestore, 'orgs', orgId, 'submissions'),
+        where('partnerId', '==', user.uid),
+        orderBy('createdAt', 'desc'),
+        limit(PAGE_SIZE)
+      );
+      const snapshot = await getDocs(q);
+      if (cancelled) return;
+
+      const items = snapshot.docs.map((doc) => ({
+        ...(doc.data() as PartnerSubmission),
+        id: doc.id,
+      }));
+      setSubmissions(items);
+      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+      setHasMore(snapshot.docs.length === PAGE_SIZE);
+      setIsSubmissionsLoading(false);
+    };
+
+    fetchInitial();
+    return () => { cancelled = true; };
   }, [firestore, orgId, user]);
 
-  const { data: submissionsData, isLoading: isSubmissionsLoading } =
-    useCollection<PartnerSubmission>(submissionsRef);
-  const submissions = submissionsData || [];
+  const loadMore = useCallback(async () => {
+    if (!orgId || !user || !lastDoc || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    const q = query(
+      collection(firestore, 'orgs', orgId, 'submissions'),
+      where('partnerId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      startAfter(lastDoc),
+      limit(PAGE_SIZE)
+    );
+    const snapshot = await getDocs(q);
+
+    const items = snapshot.docs.map((doc) => ({
+      ...(doc.data() as PartnerSubmission),
+      id: doc.id,
+    }));
+    setSubmissions((prev) => [...prev, ...items]);
+    setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+    setHasMore(snapshot.docs.length === PAGE_SIZE);
+    setIsLoadingMore(false);
+  }, [firestore, orgId, user, lastDoc, isLoadingMore]);
+
   const maxSubs = organization?.maxSubmissionsPerPartner;
   const atSubmissionLimit = maxSubs != null && submissions.length >= maxSubs;
 
@@ -122,49 +187,68 @@ export default function PortalHomePage() {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>AI Themes</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {submissions.map((sub) => (
-                  <TableRow key={sub.id}>
-                    <TableCell>
-                      <Link
-                        href={`/portal/submissions/${sub.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {sub.title}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant[sub.status] || 'secondary'}>
-                        {sub.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {sub.aiThemes && sub.aiThemes.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {sub.aiThemes.slice(0, 3).map((theme) => (
-                            <Badge key={theme} variant="outline" className="text-xs">
-                              {theme}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Analyzing...</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{formatDate(sub.createdAt)}</TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>AI Themes</TableHead>
+                    <TableHead>Date</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {submissions.map((sub) => (
+                    <TableRow key={sub.id}>
+                      <TableCell>
+                        <Link
+                          href={`/portal/submissions/${sub.id}`}
+                          className="font-medium hover:underline"
+                        >
+                          {sub.title}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant[sub.status] || 'secondary'}>
+                          {sub.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {sub.aiThemes && sub.aiThemes.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {sub.aiThemes.slice(0, 3).map((theme) => (
+                              <Badge key={theme} variant="outline" className="text-xs">
+                                {theme}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Analyzing...</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{formatDate(sub.createdAt)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <p className="mt-3 text-sm text-muted-foreground">
+                Showing {submissions.length} submission{submissions.length !== 1 ? 's' : ''}
+              </p>
+
+              {hasMore && (
+                <div className="mt-4 flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={loadMore}
+                    disabled={isLoadingMore}
+                  >
+                    {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Load More
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

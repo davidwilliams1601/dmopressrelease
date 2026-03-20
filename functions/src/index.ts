@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
+import { sendWithRetry } from './sendgrid-retry';
 import { getStorage } from 'firebase-admin/storage';
 
 admin.initializeApp();
@@ -126,6 +127,7 @@ export const processSendJob = functions
 
       let sentCount = 0;
       let failedCount = 0;
+      const failedRecipients: string[] = [];
 
       // Send emails in batches to avoid timeout
       const BATCH_SIZE = 50;
@@ -138,8 +140,9 @@ export const processSendJob = functions
               await sendEmail(recipient, release, orgId, org);
               sentCount++;
             } catch (error) {
-              console.error(`Failed to send to ${recipient.email}:`, error);
+              console.error(`Failed to send to ${recipient.email} (after retries):`, error);
               failedCount++;
+              failedRecipients.push(recipient.email);
             }
           })
         );
@@ -158,6 +161,7 @@ export const processSendJob = functions
         status: 'completed',
         sentCount,
         failedCount,
+        ...(failedRecipients.length > 0 ? { failedRecipients } : {}),
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -218,7 +222,7 @@ async function sendEmail(recipient: any, release: any, orgId: string, org: any) 
     },
   };
 
-  await sgMail.send(msg);
+  await sendWithRetry(msg);
   console.log(`Email sent successfully to ${recipient.email}`);
 }
 
