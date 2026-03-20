@@ -47,13 +47,17 @@ export default function ReleasesTable({ releases }: ReleasesTableProps) {
                       ? 'default'
                       : release.status === 'Ready'
                       ? 'secondary'
+                      : release.status === 'Scheduled'
+                      ? 'secondary'
                       : 'outline'
                   }
                   className={cn(
                     release.status === 'Ready' &&
                       'bg-yellow-200 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
                     release.status === 'Sent' &&
-                      'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
+                      'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200',
+                    release.status === 'Scheduled' &&
+                      'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                   )}
                 >
                   {release.status}

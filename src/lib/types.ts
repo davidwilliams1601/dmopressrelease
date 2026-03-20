@@ -56,7 +56,7 @@ export type Release = {
   headline: string;
   slug: string;
   bodyCopy?: string;
-  status: 'Draft' | 'Ready' | 'Sent';
+  status: 'Draft' | 'Ready' | 'Sent' | 'Scheduled';
   createdAt: Date | any; // Can be Date or Firestore Timestamp
   updatedAt?: Date | any; // Can be Date or Firestore Timestamp
   sends?: number;
@@ -118,13 +118,14 @@ export type SendJob = {
   orgId: string;
   releaseId: string;
   outletListIds: string[];
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'scheduled' | 'cancelled';
   totalRecipients: number;
   sentCount: number;
   failedCount: number;
   createdAt: Date | any;
   completedAt?: Date | any;
   error?: string;
+  scheduledAt?: Date | any;
 };
 
 export type PartnerEmail = {

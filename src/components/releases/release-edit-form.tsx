@@ -188,6 +188,8 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                     ? 'default'
                     : release.status === 'Ready'
                     ? 'secondary'
+                    : release.status === 'Scheduled'
+                    ? 'secondary'
                     : 'outline'
                 }
                 className={
@@ -195,6 +197,8 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                     ? 'bg-yellow-200 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200'
                     : release.status === 'Sent'
                     ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200'
+                    : release.status === 'Scheduled'
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                     : ''
                 }
               >
@@ -243,6 +247,7 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                   <SelectContent>
                     <SelectItem value="Draft">Draft</SelectItem>
                     <SelectItem value="Ready">Ready</SelectItem>
+                    <SelectItem value="Scheduled">Scheduled</SelectItem>
                     <SelectItem value="Sent">Sent</SelectItem>
                   </SelectContent>
                 </Select>
@@ -366,7 +371,7 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
         )}
 
         {/* Stats Card (if sent) */}
-        {release.status === 'Sent' && (
+        {(release.status === 'Sent' || release.status === 'Scheduled') && (
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Engagement Stats</CardTitle>
@@ -394,7 +399,7 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
         )}
 
         {/* Send History */}
-        {/* Temporarily disabled: <SendJobsCard orgId={orgId} releaseId={release.id} /> */}
+        <SendJobsCard orgId={orgId} releaseId={release.id} />
 
         {/* Action Buttons */}
         <div className="flex items-center justify-between">
