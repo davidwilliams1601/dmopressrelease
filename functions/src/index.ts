@@ -166,6 +166,63 @@ export const processSendJob = functions
       });
 
       console.log(`Send job completed: ${sentCount} sent, ${failedCount} failed`);
+
+      // Notify org admins if any emails failed
+      if (failedCount > 0) {
+        try {
+          const adminUsersSnap = await db
+            .collection('orgs')
+            .doc(orgId)
+            .collection('users')
+            .where('role', '==', 'Admin')
+            .get();
+
+          const adminEmails = adminUsersSnap.docs
+            .map((d) => d.data().email)
+            .filter((e): e is string => !!e && isValidEmail(e));
+
+          if (adminEmails.length > 0) {
+            const fromEmail =
+              functions.config().sendgrid?.from_email ||
+              process.env.SENDGRID_FROM_EMAIL;
+
+            if (fromEmail) {
+              const releaseTitle = escapeHtml((release as any).headline || 'Untitled release');
+              const failedListHtml = failedRecipients
+                .map((e: string) => `<li>${escapeHtml(e)}</li>`)
+                .join('\n');
+
+              const notificationHtml = `
+                <h2>Email Send Failures</h2>
+                <p><strong>${failedCount}</strong> email(s) failed to send for the release &ldquo;${releaseTitle}&rdquo;.</p>
+                <p><strong>Failed recipients:</strong></p>
+                <ul>${failedListHtml}</ul>
+                <p>${sentCount} email(s) were sent successfully.</p>
+              `;
+
+              await Promise.all(
+                adminEmails.map((adminEmail) =>
+                  sendWithRetry({
+                    to: adminEmail,
+                    from: { email: fromEmail, name: 'PressPilot' },
+                    subject: `PressPilot: ${failedCount} emails failed to send for ${(release as any).headline || 'Untitled release'}`,
+                    html: notificationHtml,
+                  } as sgMail.MailDataRequired)
+                )
+              );
+
+              console.log(`Admin failure notification sent to ${adminEmails.length} admin(s)`);
+            } else {
+              console.warn('Cannot send admin notification: SENDGRID_FROM_EMAIL not configured');
+            }
+          } else {
+            console.warn('No admin users with valid emails found for failure notification');
+          }
+        } catch (notifyError) {
+          // Don't let notification failures break the main flow
+          console.error('Failed to send admin failure notification:', notifyError);
+        }
+      }
     } catch (error: any) {
       console.error('Error processing send job:', error);
 

@@ -88,21 +88,28 @@ export const createOrgUser = functions.https.onCall(async (data, context) => {
     await admin.auth().setCustomUserClaims(userRecord.uid, { orgId });
 
     // Create the Firestore user document
-    await db
-      .collection('orgs')
-      .doc(orgId)
-      .collection('users')
-      .doc(userRecord.uid)
-      .set({
-        id: userRecord.uid,
-        orgId,
-        email,
-        name,
-        initials,
-        role,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: context.auth.uid,
-      });
+    // If this fails, roll back the Auth user to avoid orphaned accounts
+    try {
+      await db
+        .collection('orgs')
+        .doc(orgId)
+        .collection('users')
+        .doc(userRecord.uid)
+        .set({
+          id: userRecord.uid,
+          orgId,
+          email,
+          name,
+          initials,
+          role,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdBy: context.auth.uid,
+        });
+    } catch (err) {
+      // Rollback: delete the Auth user we just created
+      await admin.auth().deleteUser(userRecord.uid);
+      throw err;
+    }
 
     console.log(`User created: ${email} (${userRecord.uid}) for org ${orgId}`);
 

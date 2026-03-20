@@ -395,11 +395,10 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
   // Fetch target partners
   let partnersSnap;
   if (partnerIds && partnerIds.length > 0) {
-    const docs = await Promise.all(
-      partnerIds.map((id: string) =>
-        db.collection('orgs').doc(orgId).collection('users').doc(id).get()
-      )
+    const refs = partnerIds.map((id: string) =>
+      db.collection('orgs').doc(orgId).collection('users').doc(id)
     );
+    const docs = await db.getAll(...refs);
     partnersSnap = docs.filter((d) => d.exists && d.data()?.role === 'Partner');
   } else {
     const snap = await db

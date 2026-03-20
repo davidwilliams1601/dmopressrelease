@@ -4,20 +4,32 @@ import * as admin from 'firebase-admin';
 const db = admin.firestore();
 
 /**
- * Debug function to check a user's document structure
- * This helps diagnose permission issues
+ * Checks that the caller has the superAdmin custom claim.
  */
-export const debugUser = functions.https.onCall(async (data, context) => {
-  // Allow any authenticated user to debug their own account
+function requireSuperAdmin(context: functions.https.CallableContext) {
   if (!context.auth) {
     throw new functions.https.HttpsError(
       'unauthenticated',
-      'Must be authenticated to debug user'
+      'You must be signed in.'
     );
   }
+  if (!context.auth.token?.superAdmin) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Super-admin access required.'
+    );
+  }
+}
+
+/**
+ * Debug function to check a user's document structure
+ * This helps diagnose permission issues. Super-admin only.
+ */
+export const debugUser = functions.https.onCall(async (data, context) => {
+  requireSuperAdmin(context);
 
   const { orgId, userId } = data;
-  const targetUserId = userId || context.auth.uid; // Default to caller's ID
+  const targetUserId = userId || context.auth!.uid; // Default to caller's ID
 
   console.log(`Debugging user: orgId=${orgId}, userId=${targetUserId}`);
 
