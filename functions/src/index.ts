@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
+import { escapeHtml } from './html-utils';
 import { sendWithRetry } from './sendgrid-retry';
 import { getStorage } from 'firebase-admin/storage';
 
@@ -26,16 +27,6 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// Escape HTML special characters to prevent XSS in email templates
-function escapeHtml(str: string): string {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
 /**
  * Convert bare http/https URLs in already-escaped HTML text into clickable anchor tags.
@@ -382,6 +373,44 @@ export const cleanupReleaseImages = functions.firestore
     }
   });
 
+
+/**
+ * Cloud Function to clean up submission images from Storage
+ * Triggered when a submission status is changed to archived
+ */
+export const cleanupArchivedSubmissionImages = functions.firestore
+  .document('orgs/{orgId}/submissions/{submissionId}')
+  .onUpdate(async (change, context) => {
+    const { orgId, submissionId } = context.params;
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Only fire when status changes TO archived
+    if (before.status === 'archived' || after.status !== 'archived') {
+      return;
+    }
+
+    console.log(`Cleaning up images for archived submission ${submissionId} in org ${orgId}`);
+
+    try {
+      const storage = getStorage();
+      const bucket = storage.bucket();
+      const prefix = `orgs/${orgId}/submissions/${submissionId}/`;
+
+      const [files] = await bucket.getFiles({ prefix });
+
+      if (files.length === 0) {
+        console.log(`No files found at ${prefix}`);
+        return;
+      }
+
+      await Promise.all(files.map((file) => file.delete()));
+      console.log(`Deleted ${files.length} file(s) from ${prefix}`);
+    } catch (error: any) {
+      // Best-effort: log warning but do not throw
+      console.warn(`Failed to clean up images for submission ${submissionId}:`, error?.message || error);
+    }
+  });
 // Export user management functions
 export * from './user-management';
 export * from './debug-user';

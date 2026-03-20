@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
+import { escapeHtml } from './html-utils';
 
 const db = admin.firestore();
 
@@ -10,15 +11,6 @@ function isValidEmail(email: string): boolean {
 }
 
 // Escape HTML special characters to prevent XSS in email templates
-function escapeHtml(str: string): string {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
 /**
  * Public callable Cloud Function to submit a journalist story request.

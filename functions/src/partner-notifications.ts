@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { sendWithRetry } from './sendgrid-retry';
+import { escapeHtml } from './html-utils';
 
 const db = admin.firestore();
 
@@ -13,15 +14,6 @@ function getFromEmail(): string | null {
   return functions.config().sendgrid?.from_email || process.env.SENDGRID_FROM_EMAIL || null;
 }
 
-function escapeHtml(str: string): string {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
 /**
  * Firestore trigger: send a congratulations email to a partner when their

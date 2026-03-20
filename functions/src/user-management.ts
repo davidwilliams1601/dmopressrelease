@@ -66,6 +66,22 @@ export const createOrgUser = functions.https.onCall(async (data, context) => {
       }
     }
 
+    // Check partner limit
+    const maxPartners = orgDoc.data()?.maxPartners;
+    if (maxPartners && maxPartners > 0 && role === 'Partner') {
+      const partnerSnap = await db
+        .collection('orgs').doc(orgId)
+        .collection('users')
+        .where('role', '==', 'Partner')
+        .get();
+      if (partnerSnap.size >= maxPartners) {
+        throw new functions.https.HttpsError(
+          'resource-exhausted',
+          'Partner limit reached for this organisation.'
+        );
+      }
+    }
+
     // Generate a temporary password
     const tempPassword = generateTempPassword();
 
@@ -183,10 +199,60 @@ export const deleteOrgUser = functions.https.onCall(async (data, context) => {
       );
     }
 
+    // Check if user is a Partner — if so, cascade-delete their submissions
+    const targetUserDoc = await db
+      .collection('orgs')
+      .doc(orgId)
+      .collection('users')
+      .doc(userId)
+      .get();
+    const targetRole = targetUserDoc.data()?.role;
+
     // Delete Auth user first (harder to recreate), then Firestore doc
     await admin.auth().deleteUser(userId);
 
-    // Delete the Firestore document
+    // If Partner, delete their submissions and associated storage files
+    if (targetRole === 'Partner') {
+      const submissionsSnap = await db
+        .collection('orgs')
+        .doc(orgId)
+        .collection('submissions')
+        .where('partnerId', '==', userId)
+        .get();
+
+      if (!submissionsSnap.empty) {
+        // Best-effort storage cleanup for each submission
+        const storage = admin.storage();
+        const bucket = storage.bucket();
+        for (const subDoc of submissionsSnap.docs) {
+          try {
+            await bucket.deleteFiles({ prefix: `orgs/${orgId}/submissions/${subDoc.id}/` });
+          } catch (err: any) {
+            console.warn(`[deleteOrgUser] Storage cleanup failed for submission ${subDoc.id} (non-fatal): ${err.message}`);
+          }
+        }
+
+        // Batch-delete submission documents (up to 500 per batch)
+        const batches: FirebaseFirestore.WriteBatch[] = [];
+        let currentBatch = db.batch();
+        let opCount = 0;
+        for (const subDoc of submissionsSnap.docs) {
+          currentBatch.delete(subDoc.ref);
+          opCount++;
+          if (opCount === 500) {
+            batches.push(currentBatch);
+            currentBatch = db.batch();
+            opCount = 0;
+          }
+        }
+        if (opCount > 0) batches.push(currentBatch);
+        await Promise.all(batches.map((b) => b.commit()));
+
+        console.log(`[deleteOrgUser] Cleaned up ${submissionsSnap.size} submission(s) for partner ${userId}`);
+      }
+    }
+
+    // Delete the Firestore user document
     await db
       .collection('orgs')
       .doc(orgId)
