@@ -108,7 +108,8 @@ service cloud.firestore {
     match /orgs/{orgId}/users/{userId} {
       // Allow users to read their own document (needed for isOrgMember checks - breaks circular dependency)
       allow get: if isSignedIn() && request.auth.uid == userId;
-      allow list: if isOrgMember(orgId);
+      // Team members list all; partners MUST filter by their own partnerId
+      allow list: if isTeamMember(orgId) || (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
       allow create: if isOrgAdmin(orgId) && hasCorrectOrgIdOnCreate(orgId) && request.resource.data.id == userId;
       allow update: if (isOrgAdmin(orgId) || isOwner(userId)) && resource != null && isOrgIdImmutable() && request.resource.data.id == resource.data.id;
       allow delete: if isOrgAdmin(orgId) && resource != null;
@@ -246,7 +247,7 @@ service cloud.firestore {
      * @principle Team members can read all submissions. Partners can only read their own.
      *            Partners can create submissions (must set themselves as partnerId).
      *            Team members can update (status, notes). Only admins can delete.
-     * @note For partner list queries, the query MUST include where('partnerId', '==', uid).
+     * @note Partner list queries are enforced by Firestore rules — the query MUST include where('partnerId', '==', uid).
      */
     /**
      * @description Platform-wide configuration (e.g. vertical category lists).
@@ -262,7 +263,8 @@ service cloud.firestore {
     match /orgs/{orgId}/submissions/{submissionId} {
       // Team members read all; partners can only read their own (enforced by client query filter)
       allow get: if isTeamMember(orgId) || (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
-      allow list: if isOrgMember(orgId);
+      // Team members list all; partners MUST filter by their own partnerId
+      allow list: if isTeamMember(orgId) || (isOrgMember(orgId) && resource.data.partnerId == request.auth.uid);
       allow create: if isOrgMember(orgId) &&
         hasCorrectOrgIdOnCreate(orgId) &&
         request.resource.data.partnerId == request.auth.uid;
