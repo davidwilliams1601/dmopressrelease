@@ -125,8 +125,17 @@ service cloud.firestore {
       allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
       allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
       allow delete: if isTeamMember(orgId) && resource != null;
-    }
 
+      // Counter shards and daily stats — read-only for team, written by Cloud Functions
+      match /counters/{shardId} {
+        allow read: if isTeamMember(orgId);
+        allow write: if false;
+      }
+      match /dailyStats/{dateId} {
+        allow read: if isTeamMember(orgId);
+        allow write: if false;
+      }
+    }
     /**
      * @description Rules for Outlet List documents within an organization.
      * @path /orgs/{orgId}/outletLists/{outletListId}
