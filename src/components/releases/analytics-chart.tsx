@@ -14,16 +14,35 @@ import {
 import { format } from 'date-fns';
 import type { EmailEvent } from '@/lib/types';
 
-type AnalyticsChartProps = {
-  events: EmailEvent[];
+type DailyStat = {
+  id: string; // YYYY-MM-DD date string (Firestore doc ID)
+  [key: string]: number | string;
 };
 
-export function AnalyticsChart({ events }: AnalyticsChartProps) {
-  // Process events into time-series data
+type AnalyticsChartProps = {
+  events: EmailEvent[];
+  dailyStats?: DailyStat[];
+};
+
+export function AnalyticsChart({ events, dailyStats }: AnalyticsChartProps) {
+  // Process daily stats (pre-aggregated) or fall back to raw events
   const chartData = useMemo(() => {
+    // Prefer pre-aggregated daily stats when available
+    if (dailyStats && dailyStats.length > 0) {
+      return dailyStats
+        .map((doc) => ({
+          date: format(new Date(doc.id + 'T00:00:00'), 'MMM dd, yyyy'),
+          opens: (doc.open as number) || 0,
+          clicks: (doc.click as number) || 0,
+          sortKey: doc.id,
+        }))
+        .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+        .map(({ sortKey, ...rest }) => rest);
+    }
+
+    // Fallback: bucket raw events client-side
     if (events.length === 0) return [];
 
-    // Group events by date and type
     const eventsByDate = new Map<string, { date: string; opens: number; clicks: number }>();
 
     events.forEach((event) => {
@@ -42,13 +61,12 @@ export function AnalyticsChart({ events }: AnalyticsChartProps) {
       }
     });
 
-    // Convert to array and sort by date
     return Array.from(eventsByDate.values()).sort((a, b) => {
       const dateA = new Date(a.date);
       const dateB = new Date(b.date);
       return dateA.getTime() - dateB.getTime();
     });
-  }, [events]);
+  }, [events, dailyStats]);
 
   if (chartData.length === 0) {
     return (

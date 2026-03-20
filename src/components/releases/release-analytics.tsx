@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AnalyticsChart } from './analytics-chart';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import type { EmailEvent, Release } from '@/lib/types';
 import { format } from 'date-fns';
 import { toDate } from '@/lib/utils';
@@ -23,10 +23,15 @@ type ReleaseAnalyticsProps = {
   releaseId: string;
 };
 
+type CounterShard = {
+  opens?: number;
+  clicks?: number;
+};
+
 export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
   const firestore = useFirestore();
 
-  // Fetch events for this release
+  // Fetch events for this release (limited to 500 for performance)
   const eventsQuery = useMemoFirebase(
     () => {
       const eventsRef = collection(
@@ -38,7 +43,8 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
       return query(
         eventsRef,
         where('releaseId', '==', releaseId),
-        orderBy('timestamp', 'desc')
+        orderBy('timestamp', 'desc'),
+        limit(500)
       );
     },
     [firestore, orgId, releaseId]
@@ -46,6 +52,54 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
 
   const { data: rawEvents, isLoading, error } = useCollection<EmailEvent>(eventsQuery);
   const events = rawEvents ?? [];
+
+  // Fetch pre-aggregated daily stats for the chart
+  const dailyStatsQuery = useMemoFirebase(
+    () => {
+      const dailyRef = collection(
+        firestore,
+        'orgs',
+        orgId,
+        'releases',
+        releaseId,
+        'dailyStats'
+      );
+      return query(dailyRef);
+    },
+    [firestore, orgId, releaseId]
+  );
+
+  const { data: rawDailyStats } = useCollection<Record<string, number>>(dailyStatsQuery);
+  const dailyStats = rawDailyStats ?? [];
+
+  // Fetch distributed counter shards (source of truth for opens/clicks)
+  const countersQuery = useMemoFirebase(
+    () => {
+      return collection(
+        firestore,
+        'orgs',
+        orgId,
+        'releases',
+        releaseId,
+        'counters'
+      );
+    },
+    [firestore, orgId, releaseId]
+  );
+
+  const { data: rawCounterShards } = useCollection<CounterShard>(countersQuery);
+  const counterShards = rawCounterShards ?? [];
+
+  // Sum counter shards for accurate totals
+  const shardTotals = useMemo(() => {
+    let opens = 0;
+    let clicks = 0;
+    for (const shard of counterShards) {
+      opens += shard.opens ?? 0;
+      clicks += shard.clicks ?? 0;
+    }
+    return { opens, clicks };
+  }, [counterShards]);
 
   // Fetch all sent releases for benchmarking
   const orgReleasesQuery = useMemoFirebase(
@@ -72,15 +126,17 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
     return { avg: totalRate / otherReleases.length, count: otherReleases.length };
   }, [orgReleases, releaseId]);
 
-  // Calculate statistics
+  // Calculate statistics — use shard totals for opens/clicks, events for unique counts and other types
   const stats = useMemo(() => {
     const delivered = events.filter((e) => e.eventType === 'delivered').length;
-    const opens = events.filter((e) => e.eventType === 'open').length;
-    const clicks = events.filter((e) => e.eventType === 'click').length;
     const bounces = events.filter((e) => e.eventType === 'bounce').length;
     const spamReports = events.filter((e) => e.eventType === 'spam_report').length;
 
-    // Calculate unique opens (by recipient email)
+    // Use distributed counter shards for total opens/clicks (accurate even beyond 500 event limit)
+    const opens = shardTotals.opens > 0 ? shardTotals.opens : events.filter((e) => e.eventType === 'open').length;
+    const clicks = shardTotals.clicks > 0 ? shardTotals.clicks : events.filter((e) => e.eventType === 'click').length;
+
+    // Calculate unique opens (by recipient email) — from raw events
     const uniqueOpens = new Set(
       events.filter((e) => e.eventType === 'open').map((e) => e.recipientEmail)
     ).size;
@@ -105,7 +161,7 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
       openRate,
       clickRate,
     };
-  }, [events]);
+  }, [events, shardTotals]);
 
   // Get click URLs breakdown
   const clickedUrls = useMemo(() => {
@@ -270,7 +326,7 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AnalyticsChart events={events} />
+          <AnalyticsChart events={events} dailyStats={dailyStats} />
         </CardContent>
       </Card>
 

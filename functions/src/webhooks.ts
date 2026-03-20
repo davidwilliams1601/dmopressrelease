@@ -4,6 +4,8 @@ import * as crypto from 'crypto';
 
 const db = admin.firestore();
 
+const NUM_SHARDS = 10;
+
 /**
  * Verify SendGrid webhook signature using ECDSA P-256.
  * Returns true when valid, or when no key is configured (dev/testing mode).
@@ -17,16 +19,11 @@ function verifySendGridSignature(
                          process.env.SENDGRID_WEBHOOK_VERIFICATION_KEY;
 
   if (!verificationKey) {
-    // No key configured — accept the webhook but log a warning.
-    // Set sendgrid.webhook_verification_key in Firebase config to enable
-    // signature verification in production.
     console.warn('SendGrid webhook verification key not configured. Accepting webhook without verification.');
     return true;
   }
 
   try {
-    // SendGrid signs webhooks with ECDSA P-256 (SHA-256).
-    // The public key is base64-encoded DER (SPKI format).
     const publicKeyDer = Buffer.from(verificationKey, 'base64');
     const verifier = crypto.createVerify('SHA256');
     verifier.update(timestamp + payload);
@@ -42,7 +39,6 @@ function verifySendGridSignature(
 
 /**
  * Extract orgId and releaseId from custom args in SendGrid event
- * SendGrid allows us to pass custom arguments with each email
  */
 function extractMetadataFromEvent(event: any): { orgId?: string; releaseId?: string; partnerEmailId?: string } {
   const root = event;
@@ -62,7 +58,6 @@ function extractMetadataFromEvent(event: any): { orgId?: string; releaseId?: str
 
 /**
  * Generate a deterministic event ID for idempotency.
- * Uses the SendGrid event's unique fields to prevent duplicate processing on webhook retries.
  */
 function generateEventId(event: any): string {
   const key = `${event.sg_event_id || ''}_${event.sg_message_id || ''}_${event.event || ''}_${event.timestamp || ''}`;
@@ -74,7 +69,6 @@ function generateEventId(event: any): string {
  */
 function isValidTimestamp(ts: any): boolean {
   if (typeof ts !== 'number' || !Number.isFinite(ts)) return false;
-  // Must be between 2020 and 10 years from now
   const minTs = 1577836800; // 2020-01-01
   const maxTs = Math.floor(Date.now() / 1000) + (10 * 365 * 24 * 60 * 60);
   return ts >= minTs && ts <= maxTs;
@@ -82,18 +76,15 @@ function isValidTimestamp(ts: any): boolean {
 
 /**
  * Cloud Function to handle SendGrid webhook events
- * This receives email engagement events (opens, clicks, bounces, etc.)
  */
 export const handleSendGridWebhook = functions.https.onRequest(async (req, res) => {
   console.log('Received SendGrid webhook');
 
-  // Only accept POST requests
   if (req.method !== 'POST') {
     res.status(405).send('Method Not Allowed');
     return;
   }
 
-  // Verify the webhook signature for security
   const signature = req.headers['x-twilio-email-event-webhook-signature'] as string;
   const timestamp = req.headers['x-twilio-email-event-webhook-timestamp'] as string;
   const rawBody = JSON.stringify(req.body);
@@ -105,26 +96,23 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
   }
 
   try {
-    // SendGrid sends an array of events
     const events = Array.isArray(req.body) ? req.body : [req.body];
     console.log(`Processing ${events.length} events`);
 
-    // Process events and build batch operations
     const operations: Array<{
       eventRef: FirebaseFirestore.DocumentReference;
+      dailyRef: FirebaseFirestore.DocumentReference;
       eventData: any;
       statRef: FirebaseFirestore.DocumentReference;
       eventType: string;
     }> = [];
 
     for (const event of events) {
-      // Validate required fields
       if (!event.email || !event.event) {
         console.warn('Skipping event with missing email or event type');
         continue;
       }
 
-      // Extract metadata
       const { orgId, releaseId, partnerEmailId } = extractMetadataFromEvent(event);
 
       if (!orgId || (!releaseId && !partnerEmailId)) {
@@ -132,7 +120,6 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
         continue;
       }
 
-      // Map SendGrid event types to our event types
       let eventType: string;
       switch (event.event) {
         case 'delivered': eventType = 'delivered'; break;
@@ -147,23 +134,23 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
           continue;
       }
 
-      // Use deterministic ID for idempotency
       const eventId = generateEventId(event);
 
-      // Validate and convert timestamp
       const eventTimestamp = isValidTimestamp(event.timestamp)
         ? admin.firestore.Timestamp.fromMillis(event.timestamp * 1000)
         : admin.firestore.Timestamp.now();
 
-      // Build metadata omitting undefined/empty fields
       const metadata: Record<string, string> = {};
       if (event.useragent) metadata.userAgent = event.useragent;
       if (event.ip) metadata.ip = event.ip;
       if (event.url) metadata.url = event.url;
       if (event.reason) metadata.reason = event.reason;
 
+      // Compute date string for daily aggregation
+      const eventTs = isValidTimestamp(event.timestamp) ? event.timestamp : Math.floor(Date.now() / 1000);
+      const dateStr = new Date(eventTs * 1000).toISOString().split('T')[0];
+
       if (partnerEmailId) {
-        // Partner email event — store in partnerEmailEvents, update partnerEmails doc
         const eventRef = db
           .collection('orgs').doc(orgId!)
           .collection('partnerEmailEvents').doc(eventId);
@@ -182,9 +169,13 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
           .collection('orgs').doc(orgId!)
           .collection('partnerEmails').doc(partnerEmailId);
 
-        operations.push({ eventRef, eventData, statRef, eventType });
+        const dailyRef = db
+          .collection('orgs').doc(orgId!)
+          .collection('partnerEmails').doc(partnerEmailId)
+          .collection('dailyStats').doc(dateStr);
+
+        operations.push({ eventRef, dailyRef, eventData, statRef, eventType });
       } else {
-        // Press release event — existing behaviour
         const eventRef = db
           .collection('orgs').doc(orgId!)
           .collection('events').doc(eventId);
@@ -203,12 +194,17 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
           .collection('orgs').doc(orgId!)
           .collection('releases').doc(releaseId!);
 
-        operations.push({ eventRef, eventData, statRef, eventType });
+        const dailyRef = db
+          .collection('orgs').doc(orgId!)
+          .collection('releases').doc(releaseId!)
+          .collection('dailyStats').doc(dateStr);
+
+        operations.push({ eventRef, dailyRef, eventData, statRef, eventType });
       }
     }
 
-    // Commit in batches of 250 (each event may need 2 ops: set + update)
-    const BATCH_LIMIT = 250;
+    // Commit in batches (each event uses up to 4 ops: event + parent counter + shard + daily)
+    const BATCH_LIMIT = 125;
     let totalCommitted = 0;
 
     for (let i = 0; i < operations.length; i += BATCH_LIMIT) {
@@ -219,10 +215,23 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
         batch.set(op.eventRef, op.eventData);
 
         if (op.eventType === 'open') {
+          // Keep best-effort counter on the parent doc for backwards compatibility
           batch.update(op.statRef, { opens: admin.firestore.FieldValue.increment(1) });
+          // Write to distributed counter shard (source of truth)
+          const shardId = Math.floor(Math.random() * NUM_SHARDS);
+          const shardRef = op.statRef.collection('counters').doc(`shard_${shardId}`);
+          batch.set(shardRef, { opens: admin.firestore.FieldValue.increment(1) }, { merge: true });
         } else if (op.eventType === 'click') {
+          // Keep best-effort counter on the parent doc for backwards compatibility
           batch.update(op.statRef, { clicks: admin.firestore.FieldValue.increment(1) });
+          // Write to distributed counter shard (source of truth)
+          const shardId = Math.floor(Math.random() * NUM_SHARDS);
+          const shardRef = op.statRef.collection('counters').doc(`shard_${shardId}`);
+          batch.set(shardRef, { clicks: admin.firestore.FieldValue.increment(1) }, { merge: true });
         }
+
+        // Write daily aggregate stats
+        batch.set(op.dailyRef, { [op.eventType]: admin.firestore.FieldValue.increment(1) }, { merge: true });
       }
 
       await batch.commit();
