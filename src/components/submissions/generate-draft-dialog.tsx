@@ -192,6 +192,18 @@ export function GenerateDraftDialog({
                 </div>
               </div>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="refine-instructions" className="text-sm font-medium">Refine your instructions</Label>
+              <p className="text-xs text-muted-foreground">
+                Adjust your prompt to steer the next draft &mdash; e.g. &ldquo;make sections 60 words each&rdquo; or &ldquo;add a call to action for each partner&rdquo;
+              </p>
+              <Textarea
+                id="refine-instructions"
+                placeholder="e.g. Focus on the family-friendly angle, mention the summer season..."
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+              />
+            </div>
             <DialogFooter>
               <Button variant="outline" onClick={handleGenerate} disabled={isGenerating}>
                 {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

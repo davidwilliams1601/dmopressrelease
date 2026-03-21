@@ -57,6 +57,19 @@ export function GenerateWebContentCard({ release, orgId, organization }: Props) 
   const [instructions, setInstructions] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
 
+  // Use org-level content types if set, otherwise fall back to vertical defaults
+  const effectiveContentTypes: Array<{ name: string; description?: string }> =
+    organization?.contentTypes && organization.contentTypes.length > 0
+      ? organization.contentTypes
+      : config.ai.webContentTypes.map((name) => ({ name }));
+
+  const contentTypeNames = effectiveContentTypes.map((t) => t.name);
+  const contentTypeDescriptions = new Map(
+    effectiveContentTypes
+      .filter((t) => t.description)
+      .map((t) => [t.name, t.description!])
+  );
+
   const hasBodyCopy = !!release.bodyCopy?.trim();
 
   const handleGenerate = async () => {
@@ -78,7 +91,7 @@ export function GenerateWebContentCard({ release, orgId, organization }: Props) 
 
       if (result.success) {
         setDraft(result.data);
-        if (result.data.suggestedContentType && config.ai.webContentTypes.includes(result.data.suggestedContentType)) {
+        if (result.data.suggestedContentType && contentTypeNames.includes(result.data.suggestedContentType)) {
           setContentType(result.data.suggestedContentType);
         }
       } else {
@@ -148,8 +161,13 @@ export function GenerateWebContentCard({ release, orgId, organization }: Props) 
                     <SelectValue placeholder="Select content type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {config.ai.webContentTypes.map((type) => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    {effectiveContentTypes.map((type) => (
+                      <SelectItem key={type.name} value={type.name}>
+                        <span>{type.name}</span>
+                        {type.description && (
+                          <span className="block text-xs text-muted-foreground font-normal">{type.description}</span>
+                        )}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -214,9 +232,21 @@ export function GenerateWebContentCard({ release, orgId, organization }: Props) 
                 {targetMarket && <Badge variant="outline">{targetMarket}</Badge>}
               </div>
             </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Refine your instructions</Label>
+              <p className="text-xs text-muted-foreground">
+                Adjust your prompt to steer the next draft &mdash; e.g. &ldquo;make sections 60 words each&rdquo; or &ldquo;add a call to action for each partner&rdquo;
+              </p>
+              <Textarea
+                placeholder="e.g. Focus on the family-friendly angle, highlight summer events..."
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                rows={2}
+              />
+            </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setDraft(null)} disabled={isGenerating || isSaving}>
-                <RefreshCw className="h-4 w-4" />
+              <Button variant="outline" onClick={handleGenerate} disabled={isGenerating || isSaving}>
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Regenerate
               </Button>
               <Button onClick={handleSave} disabled={isSaving}>

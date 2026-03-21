@@ -25,6 +25,7 @@ export type Organization = {
   maxUsers?: number;
   tier?: 'starter' | 'professional' | 'organisation';
   approvalWorkflowEnabled?: boolean;
+  contentTypes?: Array<{ name: string; description?: string }>;
 };
 
 export type User = {

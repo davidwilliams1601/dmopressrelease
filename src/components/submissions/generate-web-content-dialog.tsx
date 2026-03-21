@@ -71,6 +71,14 @@ export function GenerateWebContentDialog({
 
   const { data: org } = useDoc<Organization>(orgRef);
 
+  // Use org-level content types if set, otherwise fall back to vertical defaults
+  const effectiveContentTypes: Array<{ name: string; description?: string }> =
+    org?.contentTypes && org.contentTypes.length > 0
+      ? org.contentTypes
+      : config.ai.webContentTypes.map((name) => ({ name }));
+
+  const contentTypeNames = effectiveContentTypes.map((t) => t.name);
+
   const handleGenerate = async () => {
     setIsGenerating(true);
 
@@ -94,7 +102,7 @@ export function GenerateWebContentDialog({
 
       if (result.success) {
         setDraft(result.data);
-        if (result.data.suggestedContentType && config.ai.webContentTypes.includes(result.data.suggestedContentType)) {
+        if (result.data.suggestedContentType && contentTypeNames.includes(result.data.suggestedContentType)) {
           setContentType(result.data.suggestedContentType);
         }
       } else {
@@ -241,8 +249,13 @@ export function GenerateWebContentDialog({
                     <SelectValue placeholder="Select content type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {config.ai.webContentTypes.map((type) => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    {effectiveContentTypes.map((type) => (
+                      <SelectItem key={type.name} value={type.name}>
+                        <span>{type.name}</span>
+                        {type.description && (
+                          <span className="block text-xs text-muted-foreground font-normal">{type.description}</span>
+                        )}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

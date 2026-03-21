@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BarChart2, Loader2, CheckCircle2 } from 'lucide-react';
+import { BarChart2, Loader2, CheckCircle2, ArrowLeft, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
@@ -40,10 +40,20 @@ function getMostRecentCompletedQuarter(): { year: number; quarter: number } {
 
 const QUARTER_LABELS: Record<number, string> = { 1: 'Q1 (Jan–Mar)', 2: 'Q2 (Apr–Jun)', 3: 'Q3 (Jul–Sep)', 4: 'Q4 (Oct–Dec)' };
 
+type Step = 'form' | 'preview' | 'sending' | 'result';
+
+type PreviewData = {
+  html: string;
+  partnerCount: number;
+  partnerName: string;
+};
+
 export function SendQuarterlyReportDialog({ orgId, partnerCount }: SendQuarterlyReportDialogProps) {
   const defaultQ = getMostRecentCompletedQuarter();
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<Step>('form');
   const [isLoading, setIsLoading] = useState(false);
+  const [preview, setPreview] = useState<PreviewData | null>(null);
   const [result, setResult] = useState<{ sentCount: number; partnerCount: number; quarter: string } | null>(null);
   const [year, setYear] = useState(String(defaultQ.year));
   const [quarter, setQuarter] = useState(String(defaultQ.quarter));
@@ -52,7 +62,26 @@ export function SendQuarterlyReportDialog({ orgId, partnerCount }: SendQuarterly
   const currentYear = new Date().getFullYear();
   const yearOptions = [currentYear - 1, currentYear];
 
+  const handlePreview = async () => {
+    setIsLoading(true);
+    try {
+      const functions = getFunctions();
+      const previewReport = httpsCallable<any, PreviewData>(
+        functions,
+        'previewQuarterlyPartnerReport'
+      );
+      const res = await previewReport({ orgId, year: parseInt(year, 10), quarter: parseInt(quarter, 10) });
+      setPreview(res.data);
+      setStep('preview');
+    } catch (error: any) {
+      toast({ title: 'Error loading preview', description: error.message || 'Please try again.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSend = async () => {
+    setStep('sending');
     setIsLoading(true);
     try {
       const functions = getFunctions();
@@ -62,8 +91,10 @@ export function SendQuarterlyReportDialog({ orgId, partnerCount }: SendQuarterly
       );
       const res = await sendReport({ orgId, year: parseInt(year, 10), quarter: parseInt(quarter, 10) });
       setResult(res.data);
+      setStep('result');
     } catch (error: any) {
       toast({ title: 'Error sending report', description: error.message || 'Please try again.', variant: 'destructive' });
+      setStep('preview');
     } finally {
       setIsLoading(false);
     }
@@ -71,7 +102,9 @@ export function SendQuarterlyReportDialog({ orgId, partnerCount }: SendQuarterly
 
   const handleClose = () => {
     setOpen(false);
+    setStep('form');
     setResult(null);
+    setPreview(null);
     const q = getMostRecentCompletedQuarter();
     setYear(String(q.year));
     setQuarter(String(q.quarter));
@@ -85,8 +118,8 @@ export function SendQuarterlyReportDialog({ orgId, partnerCount }: SendQuarterly
           Send Quarterly Report
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-sm">
-        {result ? (
+      <DialogContent className={step === 'preview' ? 'max-w-2xl' : 'max-w-sm'}>
+        {step === 'result' && result ? (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -105,6 +138,44 @@ export function SendQuarterlyReportDialog({ orgId, partnerCount }: SendQuarterly
             <DialogFooter>
               <Button onClick={handleClose}>Done</Button>
             </DialogFooter>
+          </>
+        ) : step === 'preview' && preview ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Preview Quarterly Report</DialogTitle>
+              <DialogDescription>
+                Preview for <strong>{preview.partnerName}</strong> — {preview.partnerCount} partner{preview.partnerCount !== 1 ? 's' : ''} will receive this report
+              </DialogDescription>
+            </DialogHeader>
+            <div
+              className="border rounded-md overflow-auto max-h-[60vh] bg-gray-50"
+              dangerouslySetInnerHTML={{ __html: preview.html }}
+            />
+            <DialogFooter className="flex-row gap-2 sm:justify-between">
+              <Button variant="outline" onClick={() => { setStep('form'); setPreview(null); }}>
+                <ArrowLeft className="h-4 w-4" />
+                Edit
+              </Button>
+              <Button onClick={handleSend} disabled={isLoading}>
+                {isLoading ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</>
+                ) : (
+                  `Send to all ${preview.partnerCount} partners`
+                )}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : step === 'sending' ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Sending Reports</DialogTitle>
+              <DialogDescription>
+                Sending quarterly reports to all partners...
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
           </>
         ) : (
           <>
@@ -149,11 +220,11 @@ export function SendQuarterlyReportDialog({ orgId, partnerCount }: SendQuarterly
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={handleClose}>Cancel</Button>
-              <Button onClick={handleSend} disabled={isLoading}>
+              <Button onClick={handlePreview} disabled={isLoading}>
                 {isLoading ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</>
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Loading preview...</>
                 ) : (
-                  `Send ${QUARTER_LABELS[parseInt(quarter)]} ${year} Reports`
+                  <><Eye className="h-4 w-4" /> Preview Report</>
                 )}
               </Button>
             </DialogFooter>

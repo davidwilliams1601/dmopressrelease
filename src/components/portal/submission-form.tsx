@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { TagSelector } from '@/components/shared/tag-selector';
 import { MultiImageUpload } from '@/components/portal/multi-image-upload';
 import { useToast } from '@/hooks/use-toast';
-import { Send, Sparkles, Loader2, Check, X } from 'lucide-react';
+import { Send, Sparkles, Loader2, Check, X, Info } from 'lucide-react';
 import type { SocialHandles } from '@/lib/types';
 import { improveSubmissionCopy } from '@/ai/flows/improve-submission-copy';
 
@@ -185,6 +186,12 @@ export function SubmissionForm() {
           <CardTitle>Content Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Alert className="border-blue-200 bg-blue-50 text-blue-900 [&>svg]:text-blue-600">
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              Please create a separate submission for each piece of news or content. For example, an Easter event and a summer promotion should be two separate submissions — this helps the press team use your content more effectively.
+            </AlertDescription>
+          </Alert>
           <div className="space-y-2">
             <Label htmlFor="title">Title *</Label>
             <Input

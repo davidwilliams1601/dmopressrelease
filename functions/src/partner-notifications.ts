@@ -122,6 +122,92 @@ export const onSubmissionUsed = functions.firestore
     }
   });
 
+
+/**
+ * Firestore trigger: send a notification email to a partner when their
+ * submission status changes to 'approved'.
+ */
+export const onSubmissionApproved = functions.firestore
+  .document('orgs/{orgId}/submissions/{submissionId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Only fire when status transitions to 'approved'
+    if (before.status === 'approved' || after.status !== 'approved') return;
+
+    // Avoid duplicate sends
+    if (after.notifiedApprovedAt) return;
+
+    const { orgId } = context.params;
+
+    const key = getSendGridKey();
+    const fromEmail = getFromEmail();
+
+    if (!key || !fromEmail) {
+      console.warn('[onSubmissionApproved] SendGrid not configured — skipping email');
+      return;
+    }
+
+    sgMail.setApiKey(key);
+
+    try {
+      // Get org details
+      const orgDoc = await db.collection('orgs').doc(orgId).get();
+      if (!orgDoc.exists) return;
+      const org = orgDoc.data()!;
+      const orgName = org.name || 'Your organisation';
+
+      const partnerName = escapeHtml(after.partnerName || 'Partner');
+      const submissionTitle = escapeHtml(after.title || 'Your submission');
+      const safeOrgName = escapeHtml(orgName);
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background-color: #16a34a; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; color: white; font-size: 22px;">Your submission has been approved!</h1>
+          </div>
+          <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
+            <p style="margin-top: 0;">Hi ${partnerName},</p>
+            <p>Good news — your submission <strong>"${submissionTitle}"</strong> has been approved by <strong>${safeOrgName}</strong> and is being considered for upcoming press releases.</p>
+            <p>We'll let you know if your content is selected for a release. In the meantime, feel free to submit more stories through the partner portal.</p>
+            <p style="color: #64748b; font-size: 14px;">Thank you for your contribution!</p>
+          </div>
+          <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
+            Sent by ${safeOrgName} via PressPilot
+          </div>
+        </body>
+        </html>
+      `;
+
+      await sendWithRetry({
+        to: after.partnerEmail,
+        from: { email: fromEmail, name: orgName },
+        subject: `Submission approved — ${orgName}`,
+        html,
+        text: `Hi ${after.partnerName},
+
+Your submission "${after.title}" has been approved by ${orgName} and is being considered for upcoming press releases.
+
+We'll let you know if your content is selected. Thank you for your contribution!
+
+${orgName}`,
+      } as any);
+
+      // Mark as notified to prevent duplicates
+      await change.after.ref.update({
+        notifiedApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      console.log(`[onSubmissionApproved] Notification sent to ${after.partnerEmail} for submission ${context.params.submissionId}`);
+    } catch (error: any) {
+      console.error('[onSubmissionApproved] Error sending notification:', error);
+    }
+  });
+
 /**
  * Callable: send each partner their personalised quarterly report.
  * Org-admin only.
@@ -343,6 +429,193 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
     ...(failedRecipients.length > 0 ? { failedRecipients } : {}),
     partnerCount: partnersSnap.size,
     quarter: quarterLabel,
+  };
+});
+
+/**
+ * Callable: preview a quarterly partner report without sending.
+ * Org-admin only. Returns rendered HTML for a sample partner.
+ *
+ * Input: { orgId, year, quarter }  — quarter is 1–4
+ * Output: { html, partnerCount, partnerName }
+ */
+export const previewQuarterlyPartnerReport = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+  }
+
+  const { orgId, year, quarter } = data;
+
+  if (!orgId || !year || !quarter || quarter < 1 || quarter > 4) {
+    throw new functions.https.HttpsError('invalid-argument', 'orgId, year and quarter (1-4) are required.');
+  }
+
+  // Verify caller is an admin of this org
+  const callerDoc = await db.collection('orgs').doc(orgId).collection('users').doc(context.auth.uid).get();
+  if (!callerDoc.exists || callerDoc.data()?.role !== 'Admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Only organisation admins can preview reports.');
+  }
+
+  // Quarter date range
+  const quarterStartMonth = (quarter - 1) * 3;
+  const quarterStart = new Date(year, quarterStartMonth, 1);
+  const quarterEnd = new Date(year, quarterStartMonth + 3, 0, 23, 59, 59, 999);
+
+  const quarterLabel = `Q${quarter} ${year}`;
+  const quarterStartLabel = quarterStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const quarterEndLabel = quarterEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Get org details
+  const orgDoc = await db.collection('orgs').doc(orgId).get();
+  if (!orgDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Organisation not found.');
+  }
+  const org = orgDoc.data()!;
+  const orgName: string = org.name || 'Your organisation';
+  const orgSlug: string = org.slug || orgId;
+
+  // Get all partner users
+  const partnersSnap = await db
+    .collection('orgs').doc(orgId)
+    .collection('users')
+    .where('role', '==', 'Partner')
+    .get();
+
+  if (partnersSnap.empty) {
+    throw new functions.https.HttpsError('not-found', 'No partners found in this organisation.');
+  }
+
+  // Get all submissions for this org within the quarter
+  const submissionsSnap = await db
+    .collection('orgs').doc(orgId)
+    .collection('submissions')
+    .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(quarterStart))
+    .where('createdAt', '<=', admin.firestore.Timestamp.fromDate(quarterEnd))
+    .get();
+
+  const allSubmissions = submissionsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+
+  // Get releases that partners' submissions appeared in (for headlines)
+  const releaseIdSet = new Set<string>();
+  allSubmissions.forEach((s: any) => {
+    (s.usedInReleaseIds || []).forEach((id: string) => releaseIdSet.add(id));
+  });
+
+  const releaseMap = new Map<string, { headline: string; slug: string }>();
+  await Promise.all(
+    Array.from(releaseIdSet).map(async (releaseId) => {
+      const releaseDoc = await db.collection('orgs').doc(orgId).collection('releases').doc(releaseId).get();
+      if (releaseDoc.exists) {
+        const r = releaseDoc.data()!;
+        releaseMap.set(releaseId, { headline: r.headline || '', slug: r.slug || '' });
+      }
+    })
+  );
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+
+  // Pick the first partner that has submissions this quarter, or fall back to the first partner
+  let samplePartnerDoc = partnersSnap.docs[0];
+  let samplePartnerSubs: any[] = [];
+
+  for (const partnerDoc of partnersSnap.docs) {
+    const subs = allSubmissions.filter((s: any) => s.partnerId === partnerDoc.id);
+    if (subs.length > 0) {
+      samplePartnerDoc = partnerDoc;
+      samplePartnerSubs = subs;
+      break;
+    }
+  }
+
+  const partner = samplePartnerDoc.data();
+  const partnerName: string = partner.name || 'Partner';
+
+  const partnerSubs = samplePartnerSubs;
+  const usedSubs = partnerSubs.filter((s: any) => s.status === 'used');
+  const featuredReleaseIds = new Set<string>();
+  usedSubs.forEach((s: any) => {
+    (s.usedInReleaseIds || []).forEach((id: string) => featuredReleaseIds.add(id));
+  });
+
+  const featuredReleases = Array.from(featuredReleaseIds)
+    .map((id) => releaseMap.get(id))
+    .filter(Boolean) as Array<{ headline: string; slug: string }>;
+
+  const safeOrgName = escapeHtml(orgName);
+  const safePartnerName = escapeHtml(partnerName);
+
+  const featuredReleasesHtml = featuredReleases.length > 0
+    ? `
+      <h3 style="font-size: 14px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin: 24px 0 12px;">Featured in</h3>
+      <ul style="list-style: none; padding: 0; margin: 0;">
+        ${featuredReleases.map((r) => `
+          <li style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">
+            <a href="${appUrl}/releases/${orgSlug}/${escapeHtml(r.slug)}" style="color: #2563eb; text-decoration: none; font-size: 14px;">${escapeHtml(r.headline)}</a>
+          </li>
+        `).join('')}
+      </ul>
+    `
+    : '';
+
+  const submissionsHtml = partnerSubs.length > 0
+    ? `
+      <h3 style="font-size: 14px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin: 24px 0 12px;">Your submissions this quarter</h3>
+      <ul style="list-style: none; padding: 0; margin: 0;">
+        ${partnerSubs.map((s: any) => `
+          <li style="padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+            <span style="color: ${s.status === 'used' ? '#16a34a' : '#64748b'}; font-weight: 700;">${s.status === 'used' ? '\u2713' : '\u2192'}</span>
+            <span>${escapeHtml(s.title)}${s.status === 'used' ? ' <span style="font-size: 12px; color: #16a34a; margin-left: 6px;">Featured</span>' : ''}</span>
+          </li>
+        `).join('')}
+      </ul>
+    `
+    : '';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: #2563eb; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+        <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 13px;">${safeOrgName}</p>
+        <h1 style="margin: 4px 0 0; color: white; font-size: 22px;">Your ${quarterLabel} report</h1>
+      </div>
+      <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
+        <p style="margin-top: 0;">Hi ${safePartnerName},</p>
+        <p>Here's a summary of your contributions to ${safeOrgName} during ${quarterLabel} (${quarterStartLabel} \u2013 ${quarterEndLabel}).</p>
+
+        <div style="display: flex; gap: 16px; margin: 24px 0;">
+          <div style="flex: 1; background: #eff6ff; border-radius: 8px; padding: 16px; text-align: center;">
+            <div style="font-size: 32px; font-weight: 700; color: #2563eb; line-height: 1;">${partnerSubs.length}</div>
+            <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Submission${partnerSubs.length !== 1 ? 's' : ''} made</div>
+          </div>
+          <div style="flex: 1; background: #f0fdf4; border-radius: 8px; padding: 16px; text-align: center;">
+            <div style="font-size: 32px; font-weight: 700; color: #16a34a; line-height: 1;">${usedSubs.length}</div>
+            <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Featured in releases</div>
+          </div>
+        </div>
+
+        ${featuredReleasesHtml}
+        ${submissionsHtml}
+
+        <p style="margin-top: 24px; color: #64748b; font-size: 14px;">
+          ${usedSubs.length > 0
+            ? `Your stories helped ${safeOrgName} reach journalists and media contacts this quarter. Thank you for your contributions \u2014 keep them coming.`
+            : `Your submissions are in our queue and will be considered for upcoming press releases. Thank you for contributing to ${safeOrgName}'s press activity.`
+          }
+        </p>
+      </div>
+      <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
+        Sent by ${safeOrgName} via PressPilot
+      </div>
+    </body>
+    </html>
+  `;
+
+  return {
+    html,
+    partnerCount: partnersSnap.size,
+    partnerName,
   };
 });
 
