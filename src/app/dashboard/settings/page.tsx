@@ -5,6 +5,7 @@ import SettingsForm from '@/components/settings/settings-form';
 import UserProfileCard from '@/components/settings/user-profile-card';
 import ChangePasswordCard from '@/components/settings/change-password-card';
 import MediaEnquiryLinkCard from '@/components/settings/media-enquiry-link-card';
+import NewsroomLinkCard from '@/components/settings/newsroom-link-card';
 import NotificationPrefsCard from '@/components/settings/notification-prefs-card';
 import { useUserData } from '@/hooks/use-user-data';
 import { useOrganization } from '@/hooks/use-organization';
@@ -46,6 +47,7 @@ export default function SettingsPage() {
         </p>
       </div>
       <SettingsForm organization={organization} />
+      <NewsroomLinkCard orgSlug={organization.slug} />
       <MediaEnquiryLinkCard orgSlug={organization.slug} />
       <UserProfileCard />
       <NotificationPrefsCard />

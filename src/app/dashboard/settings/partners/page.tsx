@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GenerateInviteDialog } from '@/components/settings/generate-invite-dialog';
 import { SendQuarterlyReportDialog } from '@/components/settings/send-quarterly-report-dialog';
 import { SendPartnerEmailDialog } from '@/components/settings/send-partner-email-dialog';
+import { SendImpactReportButton } from '@/components/settings/send-impact-report-button';
 import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import { Link as LinkIcon, Users, Mail, Copy, Send, MailOpen, MousePointerClick } from 'lucide-react';
 import { format } from 'date-fns';
@@ -105,6 +106,7 @@ export default function PartnersPage() {
                   </Button>
                 }
               />
+              <SendImpactReportButton orgId={orgId} partnerCount={partnerAccounts.length} />
               <SendQuarterlyReportDialog orgId={orgId} partnerCount={partnerAccounts.length} />
             </>
           )}

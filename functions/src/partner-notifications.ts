@@ -503,3 +503,391 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
     recipientCount: partnersSnap.length,
   };
 });
+
+
+/**
+ * Build the HTML email for a partner's monthly impact report.
+ */
+function buildMonthlyImpactHtml(opts: {
+  partnerName: string;
+  orgName: string;
+  monthLabel: string;
+  submissionCount: number;
+  usedSubmissions: Array<{
+    title: string;
+    releaseHeadline: string;
+    releaseUrl: string;
+    sends: number;
+    opens: number;
+    clicks: number;
+  }>;
+  totalJournalistsReached: number;
+  overallOpenRate: number;
+}): string {
+  const {
+    partnerName,
+    orgName,
+    monthLabel,
+    submissionCount,
+    usedSubmissions,
+    totalJournalistsReached,
+    overallOpenRate,
+  } = opts;
+
+  const safePartnerName = escapeHtml(partnerName);
+  const safeOrgName = escapeHtml(orgName);
+
+  const hasUsedSubmissions = usedSubmissions.length > 0;
+
+  const summaryText = hasUsedSubmissions
+    ? `Your stories reached <strong>${totalJournalistsReached.toLocaleString()}</strong> journalist${totalJournalistsReached !== 1 ? 's' : ''} last month with a <strong>${overallOpenRate}%</strong> open rate.`
+    : submissionCount > 0
+      ? `You made ${submissionCount} submission${submissionCount !== 1 ? 's' : ''} last month. They&#39;re in our queue and will be considered for upcoming press releases.`
+      : `We didn&#39;t receive any submissions from you last month. We&#39;d love to hear your latest news — submit a story anytime through the partner portal.`;
+
+  const submissionBreakdownHtml = usedSubmissions.map((s) => {
+    const openRate = s.sends > 0 ? Math.round((s.opens / s.sends) * 100) : 0;
+    return `
+      <div style="background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+        <p style="margin: 0 0 4px; font-size: 13px; color: #64748b;">Your submission</p>
+        <p style="margin: 0 0 8px; font-weight: 600; color: #0f172a;">${escapeHtml(s.title)}</p>
+        <p style="margin: 0 0 4px; font-size: 13px; color: #64748b;">Featured in</p>
+        <p style="margin: 0 0 12px;">
+          <a href="${s.releaseUrl}" style="color: #2563eb; text-decoration: none; font-weight: 500;">${escapeHtml(s.releaseHeadline)}</a>
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+          <tr>
+            <td style="text-align: center; padding: 8px; background: #eff6ff; border-radius: 6px 0 0 6px;">
+              <div style="font-size: 20px; font-weight: 700; color: #2563eb;">${s.sends.toLocaleString()}</div>
+              <div style="font-size: 11px; color: #64748b;">Journalists</div>
+            </td>
+            <td style="text-align: center; padding: 8px; background: #f0fdf4;">
+              <div style="font-size: 20px; font-weight: 700; color: #16a34a;">${openRate}%</div>
+              <div style="font-size: 11px; color: #64748b;">Open rate</div>
+            </td>
+            <td style="text-align: center; padding: 8px; background: #fefce8; border-radius: 0 6px 6px 0;">
+              <div style="font-size: 20px; font-weight: 700; color: #ca8a04;">${s.clicks}</div>
+              <div style="font-size: 11px; color: #64748b;">Clicks</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: #2563eb; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+        <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 13px;">${safeOrgName}</p>
+        <h1 style="margin: 4px 0 0; color: white; font-size: 22px;">Your ${escapeHtml(monthLabel)} Impact Report</h1>
+      </div>
+      <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
+        <p style="margin-top: 0;">Hi ${safePartnerName},</p>
+        <p>${summaryText}</p>
+
+        ${hasUsedSubmissions ? `
+          <div style="display: flex; gap: 16px; margin: 24px 0;">
+            <div style="flex: 1; background: #eff6ff; border-radius: 8px; padding: 16px; text-align: center;">
+              <div style="font-size: 32px; font-weight: 700; color: #2563eb; line-height: 1;">${submissionCount}</div>
+              <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Submission${submissionCount !== 1 ? 's' : ''}</div>
+            </div>
+            <div style="flex: 1; background: #f0fdf4; border-radius: 8px; padding: 16px; text-align: center;">
+              <div style="font-size: 32px; font-weight: 700; color: #16a34a; line-height: 1;">${totalJournalistsReached.toLocaleString()}</div>
+              <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Journalists reached</div>
+            </div>
+            <div style="flex: 1; background: #fefce8; border-radius: 8px; padding: 16px; text-align: center;">
+              <div style="font-size: 32px; font-weight: 700; color: #ca8a04; line-height: 1;">${overallOpenRate}%</div>
+              <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Open rate</div>
+            </div>
+          </div>
+
+          <h3 style="font-size: 14px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin: 24px 0 12px;">Submission breakdown</h3>
+          ${submissionBreakdownHtml}
+        ` : ''}
+
+        <div style="text-align: center; margin-top: 32px;">
+          <a href="#" style="display: inline-block; background: #2563eb; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">Submit your next story</a>
+        </div>
+      </div>
+      <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
+        Sent by ${safeOrgName} via PressPilot
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Core logic: generate and send monthly impact reports for a single org.
+ * Extracted so it can be called by both the scheduled function and the manual trigger.
+ */
+async function sendMonthlyImpactForOrg(
+  orgId: string,
+  monthStart: Date,
+  monthEnd: Date,
+  monthLabel: string
+): Promise<{ sentCount: number; failedCount: number; skippedCount: number; partnerCount: number }> {
+  const key = getSendGridKey();
+  const fromEmail = getFromEmail();
+
+  if (!key || !fromEmail) {
+    console.warn(`[sendMonthlyImpactForOrg] SendGrid not configured for org ${orgId} — skipping`);
+    return { sentCount: 0, failedCount: 0, skippedCount: 0, partnerCount: 0 };
+  }
+
+  sgMail.setApiKey(key);
+
+  const orgDoc = await db.collection('orgs').doc(orgId).get();
+  if (!orgDoc.exists) {
+    console.warn(`[sendMonthlyImpactForOrg] Org ${orgId} not found`);
+    return { sentCount: 0, failedCount: 0, skippedCount: 0, partnerCount: 0 };
+  }
+  const org = orgDoc.data()!;
+  const orgName: string = org.name || 'Your organisation';
+  const orgSlug: string = org.slug || orgId;
+  const senderEmail: string = org.pressContact?.email || fromEmail;
+
+  // Get all partner users
+  const partnersSnap = await db
+    .collection('orgs').doc(orgId)
+    .collection('users')
+    .where('role', '==', 'Partner')
+    .get();
+
+  if (partnersSnap.empty) {
+    return { sentCount: 0, failedCount: 0, skippedCount: 0, partnerCount: 0 };
+  }
+
+  // Get all submissions from the target month
+  const submissionsSnap = await db
+    .collection('orgs').doc(orgId)
+    .collection('submissions')
+    .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(monthStart))
+    .where('createdAt', '<=', admin.firestore.Timestamp.fromDate(monthEnd))
+    .get();
+
+  const allSubmissions = submissionsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+
+  // Collect all release IDs referenced by submissions
+  const releaseIdSet = new Set<string>();
+  allSubmissions.forEach((s: any) => {
+    (s.usedInReleaseIds || []).forEach((id: string) => releaseIdSet.add(id));
+  });
+
+  // Fetch release data (headline, slug, sends, opens, clicks)
+  const releaseMap = new Map<string, { headline: string; slug: string; sends: number; opens: number; clicks: number }>();
+  const releaseIds = Array.from(releaseIdSet);
+  // Batch in groups of 10 for Firestore getAll limit
+  for (let i = 0; i < releaseIds.length; i += 10) {
+    const batch = releaseIds.slice(i, i + 10);
+    const refs = batch.map((id) => db.collection('orgs').doc(orgId).collection('releases').doc(id));
+    const docs = await db.getAll(...refs);
+    docs.forEach((doc) => {
+      if (doc.exists) {
+        const r = doc.data()!;
+        releaseMap.set(doc.id, {
+          headline: r.headline || '',
+          slug: r.slug || '',
+          sends: r.sends || 0,
+          opens: r.opens || 0,
+          clicks: r.clicks || 0,
+        });
+      }
+    });
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+
+  let sentCount = 0;
+  let failedCount = 0;
+  let skippedCount = 0;
+
+  // Process partners sequentially to avoid overwhelming SendGrid
+  for (const partnerDoc of partnersSnap.docs) {
+    const partner = partnerDoc.data();
+    const partnerEmail: string = partner.email;
+    const partnerName: string = partner.name || 'Partner';
+    const partnerId: string = partnerDoc.id;
+
+    if (!partnerEmail) {
+      skippedCount++;
+      continue;
+    }
+
+    // Filter submissions for this partner
+    const partnerSubs = allSubmissions.filter((s: any) => s.partnerId === partnerId);
+
+    // Build used-submissions detail with release stats
+    const usedSubmissions: Array<{
+      title: string;
+      releaseHeadline: string;
+      releaseUrl: string;
+      sends: number;
+      opens: number;
+      clicks: number;
+    }> = [];
+
+    for (const sub of partnerSubs) {
+      if (sub.status !== 'used' || !sub.usedInReleaseIds?.length) continue;
+      for (const releaseId of sub.usedInReleaseIds) {
+        const release = releaseMap.get(releaseId);
+        if (release) {
+          usedSubmissions.push({
+            title: sub.title || 'Untitled submission',
+            releaseHeadline: release.headline || 'Untitled release',
+            releaseUrl: `${appUrl}/releases/${orgSlug}/${release.slug}`,
+            sends: release.sends,
+            opens: release.opens,
+            clicks: release.clicks,
+          });
+        }
+      }
+    }
+
+    const totalJournalistsReached = usedSubmissions.reduce((sum, s) => sum + s.sends, 0);
+    const totalOpens = usedSubmissions.reduce((sum, s) => sum + s.opens, 0);
+    const overallOpenRate = totalJournalistsReached > 0 ? Math.round((totalOpens / totalJournalistsReached) * 100) : 0;
+
+    // Skip partners with zero submissions and zero used content
+    if (partnerSubs.length === 0 && usedSubmissions.length === 0) {
+      skippedCount++;
+      continue;
+    }
+
+    const html = buildMonthlyImpactHtml({
+      partnerName,
+      orgName,
+      monthLabel,
+      submissionCount: partnerSubs.length,
+      usedSubmissions,
+      totalJournalistsReached,
+      overallOpenRate,
+    });
+
+    const summaryLine = usedSubmissions.length > 0
+      ? `Your stories reached ${totalJournalistsReached} journalists last month with a ${overallOpenRate}% open rate.`
+      : partnerSubs.length > 0
+        ? `You made ${partnerSubs.length} submission${partnerSubs.length !== 1 ? 's' : ''} last month. They're in our queue.`
+        : `We'd love to hear your latest news — submit a story anytime.`;
+
+    const text = [
+      `Hi ${partnerName},`,
+      '',
+      `Here's your ${monthLabel} impact report for ${orgName}.`,
+      '',
+      summaryLine,
+      '',
+      ...(usedSubmissions.length > 0
+        ? [
+            'Submissions featured in releases:',
+            ...usedSubmissions.map((s) => `- "${s.title}" in "${s.releaseHeadline}" (${s.sends} journalists, ${s.sends > 0 ? Math.round((s.opens / s.sends) * 100) : 0}% opens)`),
+            '',
+          ]
+        : []),
+      `Thank you for contributing to ${orgName}.`,
+    ].join('\n');
+
+    try {
+      await sendWithRetry({
+        to: partnerEmail,
+        from: { email: senderEmail, name: orgName },
+        subject: `Your ${monthLabel} Impact Report — ${orgName}`,
+        html,
+        text,
+      } as any);
+
+      sentCount++;
+      console.log(`[monthlyImpact] Sent ${monthLabel} report to ${partnerEmail}`);
+    } catch (error: any) {
+      console.error(`[monthlyImpact] Failed to send to ${partnerEmail}:`, error);
+      failedCount++;
+    }
+  }
+
+  return { sentCount, failedCount, skippedCount, partnerCount: partnersSnap.size };
+}
+
+/**
+ * Scheduled function: send monthly partner impact reports.
+ * Runs at 9am on the 1st of each month.
+ */
+export const sendMonthlyPartnerImpact = functions
+  .runWith({ timeoutSeconds: 300, memory: '512MB' })
+  .pubsub.schedule('0 9 1 * *')
+  .timeZone('Europe/London')
+  .onRun(async () => {
+    // Calculate previous month date range
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    const monthLabel = monthStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+    console.log(`[sendMonthlyPartnerImpact] Running for ${monthLabel}`);
+
+    // Get all orgs that have at least one partner
+    const orgsSnap = await db.collection('orgs').get();
+
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    // Process orgs sequentially to avoid overwhelming SendGrid
+    for (const orgDoc of orgsSnap.docs) {
+      const orgId = orgDoc.id;
+
+      try {
+        const result = await sendMonthlyImpactForOrg(orgId, monthStart, monthEnd, monthLabel);
+        totalSent += result.sentCount;
+        totalFailed += result.failedCount;
+
+        if (result.partnerCount > 0) {
+          console.log(
+            `[sendMonthlyPartnerImpact] Org ${orgId}: ${result.sentCount} sent, ${result.failedCount} failed, ${result.skippedCount} skipped of ${result.partnerCount} partners`
+          );
+        }
+      } catch (error: any) {
+        console.error(`[sendMonthlyPartnerImpact] Error processing org ${orgId}:`, error);
+      }
+    }
+
+    console.log(`[sendMonthlyPartnerImpact] Complete: ${totalSent} sent, ${totalFailed} failed across all orgs`);
+  });
+
+/**
+ * Callable: manually trigger the monthly impact report for a specific org.
+ * Org-admin only.
+ *
+ * Input: { orgId }
+ */
+export const triggerPartnerImpactReport = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+  }
+
+  const { orgId } = data;
+
+  if (!orgId) {
+    throw new functions.https.HttpsError('invalid-argument', 'orgId is required.');
+  }
+
+  // Verify caller is an admin of this org
+  const callerDoc = await db.collection('orgs').doc(orgId).collection('users').doc(context.auth.uid).get();
+  if (!callerDoc.exists || callerDoc.data()?.role !== 'Admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Only organisation admins can trigger impact reports.');
+  }
+
+  // Calculate previous month date range
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  const monthLabel = monthStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+  const result = await sendMonthlyImpactForOrg(orgId, monthStart, monthEnd, monthLabel);
+
+  return {
+    ...result,
+    monthLabel,
+  };
+});
