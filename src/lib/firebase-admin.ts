@@ -8,7 +8,11 @@ function getAdminApp() {
   const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (json) {
     try {
-      return initializeApp({ credential: cert(JSON.parse(json)) });
+      const serviceAccount = JSON.parse(json);
+      return initializeApp({
+        credential: cert(serviceAccount),
+        projectId: serviceAccount.project_id,
+      });
     } catch (e) {
       console.error('[firebase-admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', e);
       throw e;
