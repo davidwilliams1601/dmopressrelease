@@ -1,62 +1,77 @@
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get('slug') || 'visit-kent';
-  
+
+  // Step 1: Check env var
+  const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!json) {
+    return NextResponse.json({ error: true, message: 'FIREBASE_SERVICE_ACCOUNT_JSON not set' });
+  }
+
+  // Step 2: Try parsing
+  let serviceAccount: any;
   try {
+    const cleaned = json.trim().replace(/^["']|["']$/g, '');
+    serviceAccount = JSON.parse(cleaned);
+  } catch (e: any) {
+    return NextResponse.json({
+      error: true,
+      step: 'json-parse',
+      message: e.message,
+      jsonStart: json.substring(0, 50),
+      jsonEnd: json.substring(json.length - 50),
+    });
+  }
+
+  // Step 3: Check fields
+  if (!serviceAccount.project_id) {
+    return NextResponse.json({
+      error: true,
+      step: 'missing-project-id',
+      keys: Object.keys(serviceAccount),
+    });
+  }
+
+  // Step 4: Try Firestore
+  try {
+    const { getAdminFirestore } = await import('@/lib/firebase-admin');
     const db = getAdminFirestore();
-    
-    const slugSnap = await db
+
+    const orgSnap = await db
       .collection('orgs')
       .where('slug', '==', slug)
       .limit(1)
       .get();
-    
-    if (!slugSnap.empty) {
-      const doc = slugSnap.docs[0];
-      const data = doc.data();
+
+    if (!orgSnap.empty) {
+      const doc = orgSnap.docs[0];
       return NextResponse.json({
         found: true,
-        method: 'slug-query',
         id: doc.id,
-        name: data.name,
-        slug: data.slug,
+        name: doc.data().name,
+        slug: doc.data().slug,
+        projectId: serviceAccount.project_id,
       });
     }
-    
-    const directDoc = await db.collection('orgs').doc(slug).get();
-    if (directDoc.exists) {
-      const data = directDoc.data()!;
-      return NextResponse.json({
-        found: true,
-        method: 'direct-doc',
-        id: directDoc.id,
-        name: data.name,
-        slug: data.slug,
-      });
-    }
-    
+
     const allOrgs = await db.collection('orgs').get();
-    const orgList = allOrgs.docs.map(d => ({
-      id: d.id,
-      slug: d.data().slug,
-      name: d.data().name,
-    }));
-    
     return NextResponse.json({
       found: false,
       searchedSlug: slug,
-      allOrgs: orgList,
+      allOrgs: allOrgs.docs.map(d => ({ id: d.id, slug: d.data().slug })),
     });
   } catch (e: any) {
     return NextResponse.json({
       error: true,
+      step: 'firestore',
       message: e.message,
       code: e.code,
+      projectId: serviceAccount.project_id,
+      clientEmail: serviceAccount.client_email,
     }, { status: 500 });
   }
 }

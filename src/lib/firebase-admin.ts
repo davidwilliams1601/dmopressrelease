@@ -4,24 +4,29 @@ import { getFirestore } from 'firebase-admin/firestore';
 function getAdminApp() {
   if (getApps().length > 0) return getApps()[0];
 
-  // Vercel: set FIREBASE_SERVICE_ACCOUNT_JSON to the full service account JSON string
   const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (json) {
     try {
-      const serviceAccount = JSON.parse(json);
+      // Strip any wrapping quotes Vercel may add
+      const cleaned = json.trim().replace(/^["']|["']$/g, '');
+      const serviceAccount = JSON.parse(cleaned);
+
+      if (!serviceAccount.project_id) {
+        throw new Error('Service account JSON missing project_id field');
+      }
+
       return initializeApp({
         credential: cert(serviceAccount),
         projectId: serviceAccount.project_id,
       });
     } catch (e) {
-      console.error('[firebase-admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', e);
+      console.error('[firebase-admin] Failed to init with service account:', e);
       throw e;
     }
   }
 
-  // Local dev: set GOOGLE_APPLICATION_CREDENTIALS=./service-account.json in .env.local
-  // or rely on application default credentials when running on Google Cloud
-  return initializeApp();
+  // Fallback: use project ID directly if service account isn't available
+  return initializeApp({ projectId: 'dmo-press-release' });
 }
 
 export function getAdminFirestore() {
