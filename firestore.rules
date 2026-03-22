@@ -122,8 +122,8 @@ service cloud.firestore {
      * @principle Team members only (Admin/User). Partners cannot access releases.
      */
     match /orgs/{orgId}/releases/{releaseId} {
-      // Team members full access; public can read sent releases (newsroom)
-      allow read: if isTeamMember(orgId) || true;
+      // Team members full access; public can read only Sent releases (newsroom)
+      allow read: if isTeamMember(orgId) || resource.data.status == 'Sent';
       allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
       allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
       allow delete: if isTeamMember(orgId) && resource != null;
