@@ -1,121 +1,33 @@
-import type { Metadata } from 'next';
-import type { DocumentSnapshot } from 'firebase-admin/firestore';
-import { FieldValue } from 'firebase-admin/firestore';
-import { notFound } from 'next/navigation';
+'use client';
+export const dynamic = 'force-dynamic';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { useParams } from 'next/navigation';
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Book, Calendar, ArrowLeft } from 'lucide-react';
 
-type Props = {
-  params: Promise<{ orgSlug: string; releaseSlug: string }>;
+const firebaseConfig = {
+  apiKey: "AIzaSyCEQji1lRBsREmY7Vt5l8_XDyTY0Pp_Oqc",
+  authDomain: "dmo-press-release.firebaseapp.com",
+  projectId: "dmo-press-release",
+  storageBucket: "dmo-press-release.firebasestorage.app",
+  messagingSenderId: "959287689887",
+  appId: "1:959287689887:web:4af709961507f1790ad8aa",
 };
 
-type OrgData = {
-  id: string;
-  name: string;
-  slug: string;
-  boilerplate?: string;
-};
+function getClientFirestore() {
+  const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+  return getFirestore(app);
+}
 
+type OrgData = { id: string; name: string; slug: string; boilerplate?: string };
 type ReleaseData = {
-  id: string;
-  headline: string;
-  slug: string;
-  bodyCopy?: string;
-  status: string;
-  imageUrl?: string;
-  targetMarket?: string;
-  audience?: string;
-  createdAt?: any;
+  id: string; headline: string; slug: string; bodyCopy?: string;
+  status: string; imageUrl?: string; targetMarket?: string;
+  audience?: string; createdAt?: any;
 };
-
-async function getOrgAndRelease(
-  orgSlug: string,
-  releaseSlug: string
-): Promise<{ org: OrgData; release: ReleaseData } | null> {
-  try {
-    const db = getAdminFirestore();
-
-    // Try slug field first, fall back to using orgSlug as the document ID directly
-    let orgDoc: DocumentSnapshot | null = null;
-
-    const orgSnap = await db
-      .collection('orgs')
-      .where('slug', '==', orgSlug)
-      .limit(1)
-      .get();
-
-    if (!orgSnap.empty) {
-      orgDoc = orgSnap.docs[0];
-    } else {
-      // Fallback: try orgSlug as document ID (common when org was provisioned manually)
-      const directDoc = await db.collection('orgs').doc(orgSlug).get();
-      if (directDoc.exists) {
-        orgDoc = directDoc;
-      }
-    }
-
-    if (!orgDoc) {
-      console.error(`[public-release] No org found with slug or id: ${orgSlug}`);
-      return null;
-    }
-
-    const org = { id: orgDoc.id, ...orgDoc.data() } as OrgData;
-
-    const releaseSnap = await db
-      .collection('orgs')
-      .doc(org.id)
-      .collection('releases')
-      .where('slug', '==', releaseSlug)
-      .limit(1)
-      .get();
-
-    if (releaseSnap.empty) {
-      console.error(`[public-release] No release found with slug: ${releaseSlug} in org: ${org.id}`);
-      return null;
-    }
-
-    const releaseDoc = releaseSnap.docs[0];
-    const release = { id: releaseDoc.id, ...releaseDoc.data() } as ReleaseData;
-
-    if (release.status !== 'Ready' && release.status !== 'Sent') return null;
-
-    return { org, release };
-  } catch (e) {
-    console.error('[public-release] Error fetching release:', e);
-    return null;
-  }
-}
-
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { orgSlug, releaseSlug } = await params;
-  const result = await getOrgAndRelease(orgSlug, releaseSlug);
-
-  if (!result) return { title: 'Release Not Found' };
-
-  const { org, release } = result;
-  const description = (release.bodyCopy ?? '').replace(/\n+/g, ' ').slice(0, 160);
-
-  return {
-    title: `${release.headline} | ${org.name}`,
-    description,
-    openGraph: {
-      type: 'article',
-      title: release.headline,
-      description,
-      siteName: org.name,
-      ...(release.imageUrl && {
-        images: [{ url: release.imageUrl, width: 1200, height: 630, alt: release.headline }],
-      }),
-    },
-    twitter: {
-      card: release.imageUrl ? 'summary_large_image' : 'summary',
-      title: release.headline,
-      description,
-      ...(release.imageUrl && { images: [release.imageUrl] }),
-    },
-  };
-}
 
 function formatDate(ts: any): string {
   if (!ts) return '';
@@ -123,19 +35,92 @@ function formatDate(ts: any): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-export default async function PublicReleasePage({ params }: Props) {
-  const { orgSlug, releaseSlug } = await params;
-  const result = await getOrgAndRelease(orgSlug, releaseSlug);
+export default function PublicReleasePage() {
+  const params = useParams();
+  const orgSlug = params.orgSlug as string;
+  const releaseSlug = params.releaseSlug as string;
+  const [org, setOrg] = useState<OrgData | null>(null);
+  const [release, setRelease] = useState<ReleaseData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  if (!result) notFound();
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const db = getClientFirestore();
 
-  const { org, release } = result;
+        const orgSnap = await getDocs(
+          query(collection(db, 'orgs'), where('slug', '==', orgSlug), limit(1))
+        );
+        if (orgSnap.empty) { setNotFound(true); return; }
 
-  // Fire-and-forget page view increment — don't await so it never blocks rendering
-  const db = getAdminFirestore();
-  db.collection('orgs').doc(org.id).collection('releases').doc(release.id)
-    .update({ pageViews: FieldValue.increment(1) })
-    .catch((err) => console.error('[pageView] Failed to increment:', err));
+        const orgDoc = orgSnap.docs[0];
+        const orgData = orgDoc.data();
+        const orgObj: OrgData = {
+          id: orgDoc.id,
+          name: orgData.name ?? '',
+          slug: orgData.slug ?? orgSlug,
+          boilerplate: orgData.boilerplate ?? '',
+        };
+        setOrg(orgObj);
+
+        const releaseSnap = await getDocs(
+          query(
+            collection(db, 'orgs', orgObj.id, 'releases'),
+            where('slug', '==', releaseSlug),
+            limit(1)
+          )
+        );
+        if (releaseSnap.empty) { setNotFound(true); return; }
+
+        const relDoc = releaseSnap.docs[0];
+        const relData = relDoc.data();
+        const rel: ReleaseData = {
+          id: relDoc.id,
+          headline: relData.headline ?? '',
+          slug: relData.slug ?? '',
+          bodyCopy: relData.bodyCopy ?? '',
+          status: relData.status ?? '',
+          imageUrl: relData.imageUrl ?? undefined,
+          targetMarket: relData.targetMarket ?? undefined,
+          audience: relData.audience ?? undefined,
+          createdAt: relData.createdAt ?? null,
+        };
+
+        if (rel.status !== 'Ready' && rel.status !== 'Sent') {
+          setNotFound(true);
+          return;
+        }
+
+        setRelease(rel);
+      } catch (e) {
+        console.error('[public-release] Error:', e);
+        setNotFound(true);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [orgSlug, releaseSlug]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-400">
+        Loading...
+      </div>
+    );
+  }
+
+  if (notFound || !org || !release) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Release Not Found</h1>
+          <p className="text-gray-500">This press release doesn't exist or hasn't been published.</p>
+        </div>
+      </div>
+    );
+  }
 
   const paragraphs = (release.bodyCopy ?? '')
     .split(/\n{2,}/)
@@ -143,100 +128,76 @@ export default async function PublicReleasePage({ params }: Props) {
     .filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur">
+    <div className="min-h-screen bg-white text-gray-900">
+      <header className="border-b">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
-            <Book className="h-5 w-5 text-primary" />
-            <span className="font-headline font-bold text-primary">{org.name}</span>
+            <Book className="h-5 w-5 text-blue-600" />
+            <span className="font-bold text-blue-600">{org.name}</span>
           </div>
           <Link
-            href={`/media/${orgSlug}`}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            href={`/newsroom/${orgSlug}`}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Media hub
+            Back to Newsroom
           </Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-12">
-        {/* Meta */}
-        <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-gray-500">
           <span className="inline-flex items-center gap-1.5">
             <Calendar className="h-4 w-4" />
             {formatDate(release.createdAt)}
           </span>
           {release.targetMarket && (
-            <span className="rounded-full border px-2.5 py-0.5 text-xs">
-              {release.targetMarket}
-            </span>
+            <span className="rounded-full border px-2.5 py-0.5 text-xs">{release.targetMarket}</span>
           )}
           {release.audience && (
-            <span className="rounded-full border px-2.5 py-0.5 text-xs">
-              {release.audience}
-            </span>
+            <span className="rounded-full border px-2.5 py-0.5 text-xs">{release.audience}</span>
           )}
         </div>
 
-        {/* Headline */}
-        <h1 className="font-headline text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-5xl mb-8">
+        <h1 className="text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl mb-8">
           {release.headline}
         </h1>
 
-        {/* Featured image */}
         {release.imageUrl && (
           <div className="mb-10 overflow-hidden rounded-xl border">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={release.imageUrl}
-              alt={release.headline}
-              className="w-full max-h-[480px] object-cover"
-            />
+            <img src={release.imageUrl} alt={release.headline} className="w-full max-h-[480px] object-cover" />
           </div>
         )}
 
-        {/* Body copy */}
         <div className="prose prose-neutral max-w-none">
           {paragraphs.map((para, i) => (
-            <p key={i} className="mb-5 text-base leading-relaxed text-foreground">
-              {para}
-            </p>
+            <p key={i} className="mb-5 text-base leading-relaxed">{para}</p>
           ))}
         </div>
 
-        {/* Boilerplate / About */}
         {org.boilerplate && (
           <div className="mt-12 border-t pt-8">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
               About {org.name}
             </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">{org.boilerplate}</p>
+            <p className="text-sm text-gray-500 leading-relaxed">{org.boilerplate}</p>
           </div>
         )}
 
-        {/* Media enquiry CTA */}
-        <div className="mt-10 rounded-xl border bg-muted/40 px-6 py-5">
+        <div className="mt-10 rounded-xl border bg-gray-50 px-6 py-5">
           <p className="text-sm font-medium">Media enquiries</p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-gray-500">
             For interviews, images, or further information, please{' '}
-            <Link
-              href={`/media/${orgSlug}`}
-              className="text-primary underline underline-offset-4 hover:no-underline"
-            >
+            <Link href={`/media/${orgSlug}`} className="text-blue-600 underline underline-offset-4 hover:no-underline">
               submit a story request
-            </Link>
-            .
+            </Link>.
           </p>
         </div>
       </main>
 
-      <footer className="border-t bg-muted/30 py-8 mt-12">
-        <div className="mx-auto max-w-4xl px-6 text-center text-xs text-muted-foreground">
-          <span className="font-headline font-semibold text-primary">PressPilot</span>
-          {' · '}
-          Press release management for {org.name}
+      <footer className="border-t py-8 mt-12">
+        <div className="mx-auto max-w-4xl px-6 text-center text-xs text-gray-400">
+          <span className="font-bold text-blue-600">PressPilot</span> · Press release management for {org.name}
         </div>
       </footer>
     </div>
