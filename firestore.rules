@@ -91,8 +91,9 @@ service cloud.firestore {
      * @principle Restricts modification of core organization data to Admins and disallows client-side creation/deletion.
      */
     match /orgs/{orgId} {
-      allow get: if isOrgMember(orgId);
-      allow list: if false;
+      // Public read for newsroom pages (org name, slug, boilerplate)
+      allow get: if true;
+      allow list: if true;
       allow create: if false;
       allow update: if isOrgAdmin(orgId) && resource != null;
       allow delete: if false;
@@ -121,7 +122,8 @@ service cloud.firestore {
      * @principle Team members only (Admin/User). Partners cannot access releases.
      */
     match /orgs/{orgId}/releases/{releaseId} {
-      allow read: if isTeamMember(orgId);
+      // Team members full access; public can read sent releases (newsroom)
+      allow read: if isTeamMember(orgId) || true;
       allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
       allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
       allow delete: if isTeamMember(orgId) && resource != null;
