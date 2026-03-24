@@ -7,8 +7,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { CheckCircle2, Circle, ArrowRight } from 'lucide-react';
+import { CheckCircle2, Circle, ArrowRight, X } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, limit, query, where } from 'firebase/firestore';
 import type { Organization, Release } from '@/lib/types';
@@ -148,7 +150,17 @@ export default function GettingStartedChecklist({ orgId, releases }: Props) {
 
   const completedCount = steps.filter((s) => s.done).length;
 
-  if (completedCount === steps.length) return null;
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(`checklist-dismissed-${orgId}`) === 'true';
+  });
+
+  if (completedCount === steps.length || dismissed) return null;
+
+  function handleDismiss() {
+    localStorage.setItem(`checklist-dismissed-${orgId}`, 'true');
+    setDismissed(true);
+  }
 
   const progressPercent = Math.round((completedCount / steps.length) * 100);
 
@@ -157,9 +169,20 @@ export default function GettingStartedChecklist({ orgId, releases }: Props) {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="font-headline">Getting Started</CardTitle>
-          <span className="text-sm text-muted-foreground">
-            {completedCount}/{steps.length} complete
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {completedCount}/{steps.length} complete
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={handleDismiss}
+              title="Dismiss checklist"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
           <div
