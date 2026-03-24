@@ -8,6 +8,13 @@ export type SocialHandles = {
   tiktok?: string;
 };
 
+export type OrgBranding = {
+  logoUrl?: string;
+  logoStoragePath?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+};
+
 export type Organization = {
   id: string;
   name: string;
@@ -26,6 +33,7 @@ export type Organization = {
   tier?: 'starter' | 'professional' | 'organisation';
   approvalWorkflowEnabled?: boolean;
   contentTypes?: Array<{ name: string; description?: string }>;
+  branding?: OrgBranding;
 };
 
 export type User = {

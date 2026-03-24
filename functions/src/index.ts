@@ -3,6 +3,8 @@ import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { escapeHtml } from './html-utils';
 import { sendWithRetry } from './sendgrid-retry';
+import { resolveOrgColors } from './brand-utils';
+import { emailFooter } from './email-branding';
 import { getStorage } from 'firebase-admin/storage';
 
 admin.initializeApp();
@@ -32,10 +34,11 @@ function isValidEmail(email: string): boolean {
  * Convert bare http/https URLs in already-escaped HTML text into clickable anchor tags.
  * Must be called AFTER escapeHtml so that & in query strings is already &amp; (valid in href).
  */
-function linkifyHtml(escapedText: string): string {
+function linkifyHtml(escapedText: string, linkColor?: string): string {
+  const color = linkColor || '#2563eb';
   return escapedText.replace(
     /https?:\/\/[^\s<>"']+/g,
-    (url) => `<a href="${url}" style="color: #2563eb;">${url}</a>`
+    (url) => `<a href="${url}" style="color: ${color};">${url}</a>`
   );
 }
 
@@ -189,8 +192,8 @@ async function executeSendJob(
             adminEmails.map((adminEmail) =>
               sendWithRetry({
                 to: adminEmail,
-                from: { email: fromEmail, name: 'PressPilot' },
-                subject: `PressPilot: ${failedCount} emails failed to send for ${(release as any).headline || 'Untitled release'}`,
+                from: { email: fromEmail, name: org?.name || 'PressPilot' },
+                subject: `${failedCount} emails failed to send for ${(release as any).headline || 'Untitled release'}`,
                 html: notificationHtml,
               } as sgMail.MailDataRequired)
             )
@@ -415,13 +418,17 @@ async function sendEmail(recipient: any, release: any, orgId: string, org: any) 
  * Format release content as HTML email
  */
 function formatEmailHtml(release: any, recipient: any, org?: any): string {
+  const colors = resolveOrgColors(org?.branding);
   const headline = escapeHtml(release.headline || '');
-  const bodyCopy = linkifyHtml(escapeHtml(release.bodyCopy || ''));
+  const bodyCopy = linkifyHtml(escapeHtml(release.bodyCopy || ''), colors.primary);
   const recipientName = escapeHtml(recipient.name || '');
   const recipientEmail = escapeHtml(recipient.email || '');
   const recipientOutlet = escapeHtml(recipient.outlet || '');
   const orgName = escapeHtml(org?.name || '');
   const boilerplate = escapeHtml(org?.boilerplate || '');
+  const logoHtml = org?.branding?.logoUrl
+    ? `<img src="${org.branding.logoUrl}" alt="${orgName}" height="32" style="height:32px;width:auto;margin-bottom:12px;display:block;" />`
+    : '';
 
   // Only include image if URL is valid
   const imageHtml = (release.imageUrl && isValidUrl(release.imageUrl))
@@ -430,6 +437,8 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
              style="max-width: 100%; height: auto; border-radius: 8px; display: block;" />
       </div>`
     : '';
+
+  const orgLike = { name: org?.name, branding: org?.branding, tier: org?.tier };
 
   return `
     <!DOCTYPE html>
@@ -440,7 +449,8 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
       <title>${headline}</title>
     </head>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+      <div style="background-color: ${colors.primaryLight}; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        ${logoHtml}
         <h1 style="margin: 0; color: #1a1a1a; font-size: 24px;">${headline}</h1>
       </div>
 
@@ -463,6 +473,7 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
         <p>This email was sent to ${recipientName} (${recipientEmail}) at ${recipientOutlet}.</p>
         <p>If you no longer wish to receive these emails, please contact us.</p>
       </div>
+      ${emailFooter(orgLike, { showManageLink: false })}
     </body>
     </html>
   `;

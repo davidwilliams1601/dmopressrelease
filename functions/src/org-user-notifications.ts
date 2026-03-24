@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { escapeHtml } from './html-utils';
+import { emailWrapper, emailButton } from './email-branding';
 
 const db = admin.firestore();
 
@@ -43,32 +44,6 @@ async function getOptedInUsers(
     .map((u) => ({ name: u.name || 'Team member', email: u.email as string }));
 }
 
-function emailButton(href: string, label: string): string {
-  return `<div style="margin:24px 0;">
-    <a href="${href}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:600;">${label}</a>
-  </div>`;
-}
-
-function emailWrapper(orgName: string, headerTitle: string, body: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;">
-  <div style="background:#2563eb;padding:24px 32px;border-radius:8px 8px 0 0;">
-    <p style="margin:0;color:rgba(255,255,255,0.8);font-size:13px;">${escapeHtml(orgName)}</p>
-    <h1 style="margin:4px 0 0;color:#fff;font-size:20px;">${headerTitle}</h1>
-  </div>
-  <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:32px;border-radius:0 0 8px 8px;">
-    ${body}
-  </div>
-  <div style="text-align:center;padding:20px;font-size:12px;color:#94a3b8;">
-    Sent by ${escapeHtml(orgName)} via PressPilot &middot;
-    <a href="${appUrl}/dashboard/settings" style="color:#94a3b8;">Manage notifications</a>
-  </div>
-</body>
-</html>`;
-}
-
 /**
  * Firestore trigger: notify opted-in org users when a partner submits content.
  */
@@ -88,7 +63,8 @@ export const onNewPartnerSubmission = functions.firestore
     try {
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       if (!orgDoc.exists) return;
-      const orgName: string = orgDoc.data()!.name || 'Your organisation';
+      const orgData = orgDoc.data()!;
+      const org = { name: orgData.name || 'Your organisation', branding: orgData.branding, tier: orgData.tier };
 
       const recipients = await getOptedInUsers(orgId, 'partnerSubmissions');
       if (recipients.length === 0) {
@@ -126,7 +102,7 @@ export const onNewPartnerSubmission = functions.firestore
             <td style="padding:6px 0;">${escapeHtml(tagLine)}</td>
           </tr>` : ''}
         </table>
-        ${emailButton(detailUrl, 'Review Submission →')}
+        ${emailButton(org, detailUrl, 'Review Submission →')}
       `;
 
       sgMail.setApiKey(key);
@@ -135,9 +111,9 @@ export const onNewPartnerSubmission = functions.firestore
         recipients.map((r) =>
           sgMail.send({
             to: r.email,
-            from: { email: fromEmail, name: orgName },
+            from: { email: fromEmail, name: org.name },
             subject: `New submission from ${submission.partnerName || 'a partner'} — ${submission.title || 'Untitled'}`,
-            html: emailWrapper(orgName, 'New partner submission', bodyHtml),
+            html: emailWrapper(org, 'New partner submission', bodyHtml),
             text: `${partnerName} has submitted "${submission.title}" for review.\n\n${tagLine ? `Tags: ${tagLine}\n\n` : ''}Review it here: ${detailUrl}`,
           })
         )
@@ -168,7 +144,8 @@ export const onNewMediaRequest = functions.firestore
     try {
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       if (!orgDoc.exists) return;
-      const orgName: string = orgDoc.data()!.name || 'Your organisation';
+      const orgData = orgDoc.data()!;
+      const org = { name: orgData.name || 'Your organisation', branding: orgData.branding, tier: orgData.tier };
 
       const recipients = await getOptedInUsers(orgId, 'mediaRequests');
       if (recipients.length === 0) {
@@ -206,7 +183,7 @@ export const onNewMediaRequest = functions.firestore
           ${optionalRows}
         </table>
         <p style="font-size:13px;color:#64748b;margin:0 0 16px;">Journalists often work to tight deadlines — respond promptly.</p>
-        ${emailButton(detailUrl, 'View Request →')}
+        ${emailButton(org, detailUrl, 'View Request →')}
       `;
 
       sgMail.setApiKey(key);
@@ -215,9 +192,9 @@ export const onNewMediaRequest = functions.firestore
         recipients.map((r) =>
           sgMail.send({
             to: r.email,
-            from: { email: fromEmail, name: orgName },
+            from: { email: fromEmail, name: org.name },
             subject: `New media request from ${request.name || 'a journalist'}, ${request.outlet || ''}`,
-            html: emailWrapper(orgName, 'New media request', bodyHtml),
+            html: emailWrapper(org, 'New media request', bodyHtml),
             text: `New media request from ${request.name} at ${request.outlet}.\n\nStory angle: ${request.topic}${deadline ? `\nDeadline: ${request.deadline}` : ''}\n\nView it here: ${detailUrl}`,
           })
         )

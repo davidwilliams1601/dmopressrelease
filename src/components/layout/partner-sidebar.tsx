@@ -18,6 +18,7 @@ import {
 import { usePathname } from 'next/navigation';
 import { useUserData } from '@/hooks/use-user-data';
 import { useVerticalConfig } from '@/hooks/use-vertical-config';
+import { useOrganization } from '@/hooks/use-organization';
 import UserNav from './user-nav';
 
 const navItems = [
@@ -29,16 +30,26 @@ export default function PartnerSidebar() {
   const pathname = usePathname();
   const { orgId } = useUserData();
   const { config } = useVerticalConfig(orgId);
+  const { organization } = useOrganization(orgId);
+
+  const hasLogo = !!organization?.branding?.logoUrl;
+  const isWhitelabel = organization?.tier === 'organisation';
 
   return (
     <>
       <SidebarHeader>
-        <div className="flex items-center gap-2 p-2">
-          <Book className="size-6 text-primary" />
-          <span className="text-lg font-headline font-semibold">
-            PressPilot
-          </span>
-        </div>
+        {hasLogo && isWhitelabel ? (
+          <div className="p-2">
+            <img src={organization!.branding!.logoUrl!} alt={organization!.name} className="h-8 w-auto" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 p-2">
+            <Book className="size-6 text-primary" />
+            <span className="text-lg font-headline font-semibold">
+              PressPilot
+            </span>
+          </div>
+        )}
         <div className="px-2">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {config.nav.partnerPortalTitle}

@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { escapeHtml } from './html-utils';
+import { emailWrapper, emailButton } from './email-branding';
 
 const db = admin.firestore();
 
@@ -15,32 +16,6 @@ function getFromEmail(): string | null {
 
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
-
-function emailButton(href: string, label: string): string {
-  return `<div style="margin:24px 0;">
-    <a href="${href}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:600;">${label}</a>
-  </div>`;
-}
-
-function emailWrapper(orgName: string, headerTitle: string, body: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;">
-  <div style="background:#2563eb;padding:24px 32px;border-radius:8px 8px 0 0;">
-    <p style="margin:0;color:rgba(255,255,255,0.8);font-size:13px;">${escapeHtml(orgName)}</p>
-    <h1 style="margin:4px 0 0;color:#fff;font-size:20px;">${headerTitle}</h1>
-  </div>
-  <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:32px;border-radius:0 0 8px 8px;">
-    ${body}
-  </div>
-  <div style="text-align:center;padding:20px;font-size:12px;color:#94a3b8;">
-    Sent by ${escapeHtml(orgName)} via PressPilot &middot;
-    <a href="${appUrl}/dashboard/settings" style="color:#94a3b8;">Manage notifications</a>
-  </div>
-</body>
-</html>`;
-}
 
 /**
  * Fires when a release's approvalStatus transitions to 'pending'.
@@ -74,7 +49,8 @@ export const onApprovalRequested = functions.firestore
 
     try {
       const orgDoc = await db.collection('orgs').doc(orgId).get();
-      const orgName: string = orgDoc.exists ? (orgDoc.data()!.name || 'Your organisation') : 'Your organisation';
+      const orgData = orgDoc.exists ? orgDoc.data()! : {};
+      const org = { name: orgData.name || 'Your organisation', branding: orgData.branding, tier: orgData.tier };
 
       const headline = escapeHtml(after.headline || 'Untitled');
       const requestedByName = escapeHtml(after.approvalRequestedByName || 'A team member');
@@ -99,15 +75,15 @@ export const onApprovalRequested = functions.firestore
             <td style="padding:6px 0;">${dateStr}</td>
           </tr>
         </table>
-        ${emailButton(detailUrl, 'Review Release →')}
+        ${emailButton(org, detailUrl, 'Review Release →')}
       `;
 
       sgMail.setApiKey(key);
       await sgMail.send({
         to: approverEmail,
-        from: { email: fromEmail, name: orgName },
-        subject: `Approval requested: "${after.headline || 'Untitled'}" — ${orgName}`,
-        html: emailWrapper(orgName, 'Approval requested', bodyHtml),
+        from: { email: fromEmail, name: org.name },
+        subject: `Approval requested: "${after.headline || 'Untitled'}" — ${org.name}`,
+        html: emailWrapper(org, 'Approval requested', bodyHtml),
         text: `${requestedByName} has asked you to review a press release before it's sent.\n\nHeadline: ${after.headline}\nRequested by: ${requestedByName}\nDate: ${dateStr}\n\nReview it here: ${detailUrl}`,
       });
 
@@ -155,7 +131,8 @@ export const onApprovalResolved = functions.firestore
 
     try {
       const orgDoc = await db.collection('orgs').doc(orgId).get();
-      const orgName: string = orgDoc.exists ? (orgDoc.data()!.name || 'Your organisation') : 'Your organisation';
+      const orgData = orgDoc.exists ? orgDoc.data()! : {};
+      const org = { name: orgData.name || 'Your organisation', branding: orgData.branding, tier: orgData.tier };
 
       const headline = after.headline || 'Untitled';
       const detailUrl = `${appUrl}/dashboard/releases/${releaseId}`;
@@ -178,7 +155,7 @@ export const onApprovalResolved = functions.firestore
               <td style="padding:6px 0;font-weight:600;">${escapeHtml(headline)}</td>
             </tr>
           </table>
-          ${emailButton(detailUrl, 'View Release →')}
+          ${emailButton(org, detailUrl, 'View Release →')}
         `;
       } else {
         const notes = after.approvalNotes ? escapeHtml(after.approvalNotes) : null;
@@ -197,16 +174,16 @@ export const onApprovalResolved = functions.firestore
               <td style="padding:6px 0;">${notes}</td>
             </tr>` : ''}
           </table>
-          ${emailButton(detailUrl, 'View Release →')}
+          ${emailButton(org, detailUrl, 'View Release →')}
         `;
       }
 
       sgMail.setApiKey(key);
       await sgMail.send({
         to: requestedByEmail,
-        from: { email: fromEmail, name: orgName },
+        from: { email: fromEmail, name: org.name },
         subject,
-        html: emailWrapper(orgName, headerTitle, bodyHtml),
+        html: emailWrapper(org, headerTitle, bodyHtml),
         text: bodyText,
       });
 

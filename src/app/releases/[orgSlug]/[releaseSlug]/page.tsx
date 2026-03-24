@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Book, Calendar, ArrowLeft } from 'lucide-react';
+import { resolveOrgColors, getAttribution } from '@/lib/brand-utils';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEQji1lRBsREmY7Vt5l8_XDyTY0Pp_Oqc",
@@ -22,7 +23,11 @@ function getClientFirestore() {
   return getFirestore(app);
 }
 
-type OrgData = { id: string; name: string; slug: string; boilerplate?: string };
+type OrgData = {
+  id: string; name: string; slug: string; boilerplate?: string;
+  branding?: { logoUrl?: string; primaryColor?: string; secondaryColor?: string };
+  tier?: string;
+};
 type ReleaseData = {
   id: string; headline: string; slug: string; bodyCopy?: string;
   status: string; imageUrl?: string; targetMarket?: string;
@@ -61,6 +66,8 @@ export default function PublicReleasePage() {
           name: orgData.name ?? '',
           slug: orgData.slug ?? orgSlug,
           boilerplate: orgData.boilerplate ?? '',
+          branding: orgData.branding ?? undefined,
+          tier: orgData.tier ?? undefined,
         };
         setOrg(orgObj);
 
@@ -127,13 +134,20 @@ export default function PublicReleasePage() {
     .map((p) => p.trim())
     .filter(Boolean);
 
+  const colors = resolveOrgColors(org.branding);
+  const attribution = getAttribution(org.tier);
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <header className="border-b">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
-            <Book className="h-5 w-5 text-blue-600" />
-            <span className="font-bold text-blue-600">{org.name}</span>
+            {org.branding?.logoUrl ? (
+              <img src={org.branding.logoUrl} alt={org.name} className="h-8 w-auto" />
+            ) : (
+              <Book className="h-5 w-5" style={{ color: colors.primary }} />
+            )}
+            <span className="font-bold" style={{ color: colors.primary }}>{org.name}</span>
           </div>
           <Link
             href={`/newsroom/${orgSlug}`}
@@ -188,7 +202,7 @@ export default function PublicReleasePage() {
           <p className="text-sm font-medium">Media enquiries</p>
           <p className="mt-1 text-sm text-gray-500">
             For interviews, images, or further information, please{' '}
-            <Link href={`/media/${orgSlug}`} className="text-blue-600 underline underline-offset-4 hover:no-underline">
+            <Link href={`/media/${orgSlug}`} className="underline underline-offset-4 hover:no-underline" style={{ color: colors.primary }}>
               submit a story request
             </Link>.
           </p>
@@ -197,7 +211,15 @@ export default function PublicReleasePage() {
 
       <footer className="border-t py-8 mt-12">
         <div className="mx-auto max-w-4xl px-6 text-center text-xs text-gray-400">
-          <span className="font-bold text-blue-600">PressPilot</span> · Press release management for {org.name}
+          {attribution === 'full' && (
+            <><span className="font-bold" style={{ color: colors.primary }}>PressPilot</span> · Press release management for {org.name}</>
+          )}
+          {attribution === 'subtle' && (
+            <>{org.name} · <span className="text-[10px] opacity-60">Powered by PressPilot</span></>
+          )}
+          {attribution === 'none' && (
+            <>{org.name}</>
+          )}
         </div>
       </footer>
     </div>

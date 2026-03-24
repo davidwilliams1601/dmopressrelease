@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { sendWithRetry } from './sendgrid-retry';
 import { escapeHtml } from './html-utils';
+import { emailFooter, emailCallout, emailLink, emailMetric, emailMetricSmall, getEmailColors } from './email-branding';
 
 const db = admin.firestore();
 
@@ -47,9 +48,11 @@ export const onSubmissionUsed = functions.firestore
       // Get org details
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       if (!orgDoc.exists) return;
-      const org = orgDoc.data()!;
-      const orgName = org.name || 'Your organisation';
-      const orgSlug = org.slug || orgId;
+      const orgData = orgDoc.data()!;
+      const orgName = orgData.name || 'Your organisation';
+      const orgSlug = orgData.slug || orgId;
+      const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
+      const colors = getEmailColors(brandedOrg);
 
       // Get the latest release this submission was used in
       const usedInReleaseIds: string[] = after.usedInReleaseIds || [];
@@ -80,25 +83,23 @@ export const onSubmissionUsed = functions.firestore
         <html>
         <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background-color: #2563eb; padding: 24px 32px; border-radius: 8px 8px 0 0;">
-            <h1 style="margin: 0; color: white; font-size: 22px;">Your content has been selected!</h1>
+          <div style="background-color: ${colors.primary}; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; color: ${colors.textOnPrimary}; font-size: 22px;">Your content has been selected!</h1>
           </div>
           <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
             <p style="margin-top: 0;">Hi ${partnerName},</p>
             <p>Great news — your submission <strong>"${submissionTitle}"</strong> has been selected for inclusion in an upcoming press release from <strong>${safeOrgName}</strong>.</p>
             ${releaseHeadline ? `
-            <div style="background: #eff6ff; border-left: 4px solid #2563eb; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
+            ${emailCallout(brandedOrg, `
               <p style="margin: 0; font-size: 14px; color: #64748b;">Featured in</p>
               <p style="margin: 4px 0 0; font-size: 16px; font-weight: 600; color: #0f172a;">${safeHeadline}</p>
-              ${releaseUrl ? `<p style="margin: 8px 0 0;"><a href="${releaseUrl}" style="color: #2563eb; font-size: 14px;">Read the release →</a></p>` : ''}
-            </div>
+              ${releaseUrl ? `<p style="margin: 8px 0 0;">${emailLink(brandedOrg, releaseUrl, 'Read the release →')}</p>` : ''}
+            `)}
             ` : ''}
             <p>Your content helps ${safeOrgName} tell its story and reach journalists, travel writers, and media contacts across our target markets. Thank you for contributing.</p>
             <p style="color: #64748b; font-size: 14px;">If you have more news or stories to share, you can submit them anytime through the partner portal.</p>
           </div>
-          <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
-            Sent by ${safeOrgName} via PressPilot
-          </div>
+          ${emailFooter(brandedOrg, { showManageLink: false })}
         </body>
         </html>
       `;
@@ -155,8 +156,10 @@ export const onSubmissionApproved = functions.firestore
       // Get org details
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       if (!orgDoc.exists) return;
-      const org = orgDoc.data()!;
-      const orgName = org.name || 'Your organisation';
+      const orgData = orgDoc.data()!;
+      const orgName = orgData.name || 'Your organisation';
+      const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
+      const colors = getEmailColors(brandedOrg);
 
       const partnerName = escapeHtml(after.partnerName || 'Partner');
       const submissionTitle = escapeHtml(after.title || 'Your submission');
@@ -167,8 +170,8 @@ export const onSubmissionApproved = functions.firestore
         <html>
         <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background-color: #16a34a; padding: 24px 32px; border-radius: 8px 8px 0 0;">
-            <h1 style="margin: 0; color: white; font-size: 22px;">Your submission has been approved!</h1>
+          <div style="background-color: ${colors.primary}; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; color: ${colors.textOnPrimary}; font-size: 22px;">Your submission has been approved!</h1>
           </div>
           <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
             <p style="margin-top: 0;">Hi ${partnerName},</p>
@@ -176,9 +179,7 @@ export const onSubmissionApproved = functions.firestore
             <p>We'll let you know if your content is selected for a release. In the meantime, feel free to submit more stories through the partner portal.</p>
             <p style="color: #64748b; font-size: 14px;">Thank you for your contribution!</p>
           </div>
-          <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
-            Sent by ${safeOrgName} via PressPilot
-          </div>
+          ${emailFooter(brandedOrg, { showManageLink: false })}
         </body>
         </html>
       `;
@@ -252,9 +253,11 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
   if (!orgDoc.exists) {
     throw new functions.https.HttpsError('not-found', 'Organisation not found.');
   }
-  const org = orgDoc.data()!;
-  const orgName: string = org.name || 'Your organisation';
-  const orgSlug: string = org.slug || orgId;
+  const orgData = orgDoc.data()!;
+  const orgName: string = orgData.name || 'Your organisation';
+  const orgSlug: string = orgData.slug || orgId;
+  const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
+  const colors = getEmailColors(brandedOrg);
 
   // Get all partner users
   const partnersSnap = await db
@@ -330,7 +333,7 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
           <ul style="list-style: none; padding: 0; margin: 0;">
             ${featuredReleases.map((r) => `
               <li style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">
-                <a href="${appUrl}/releases/${orgSlug}/${escapeHtml(r.slug)}" style="color: #2563eb; text-decoration: none; font-size: 14px;">${escapeHtml(r.headline)}</a>
+                ${emailLink(brandedOrg, `${appUrl}/releases/${orgSlug}/${escapeHtml(r.slug)}`, escapeHtml(r.headline))}
               </li>
             `).join('')}
           </ul>
@@ -354,17 +357,17 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
         <html>
         <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background-color: #2563eb; padding: 24px 32px; border-radius: 8px 8px 0 0;">
-            <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 13px;">${safeOrgName}</p>
-            <h1 style="margin: 4px 0 0; color: white; font-size: 22px;">Your ${quarterLabel} report</h1>
+          <div style="background-color: ${colors.primary}; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+            <p style="margin: 0; color: ${colors.textOnPrimary}; opacity: 0.8; font-size: 13px;">${safeOrgName}</p>
+            <h1 style="margin: 4px 0 0; color: ${colors.textOnPrimary}; font-size: 22px;">Your ${quarterLabel} report</h1>
           </div>
           <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
             <p style="margin-top: 0;">Hi ${safePartnerName},</p>
             <p>Here's a summary of your contributions to ${safeOrgName} during ${quarterLabel} (${quarterStartLabel} – ${quarterEndLabel}).</p>
 
             <div style="display: flex; gap: 16px; margin: 24px 0;">
-              <div style="flex: 1; background: #eff6ff; border-radius: 8px; padding: 16px; text-align: center;">
-                <div style="font-size: 32px; font-weight: 700; color: #2563eb; line-height: 1;">${partnerSubs.length}</div>
+              <div style="flex: 1; background: ${colors.primaryLight}; border-radius: 8px; padding: 16px; text-align: center;">
+                ${emailMetric(brandedOrg, partnerSubs.length)}
                 <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Submission${partnerSubs.length !== 1 ? 's' : ''} made</div>
               </div>
               <div style="flex: 1; background: #f0fdf4; border-radius: 8px; padding: 16px; text-align: center;">
@@ -383,9 +386,7 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
               }
             </p>
           </div>
-          <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
-            Sent by ${safeOrgName} via PressPilot
-          </div>
+          ${emailFooter(brandedOrg, { showManageLink: false })}
         </body>
         </html>
       `;
@@ -470,9 +471,11 @@ export const previewQuarterlyPartnerReport = functions.https.onCall(async (data,
   if (!orgDoc.exists) {
     throw new functions.https.HttpsError('not-found', 'Organisation not found.');
   }
-  const org = orgDoc.data()!;
-  const orgName: string = org.name || 'Your organisation';
-  const orgSlug: string = org.slug || orgId;
+  const orgData = orgDoc.data()!;
+  const orgName: string = orgData.name || 'Your organisation';
+  const orgSlug: string = orgData.slug || orgId;
+  const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
+  const colors = getEmailColors(brandedOrg);
 
   // Get all partner users
   const partnersSnap = await db
@@ -550,7 +553,7 @@ export const previewQuarterlyPartnerReport = functions.https.onCall(async (data,
       <ul style="list-style: none; padding: 0; margin: 0;">
         ${featuredReleases.map((r) => `
           <li style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">
-            <a href="${appUrl}/releases/${orgSlug}/${escapeHtml(r.slug)}" style="color: #2563eb; text-decoration: none; font-size: 14px;">${escapeHtml(r.headline)}</a>
+            ${emailLink(brandedOrg, `${appUrl}/releases/${orgSlug}/${escapeHtml(r.slug)}`, escapeHtml(r.headline))}
           </li>
         `).join('')}
       </ul>
@@ -576,17 +579,17 @@ export const previewQuarterlyPartnerReport = functions.https.onCall(async (data,
     <html>
     <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background-color: #2563eb; padding: 24px 32px; border-radius: 8px 8px 0 0;">
-        <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 13px;">${safeOrgName}</p>
-        <h1 style="margin: 4px 0 0; color: white; font-size: 22px;">Your ${quarterLabel} report</h1>
+      <div style="background-color: ${colors.primary}; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+        <p style="margin: 0; color: ${colors.textOnPrimary}; opacity: 0.8; font-size: 13px;">${safeOrgName}</p>
+        <h1 style="margin: 4px 0 0; color: ${colors.textOnPrimary}; font-size: 22px;">Your ${quarterLabel} report</h1>
       </div>
       <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
         <p style="margin-top: 0;">Hi ${safePartnerName},</p>
         <p>Here's a summary of your contributions to ${safeOrgName} during ${quarterLabel} (${quarterStartLabel} \u2013 ${quarterEndLabel}).</p>
 
         <div style="display: flex; gap: 16px; margin: 24px 0;">
-          <div style="flex: 1; background: #eff6ff; border-radius: 8px; padding: 16px; text-align: center;">
-            <div style="font-size: 32px; font-weight: 700; color: #2563eb; line-height: 1;">${partnerSubs.length}</div>
+          <div style="flex: 1; background: ${colors.primaryLight}; border-radius: 8px; padding: 16px; text-align: center;">
+            ${emailMetric(brandedOrg, partnerSubs.length)}
             <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Submission${partnerSubs.length !== 1 ? 's' : ''} made</div>
           </div>
           <div style="flex: 1; background: #f0fdf4; border-radius: 8px; padding: 16px; text-align: center;">
@@ -605,9 +608,7 @@ export const previewQuarterlyPartnerReport = functions.https.onCall(async (data,
           }
         </p>
       </div>
-      <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
-        Sent by ${safeOrgName} via PressPilot
-      </div>
+      ${emailFooter(brandedOrg, { showManageLink: false })}
     </body>
     </html>
   `;
@@ -654,8 +655,10 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
   if (!orgDoc.exists) {
     throw new functions.https.HttpsError('not-found', 'Organisation not found.');
   }
-  const org = orgDoc.data()!;
-  const orgName: string = org.name || 'Your organisation';
+  const orgData = orgDoc.data()!;
+  const orgName: string = orgData.name || 'Your organisation';
+  const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
+  const colors = getEmailColors(brandedOrg);
 
   // Fetch target partners
   let partnersSnap;
@@ -723,17 +726,15 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
         <html>
         <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background-color: #2563eb; padding: 24px 32px; border-radius: 8px 8px 0 0;">
-            <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 13px;">${safeOrgName}</p>
-            <h1 style="margin: 4px 0 0; color: white; font-size: 22px;">${safeSubject}</h1>
+          <div style="background-color: ${colors.primary}; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+            <p style="margin: 0; color: ${colors.textOnPrimary}; opacity: 0.8; font-size: 13px;">${safeOrgName}</p>
+            <h1 style="margin: 4px 0 0; color: ${colors.textOnPrimary}; font-size: 22px;">${safeSubject}</h1>
           </div>
           <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
             <p style="margin-top: 0;">Hi ${safePartnerName},</p>
             ${bodyHtml}
           </div>
-          <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
-            Sent by ${safeOrgName} via PressPilot
-          </div>
+          ${emailFooter(brandedOrg, { showManageLink: false })}
         </body>
         </html>
       `;
@@ -784,6 +785,7 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
 function buildMonthlyImpactHtml(opts: {
   partnerName: string;
   orgName: string;
+  orgBranding: { name: string; branding?: { logoUrl?: string; primaryColor?: string; secondaryColor?: string } | null; tier?: string | null };
   monthLabel: string;
   submissionCount: number;
   usedSubmissions: Array<{
@@ -800,6 +802,7 @@ function buildMonthlyImpactHtml(opts: {
   const {
     partnerName,
     orgName,
+    orgBranding,
     monthLabel,
     submissionCount,
     usedSubmissions,
@@ -807,6 +810,7 @@ function buildMonthlyImpactHtml(opts: {
     overallOpenRate,
   } = opts;
 
+  const colors = getEmailColors(orgBranding);
   const safePartnerName = escapeHtml(partnerName);
   const safeOrgName = escapeHtml(orgName);
 
@@ -826,12 +830,12 @@ function buildMonthlyImpactHtml(opts: {
         <p style="margin: 0 0 8px; font-weight: 600; color: #0f172a;">${escapeHtml(s.title)}</p>
         <p style="margin: 0 0 4px; font-size: 13px; color: #64748b;">Featured in</p>
         <p style="margin: 0 0 12px;">
-          <a href="${s.releaseUrl}" style="color: #2563eb; text-decoration: none; font-weight: 500;">${escapeHtml(s.releaseHeadline)}</a>
+          ${emailLink(orgBranding, s.releaseUrl, escapeHtml(s.releaseHeadline))}
         </p>
         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
           <tr>
-            <td style="text-align: center; padding: 8px; background: #eff6ff; border-radius: 6px 0 0 6px;">
-              <div style="font-size: 20px; font-weight: 700; color: #2563eb;">${s.sends.toLocaleString()}</div>
+            <td style="text-align: center; padding: 8px; background: ${colors.primaryLight}; border-radius: 6px 0 0 6px;">
+              ${emailMetricSmall(orgBranding, s.sends.toLocaleString())}
               <div style="font-size: 11px; color: #64748b;">Journalists</div>
             </td>
             <td style="text-align: center; padding: 8px; background: #f0fdf4;">
@@ -853,9 +857,9 @@ function buildMonthlyImpactHtml(opts: {
     <html>
     <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background-color: #2563eb; padding: 24px 32px; border-radius: 8px 8px 0 0;">
-        <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 13px;">${safeOrgName}</p>
-        <h1 style="margin: 4px 0 0; color: white; font-size: 22px;">Your ${escapeHtml(monthLabel)} Impact Report</h1>
+      <div style="background-color: ${colors.primary}; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+        <p style="margin: 0; color: ${colors.textOnPrimary}; opacity: 0.8; font-size: 13px;">${safeOrgName}</p>
+        <h1 style="margin: 4px 0 0; color: ${colors.textOnPrimary}; font-size: 22px;">Your ${escapeHtml(monthLabel)} Impact Report</h1>
       </div>
       <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px; border-radius: 0 0 8px 8px;">
         <p style="margin-top: 0;">Hi ${safePartnerName},</p>
@@ -863,8 +867,8 @@ function buildMonthlyImpactHtml(opts: {
 
         ${hasUsedSubmissions ? `
           <div style="display: flex; gap: 16px; margin: 24px 0;">
-            <div style="flex: 1; background: #eff6ff; border-radius: 8px; padding: 16px; text-align: center;">
-              <div style="font-size: 32px; font-weight: 700; color: #2563eb; line-height: 1;">${submissionCount}</div>
+            <div style="flex: 1; background: ${colors.primaryLight}; border-radius: 8px; padding: 16px; text-align: center;">
+              ${emailMetric(orgBranding, submissionCount)}
               <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Submission${submissionCount !== 1 ? 's' : ''}</div>
             </div>
             <div style="flex: 1; background: #f0fdf4; border-radius: 8px; padding: 16px; text-align: center;">
@@ -882,12 +886,10 @@ function buildMonthlyImpactHtml(opts: {
         ` : ''}
 
         <div style="text-align: center; margin-top: 32px;">
-          <a href="#" style="display: inline-block; background: #2563eb; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">Submit your next story</a>
+          <a href="#" style="display: inline-block; background: ${colors.primary}; color: ${colors.textOnPrimary}; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">Submit your next story</a>
         </div>
       </div>
-      <div style="text-align: center; padding: 20px; font-size: 12px; color: #94a3b8;">
-        Sent by ${safeOrgName} via PressPilot
-      </div>
+      ${emailFooter(orgBranding, { showManageLink: false })}
     </body>
     </html>
   `;
@@ -918,10 +920,11 @@ async function sendMonthlyImpactForOrg(
     console.warn(`[sendMonthlyImpactForOrg] Org ${orgId} not found`);
     return { sentCount: 0, failedCount: 0, skippedCount: 0, partnerCount: 0 };
   }
-  const org = orgDoc.data()!;
-  const orgName: string = org.name || 'Your organisation';
-  const orgSlug: string = org.slug || orgId;
-  const senderEmail: string = org.pressContact?.email || fromEmail;
+  const orgData = orgDoc.data()!;
+  const orgName: string = orgData.name || 'Your organisation';
+  const orgSlug: string = orgData.slug || orgId;
+  const senderEmail: string = orgData.pressContact?.email || fromEmail;
+  const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
 
   // Get all partner users
   const partnersSnap = await db
@@ -1033,6 +1036,7 @@ async function sendMonthlyImpactForOrg(
     const html = buildMonthlyImpactHtml({
       partnerName,
       orgName,
+      orgBranding: brandedOrg,
       monthLabel,
       submissionCount: partnerSubs.length,
       usedSubmissions,

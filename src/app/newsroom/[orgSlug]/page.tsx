@@ -7,6 +7,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 import { Book, Calendar, Mail, Newspaper } from 'lucide-react';
 import { useParams } from 'next/navigation';
+import { resolveOrgColors, getAttribution } from '@/lib/brand-utils';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEQji1lRBsREmY7Vt5l8_XDyTY0Pp_Oqc",
@@ -28,6 +29,8 @@ type OrgData = {
   slug: string;
   boilerplate?: string;
   pressContact?: { name: string; email: string };
+  branding?: { logoUrl?: string; primaryColor?: string; secondaryColor?: string };
+  tier?: string;
 };
 
 type ReleaseData = {
@@ -91,6 +94,8 @@ export default function NewsroomPage() {
           slug: orgData.slug ?? orgSlug,
           boilerplate: orgData.boilerplate ?? '',
           pressContact: orgData.pressContact ?? undefined,
+          branding: orgData.branding ?? undefined,
+          tier: orgData.tier ?? undefined,
         });
 
         // Fetch sent releases
@@ -147,15 +152,27 @@ export default function NewsroomPage() {
     );
   }
 
+  const colors = resolveOrgColors(org.branding);
+  const attribution = getAttribution(org.tier);
+
   return (
-    <main className="min-h-screen bg-white">
+    <main
+      className="min-h-screen bg-white"
+      style={{ '--brand-primary': colors.primary, '--brand-primary-light': colors.primaryLight } as React.CSSProperties}
+    >
       {/* Header */}
       <header className="border-b bg-gray-50">
         <div className="max-w-5xl mx-auto px-6 py-10">
-          <div className="flex items-center gap-2 mb-3 text-blue-600">
-            <Book className="h-5 w-5" />
-            <span className="text-sm font-semibold tracking-wide uppercase">PressPilot</span>
-          </div>
+          {org.branding?.logoUrl ? (
+            <div className="mb-3">
+              <img src={org.branding.logoUrl} alt={org.name} className="h-10 w-auto" />
+            </div>
+          ) : attribution === 'full' ? (
+            <div className="flex items-center gap-2 mb-3" style={{ color: colors.primary }}>
+              <Book className="h-5 w-5" />
+              <span className="text-sm font-semibold tracking-wide uppercase">PressPilot</span>
+            </div>
+          ) : null}
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">{org.name}</h1>
           <p className="text-lg text-gray-500 mt-1">Newsroom</p>
           {org.boilerplate && (
@@ -198,7 +215,7 @@ export default function NewsroomPage() {
                     </div>
                   )}
                   <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
+                    <h3 className="font-semibold text-gray-900 transition-colors line-clamp-2" style={{ '--tw-hover-color': colors.primary } as React.CSSProperties}>
                       {release.headline}
                     </h3>
                     {release.bodyCopy && (
@@ -229,7 +246,7 @@ export default function NewsroomPage() {
                 <p className="text-sm font-medium text-gray-900">Press Contact</p>
                 <p className="text-sm text-gray-500">{org.pressContact.name}</p>
                 {org.pressContact.email && (
-                  <a href={`mailto:${org.pressContact.email}`} className="text-sm text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                  <a href={`mailto:${org.pressContact.email}`} className="text-sm hover:underline flex items-center gap-1 mt-1" style={{ color: colors.primary }}>
                     <Mail className="h-3.5 w-3.5" />
                     {org.pressContact.email}
                   </a>
@@ -237,10 +254,15 @@ export default function NewsroomPage() {
               </div>
             )}
             <div className="text-right">
-              <Link href={`/media/${org.slug}`} className="text-sm text-blue-600 hover:underline">
+              <Link href={`/media/${org.slug}`} className="text-sm hover:underline" style={{ color: colors.primary }}>
                 Submit a media enquiry →
               </Link>
-              <p className="text-xs text-gray-400 mt-2">Powered by PressPilot</p>
+              {attribution === 'full' && (
+                <p className="text-xs text-gray-400 mt-2">Powered by PressPilot</p>
+              )}
+              {attribution === 'subtle' && (
+                <p className="text-[10px] text-gray-300 mt-2">Powered by PressPilot</p>
+              )}
             </div>
           </div>
         </div>

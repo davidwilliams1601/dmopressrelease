@@ -159,6 +159,54 @@ export async function uploadAvatarImage(
   return { storagePath, downloadUrl };
 }
 
+/**
+ * Uploads an org branding logo to Firebase Storage.
+ * Path: orgs/{orgId}/branding/logo.{ext}
+ * Max 5MB.
+ */
+export async function uploadBrandingLogo(
+  storage: FirebaseStorage,
+  orgId: string,
+  file: File
+): Promise<{ storagePath: string; downloadUrl: string }> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('File must be an image');
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('Logo must be smaller than 5MB');
+  }
+
+  const fileExtension = file.name.split('.').pop() || 'png';
+  const storagePath = `orgs/${orgId}/branding/logo.${fileExtension}`;
+  const storageRef = ref(storage, storagePath);
+
+  await uploadBytes(storageRef, file, {
+    contentType: file.type,
+    customMetadata: {
+      originalFileName: file.name,
+      uploadedAt: new Date().toISOString(),
+    },
+  });
+
+  const downloadUrl = await getDownloadURL(storageRef);
+  return { storagePath, downloadUrl };
+}
+
+export async function deleteBrandingLogo(
+  storage: FirebaseStorage,
+  storagePath: string
+): Promise<void> {
+  if (!storagePath) return;
+  try {
+    const storageRef = ref(storage, storagePath);
+    await deleteObject(storageRef);
+  } catch (error: any) {
+    if (error.code !== 'storage/object-not-found') {
+      throw error;
+    }
+  }
+}
+
 export async function deleteReleaseImage(
   storage: FirebaseStorage,
   storagePath: string

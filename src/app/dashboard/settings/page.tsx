@@ -8,6 +8,7 @@ import MediaEnquiryLinkCard from '@/components/settings/media-enquiry-link-card'
 import NewsroomLinkCard from '@/components/settings/newsroom-link-card';
 import NotificationPrefsCard from '@/components/settings/notification-prefs-card';
 import ContentTypesCard from '@/components/settings/content-types-card';
+import BrandingCard from '@/components/settings/branding-card';
 import { useUserData } from '@/hooks/use-user-data';
 import { useOrganization } from '@/hooks/use-organization';
 
@@ -48,6 +49,7 @@ export default function SettingsPage() {
         </p>
       </div>
       <SettingsForm organization={organization} />
+      <BrandingCard organization={organization} />
       <ContentTypesCard organization={organization} />
       <NewsroomLinkCard orgSlug={organization.slug} />
       <MediaEnquiryLinkCard orgSlug={organization.slug} />

@@ -44,6 +44,23 @@ service firebase.storage {
       allow delete: if isOrgMember();
     }
 
+    // Organization branding assets (logo) — publicly readable for emails and public pages
+    match /orgs/{orgId}/branding/{fileName} {
+      function isOrgMember() {
+        return request.auth != null
+          && firestore.exists(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid));
+      }
+
+      // Public read — logos are used in emails and server-rendered public pages
+      allow read: if true;
+
+      allow write: if isOrgMember()
+                      && request.resource.size < 5 * 1024 * 1024
+                      && request.resource.contentType.matches('image/(jpeg|png|webp|gif|svg\\+xml)');
+
+      allow delete: if isOrgMember();
+    }
+
     // User avatar images
     match /orgs/{orgId}/users/{userId}/{fileName} {
       function isOrgMember() {

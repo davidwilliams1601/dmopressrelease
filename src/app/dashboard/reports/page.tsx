@@ -55,6 +55,9 @@ export default function ReportsPage() {
     <div className="print-report flex flex-col gap-8">
       {/* Print-only header */}
       <div className="hidden print:block print-header mb-4">
+        {organization?.branding?.logoUrl && (
+          <img src={organization.branding.logoUrl} alt="" className="h-12 w-auto mb-3" />
+        )}
         <h1 className="text-3xl font-headline font-bold">{organization?.name}</h1>
         <h2 className="text-xl text-muted-foreground">
           Performance Report — {periodLabel}
