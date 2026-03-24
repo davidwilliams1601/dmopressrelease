@@ -23,6 +23,7 @@ import {
   Newspaper,
   Globe,
   Building2,
+  BarChart3,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useUserData } from '@/hooks/use-user-data';
@@ -42,6 +43,7 @@ export default function AppSidebar() {
     { href: '/dashboard/media-requests', icon: Newspaper, label: config.nav.mediaRequests },
     { href: '/dashboard/outlets', icon: Users, label: config.nav.outlets },
     { href: '/dashboard/settings/team', icon: UserCog, label: 'Team' },
+    { href: '/dashboard/reports', icon: BarChart3, label: 'Reports', adminOnly: true },
     { href: '/dashboard/settings/tags', icon: Tag, label: 'Tags', adminOnly: true },
     { href: '/dashboard/settings/partners', icon: LinkIcon, label: config.nav.partnersSettings, adminOnly: true },
     { href: '/dashboard/settings', icon: Settings, label: 'Settings' },

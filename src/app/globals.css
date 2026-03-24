@@ -85,3 +85,49 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print styles for stakeholder reports */
+@media print {
+  /* Hide navigation and controls */
+  [data-sidebar],
+  header,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset layout */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Show print header */
+  .print-header {
+    display: block !important;
+  }
+
+  /* Clean card appearance */
+  .print-report {
+    background: white;
+    color: black;
+  }
+
+  .print-report [class*="card"] {
+    box-shadow: none;
+    border: 1px solid #e5e7eb;
+    break-inside: avoid;
+  }
+
+  /* Charts should not break across pages */
+  .recharts-responsive-container {
+    break-inside: avoid;
+  }
+
+  /* Force light colours for readability */
+  .print-report * {
+    --foreground: 224 71% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+  }
+}
