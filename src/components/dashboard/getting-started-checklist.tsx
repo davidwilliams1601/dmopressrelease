@@ -10,8 +10,9 @@ import {
 import { CheckCircle2, Circle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, limit, query } from 'firebase/firestore';
+import { collection, doc, limit, query, where } from 'firebase/firestore';
 import type { Organization, Release } from '@/lib/types';
+import { useVerticalConfig } from '@/hooks/use-vertical-config';
 
 type Props = {
   orgId: string;
@@ -27,6 +28,7 @@ type Step = {
 
 export default function GettingStartedChecklist({ orgId, releases }: Props) {
   const { firestore } = useFirebase();
+  const { config } = useVerticalConfig(orgId);
 
   const orgDoc = useDoc<Organization>(
     useMemoFirebase(() => doc(firestore, 'orgs', orgId), [firestore, orgId])
@@ -53,13 +55,41 @@ export default function GettingStartedChecklist({ orgId, releases }: Props) {
     )
   );
 
+  const tagsQuery = useCollection(
+    useMemoFirebase(
+      () => query(collection(firestore, 'orgs', orgId, 'tags'), limit(1)),
+      [firestore, orgId]
+    )
+  );
+
+  const partnersQuery = useCollection(
+    useMemoFirebase(
+      () => query(collection(firestore, 'orgs', orgId, 'users'), where('role', '==', 'Partner'), limit(1)),
+      [firestore, orgId]
+    )
+  );
+
+  const submissionsQuery = useCollection(
+    useMemoFirebase(
+      () => query(collection(firestore, 'orgs', orgId, 'submissions'), limit(1)),
+      [firestore, orgId]
+    )
+  );
+
   const org = orgDoc.data;
 
   const steps: Step[] = [
+    // --- Essentials ---
     {
       label: 'Complete your organisation profile',
-      description: 'Add your press contact details and boilerplate text in Settings.',
+      description: 'Add your press contact details and boilerplate text.',
       done: !!(org?.pressContact?.email && org?.boilerplate),
+      href: '/dashboard/settings',
+    },
+    {
+      label: 'Upload your logo and brand colours',
+      description: 'Customise how your organisation appears on public pages and emails.',
+      done: !!(org?.branding?.logoUrl || org?.branding?.primaryColor),
       href: '/dashboard/settings',
     },
     {
@@ -68,27 +98,49 @@ export default function GettingStartedChecklist({ orgId, releases }: Props) {
       href: '/dashboard/outlets',
       done: (outletListsQuery.data?.length ?? 0) > 0,
     },
+    // --- Content ---
     {
-      label: 'Invite a team member',
-      description: 'Bring colleagues in to collaborate on press releases.',
-      href: '/dashboard/settings/team',
-      done: (usersQuery.data?.length ?? 0) > 1,
-    },
-    {
-      label: 'Create your first press release',
-      description: 'Draft a release using the AI-assisted editor.',
+      label: `Create your first ${config.nav.releases.toLowerCase().replace(/s$/, '')}`,
+      description: 'Draft content using the AI-assisted editor.',
       href: '/dashboard/releases/new',
       done: releases.length > 0,
     },
     {
-      label: 'Send your first press release',
-      description: 'Distribute a release to your outlet list.',
+      label: `Send your first ${config.nav.releases.toLowerCase().replace(/s$/, '')}`,
+      description: 'Distribute to your outlet list and track engagement.',
       href: '/dashboard/releases',
       done: releases.some((r) => r.status === 'Sent'),
     },
+    // --- Organisation ---
     {
-      label: 'Generate your first web content',
-      description: 'Turn partner submissions into web-ready content with AI.',
+      label: 'Set up tags for categorisation',
+      description: `Organise ${config.nav.submissions.toLowerCase()} with tags to make content easier to find.`,
+      href: '/dashboard/settings/tags',
+      done: (tagsQuery.data?.length ?? 0) > 0,
+    },
+    {
+      label: 'Invite a team member',
+      description: 'Bring colleagues in to collaborate.',
+      href: '/dashboard/settings/team',
+      done: (usersQuery.data?.length ?? 0) > 1,
+    },
+    // --- Partners ---
+    {
+      label: `Invite your first ${config.nav.partnersSettings.toLowerCase().replace(/s$/, '')}`,
+      description: `Send an invite link so ${config.nav.partnersSettings.toLowerCase()} can submit content through the portal.`,
+      href: '/dashboard/settings/partners',
+      done: (partnersQuery.data?.length ?? 0) > 0,
+    },
+    {
+      label: `Receive your first ${config.nav.submissions.toLowerCase().replace(/s$/, '')}`,
+      description: `Once a ${config.nav.partnersSettings.toLowerCase().replace(/s$/, '')} submits content, it will appear here for review.`,
+      href: '/dashboard/submissions',
+      done: (submissionsQuery.data?.length ?? 0) > 0,
+    },
+    // --- Advanced ---
+    {
+      label: 'Generate web content from submissions',
+      description: 'Turn partner content into web-ready articles with AI.',
       href: '/dashboard/submissions',
       done: (webContentQuery.data?.length ?? 0) > 0,
     },
