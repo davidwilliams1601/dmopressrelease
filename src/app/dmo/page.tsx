@@ -229,9 +229,14 @@ export default function DmoLandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-gray-100 bg-white py-8">
-        <div className="mx-auto max-w-6xl px-6 flex items-center justify-between text-sm text-gray-400">
+        <div className="mx-auto max-w-6xl px-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-gray-400">
           <span className="font-headline font-semibold text-gray-900">PressPilot</span>
-          <span>© {new Date().getFullYear()} PressPilot. All rights reserved.</span>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <Link href="/legal/privacy" className="hover:underline">Privacy</Link>
+            <Link href="/legal/terms" className="hover:underline">Terms</Link>
+            <Link href="/legal/acceptable-use" className="hover:underline">Acceptable Use</Link>
+          </div>
+          <span className="text-xs">© {new Date().getFullYear()} PressPilot. All rights reserved.</span>
         </div>
       </footer>
     </div>
