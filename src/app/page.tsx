@@ -215,9 +215,12 @@ export default function LandingPage() {
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>
           </div>
-          <p className="text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} PressPilot. All rights reserved.
-          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <Link href="/legal/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+            <Link href="/legal/terms" className="hover:text-foreground transition-colors">Terms</Link>
+            <Link href="/legal/acceptable-use" className="hover:text-foreground transition-colors">Acceptable Use</Link>
+            <span>&copy; {new Date().getFullYear()} PressPilot</span>
+          </div>
         </div>
       </footer>
 
