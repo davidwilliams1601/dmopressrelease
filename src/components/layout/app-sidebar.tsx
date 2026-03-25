@@ -110,6 +110,11 @@ export default function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <div className="flex flex-wrap gap-x-3 px-3 py-1 text-[10px] text-muted-foreground">
+          <a href="/legal/privacy" className="hover:underline">Privacy</a>
+          <a href="/legal/terms" className="hover:underline">Terms</a>
+          <a href="/legal/acceptable-use" className="hover:underline">Acceptable Use</a>
+        </div>
         <SidebarSeparator />
         <div className="hidden md:block">
           <UserNav />

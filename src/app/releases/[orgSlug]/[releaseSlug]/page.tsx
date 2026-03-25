@@ -211,15 +211,22 @@ export default function PublicReleasePage() {
 
       <footer className="border-t py-8 mt-12">
         <div className="mx-auto max-w-4xl px-6 text-center text-xs text-gray-400">
-          {attribution === 'full' && (
-            <><span className="font-bold" style={{ color: colors.primary }}>PressPilot</span> · Press release management for {org.name}</>
-          )}
-          {attribution === 'subtle' && (
-            <>{org.name} · <span className="text-[10px] opacity-60">Powered by PressPilot</span></>
-          )}
-          {attribution === 'none' && (
-            <>{org.name}</>
-          )}
+          <div>
+            {attribution === 'full' && (
+              <><span className="font-bold" style={{ color: colors.primary }}>PressPilot</span> · Press release management for {org.name}</>
+            )}
+            {attribution === 'subtle' && (
+              <>{org.name} · <span className="text-[10px] opacity-60">Powered by PressPilot</span></>
+            )}
+            {attribution === 'none' && (
+              <>{org.name}</>
+            )}
+          </div>
+          <div className="mt-3 flex justify-center gap-4">
+            <Link href="/legal/privacy" className="hover:underline">Privacy</Link>
+            <Link href="/legal/terms" className="hover:underline">Terms</Link>
+            <Link href="/legal/acceptable-use" className="hover:underline">Acceptable Use</Link>
+          </div>
         </div>
       </footer>
     </div>

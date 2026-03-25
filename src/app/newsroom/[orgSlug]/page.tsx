@@ -265,6 +265,11 @@ export default function NewsroomPage() {
               )}
             </div>
           </div>
+          <div className="mt-6 pt-4 border-t border-gray-200 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
+            <Link href="/legal/privacy" className="hover:underline">Privacy</Link>
+            <Link href="/legal/terms" className="hover:underline">Terms</Link>
+            <Link href="/legal/acceptable-use" className="hover:underline">Acceptable Use</Link>
+          </div>
         </div>
       </footer>
     </main>

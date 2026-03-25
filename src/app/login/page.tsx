@@ -72,6 +72,12 @@ export default function LoginPage() {
           </p>
         </CardFooter>
       </Card>
+
+      <div className="mt-6 flex gap-4 text-xs text-muted-foreground">
+        <Link href="/legal/privacy" className="hover:underline">Privacy</Link>
+        <Link href="/legal/terms" className="hover:underline">Terms</Link>
+        <Link href="/legal/acceptable-use" className="hover:underline">Acceptable Use</Link>
+      </div>
     </main>
   );
 }

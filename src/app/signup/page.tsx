@@ -63,6 +63,13 @@ export default function SignupPage() {
           </p>
         </CardFooter>
       </Card>
+
+      <p className="mt-4 text-center text-xs text-muted-foreground max-w-sm">
+        By signing up you agree to our{' '}
+        <Link href="/legal/terms" className="underline hover:text-foreground">Terms</Link>,{' '}
+        <Link href="/legal/privacy" className="underline hover:text-foreground">Privacy Policy</Link>, and{' '}
+        <Link href="/legal/acceptable-use" className="underline hover:text-foreground">Acceptable Use Policy</Link>.
+      </p>
     </main>
   );
 }
