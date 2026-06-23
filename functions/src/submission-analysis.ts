@@ -96,7 +96,7 @@ export const analyzeSubmissionThemes = functions
     try {
       const { GoogleGenerativeAI } = await import('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const prompt = `You are a ${verticalCtx.expertPersona}. Analyse the following content submission and return a structured JSON assessment.
 

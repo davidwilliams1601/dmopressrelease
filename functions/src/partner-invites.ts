@@ -100,7 +100,7 @@ async function classifyPartnerBusiness(
   try {
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `You are categorising a business based on a short description. Choose one or more categories from the list below that best describe this business. Return ONLY a JSON array of strings, e.g. ["Accommodation", "Food & Drink"]. Do not include any other text.
 
