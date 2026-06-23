@@ -38,6 +38,7 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
 
   const [boilerplate, setBoilerplate] = useState(organization.boilerplate ?? '');
   const [brandToneNotes, setBrandToneNotes] = useState(organization.brandToneNotes ?? '');
+  const [editorialPriorities, setEditorialPriorities] = useState(organization.editorialPriorities ?? '');
 
   // Boilerplate AI
   const [showBoilerplateAI, setShowBoilerplateAI] = useState(false);
@@ -69,6 +70,7 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
         },
         boilerplate,
         brandToneNotes,
+        editorialPriorities,
         ...(maxSubmissionsPerPartner && maxSubmissionsPerPartner > 0
           ? { maxSubmissionsPerPartner }
           : { maxSubmissionsPerPartner: null }),
@@ -282,6 +284,21 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
             />
             <p className="text-sm text-muted-foreground">
               Used to guide AI in generating and enhancing press release copy.
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="editorial-priorities">Editorial Priorities</Label>
+            <Textarea
+              id="editorial-priorities"
+              name="editorial-priorities"
+              value={editorialPriorities}
+              onChange={(e) => setEditorialPriorities(e.target.value)}
+              className="min-h-28"
+              placeholder="e.g. Prioritise sustainability initiatives, new business openings, and stories with strong data. Deprioritise purely promotional content with no news angle."
+            />
+            <p className="text-sm text-muted-foreground">
+              Tell the AI triage what matters most to your newsroom. This is weighted when scoring incoming submissions.
             </p>
           </div>
 

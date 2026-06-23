@@ -93,6 +93,7 @@ export default function SubmissionDetailPage() {
         contentTypeOptions: verticalConfig.ai.webContentTypes
           .map((t) => `"${t}"`)
           .join(', '),
+        editorialPriorities: org?.editorialPriorities,
       });
 
       if (result.success) {

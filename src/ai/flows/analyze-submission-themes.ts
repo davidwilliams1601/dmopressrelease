@@ -8,6 +8,7 @@ const AnalyzeThemesInputSchema = z.object({
   expertPersona: z.string().optional().describe('The expert persona for the AI (e.g. "tourism and travel PR expert")'),
   themeExamples: z.string().optional().describe('Comma-separated examples of relevant themes'),
   contentTypeOptions: z.string().optional().describe('Comma-separated content type labels to choose from'),
+  editorialPriorities: z.string().optional().describe('Org-specific editorial priorities to weight heavily when scoring'),
 });
 
 export type AnalyzeThemesInput = z.infer<typeof AnalyzeThemesInputSchema>;
@@ -35,6 +36,9 @@ export async function analyzeSubmissionThemes(
     const persona = input.expertPersona ?? 'tourism and travel PR expert';
     const themeExamples = input.themeExamples ?? '"Cultural Heritage", "Adventure Tourism", "Food & Drink", "Family Activities", "Sustainability", "Events & Festivals", "Accommodation", "Nature & Wildlife"';
     const contentTypeOptions = input.contentTypeOptions ?? '"What\'s New", "Event Listing", "Destination Guide", "Seasonal Update", "General"';
+    const prioritiesBlock = input.editorialPriorities?.trim()
+      ? `\n\nORGANISATION EDITORIAL PRIORITIES (weight these heavily when scoring):\n${input.editorialPriorities.trim()}`
+      : '';
 
     const {output} = await ai.generate({
       prompt: `You are a ${persona}. Analyse the following content submission and return a structured assessment.
@@ -51,7 +55,7 @@ EDITORIAL SCORE: Rate 1-10 as a whole number based on editorial relevance, news 
 4-6 = moderate (relevant but needs work, or limited news angle)
 7-8 = good (clear value, editorial-ready with minor polish)
 9-10 = excellent (strong hook, high-quality writing, immediately usable)
-Provide a one to two sentence rationale for the score.
+Provide a one to two sentence rationale for the score.${prioritiesBlock}
 
 CONTENT TYPE: Choose the single best fit from: ${contentTypeOptions}`,
       output: {schema: AnalyzeThemesOutputSchema},

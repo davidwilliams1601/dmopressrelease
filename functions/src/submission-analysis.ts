@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { callWithRetry } from './ai-helpers';
+import { GEMINI_MODEL } from './ai-config';
 
 // Vertical-specific scoring context injected into the analysis prompt.
 // Keeps the prompt lean while making scoring criteria meaningful per vertical.
@@ -81,22 +82,29 @@ export const analyzeSubmissionThemes = functions
       return;
     }
 
-    // Look up org to get vertical, so scoring criteria match the organisation type
+    // Look up org to get vertical (so scoring criteria match the organisation type)
+    // and any org-specific editorial priorities the team has set in Settings.
     let verticalCtx = DEFAULT_SCORING_CONTEXT;
+    let editorialPriorities = '';
     try {
       const orgSnap = await admin.firestore().collection('orgs').doc(orgId).get();
       const vertical = orgSnap.data()?.vertical as string | undefined;
       if (vertical && VERTICAL_SCORING_CONTEXT[vertical]) {
         verticalCtx = VERTICAL_SCORING_CONTEXT[vertical];
       }
+      editorialPriorities = (orgSnap.data()?.editorialPriorities as string | undefined)?.trim() || '';
     } catch (err) {
-      console.warn(`Could not fetch org vertical for ${orgId}, using default:`, err);
+      console.warn(`Could not fetch org config for ${orgId}, using default:`, err);
     }
+
+    const prioritiesBlock = editorialPriorities
+      ? `\n\nORGANISATION EDITORIAL PRIORITIES (weight these heavily when scoring):\n${editorialPriorities}`
+      : '';
 
     try {
       const { GoogleGenerativeAI } = await import('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
       const prompt = `You are a ${verticalCtx.expertPersona}. Analyse the following content submission and return a structured JSON assessment.
 
@@ -123,7 +131,7 @@ ${verticalCtx.scoringCriteria}
 1-3 = low value (off-topic, purely promotional, or too thin to use)
 4-6 = moderate (relevant but needs work, or limited news angle)
 7-8 = good (clear value, editorial-ready with minor polish)
-9-10 = excellent (strong hook, high-quality writing, immediately usable)
+9-10 = excellent (strong hook, high-quality writing, immediately usable)${prioritiesBlock}
 
 CONTENT TYPE: Choose the single best fit from: ${verticalCtx.contentTypeOptions}`;
 

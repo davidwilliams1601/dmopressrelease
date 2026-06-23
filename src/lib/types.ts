@@ -23,6 +23,8 @@ export type Organization = {
   brandToneNotes: string;
   createdAt?: any;
   vertical?: VerticalId;
+  /** Free-text editorial priorities, set in Settings, injected into AI triage scoring. */
+  editorialPriorities?: string;
   pressContact?: {
     name: string;
     email: string;
