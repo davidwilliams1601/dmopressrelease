@@ -45,3 +45,20 @@ firebase-debug.log
 firestore-debug.log
 service-account.json
 *-service-account.json
+
+# Office lock / temp files
+.~lock.*#
+~$*
+
+# Business planning docs (kept locally, not versioned)
+/PressPilot_*.docx
+/PressPilot_*.xlsx
+/PressPilot_*.pptx
+
+# Marketing / brand assets (kept locally, not versioned)
+/Press Pilot 2.0 Logos/
+/social/
+/outreach/
+/presspilot-apollo-sequence.md
+/email-signature.html
+/docs/networks-design.md
