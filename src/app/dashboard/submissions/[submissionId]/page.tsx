@@ -23,7 +23,8 @@ import { ArrowLeft, RefreshCw, Loader2, Instagram, Twitter, Facebook, Linkedin }
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { analyzeSubmissionThemes } from '@/ai/flows/analyze-submission-themes';
-import type { PartnerSubmission, Tag } from '@/lib/types';
+import { getVerticalConfig } from '@/lib/verticals';
+import type { Organization, PartnerSubmission, Tag } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,13 @@ export default function SubmissionDetailPage() {
 
   const { data: submission, isLoading: isSubLoading } =
     useDoc<PartnerSubmission>(submissionRef);
+
+  const orgRef = useMemoFirebase(() => {
+    if (!orgId) return null;
+    return doc(firestore, 'orgs', orgId);
+  }, [firestore, orgId]);
+
+  const { data: org } = useDoc<Organization>(orgRef);
 
   const tagsRef = useMemoFirebase(() => {
     if (!orgId) return null;
@@ -76,18 +84,31 @@ export default function SubmissionDetailPage() {
     setIsReanalyzing(true);
 
     try {
+      const verticalConfig = getVerticalConfig(org?.vertical);
       const result = await analyzeSubmissionThemes({
         title: submission.title,
         bodyCopy: submission.bodyCopy,
+        expertPersona: verticalConfig.ai.expertPersona,
+        themeExamples: verticalConfig.ai.themeExamples,
+        contentTypeOptions: verticalConfig.ai.webContentTypes
+          .map((t) => `"${t}"`)
+          .join(', '),
       });
 
       if (result.success) {
+        const safeScore = Math.min(
+          10,
+          Math.max(1, Math.round(Number(result.data.editorialScore) || 5))
+        );
         updateDocumentNonBlocking(submissionRef, {
           aiThemes: result.data.themes,
           aiThemeAnalysis: result.data.analysis,
+          aiEditorialScore: safeScore,
+          aiEditorialRationale: result.data.editorialRationale || '',
+          aiContentType: result.data.contentType || 'General',
           aiAnalyzedAt: serverTimestamp(),
         });
-        toast({ title: 'Analysis updated', description: 'AI themes have been refreshed.' });
+        toast({ title: 'Analysis updated', description: 'AI themes and score have been refreshed.' });
       } else {
         toast({ title: 'Analysis failed', description: result.error, variant: 'destructive' });
       }
