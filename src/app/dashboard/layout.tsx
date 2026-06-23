@@ -43,9 +43,10 @@ export default function DashboardLayout({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isUserLoading, isRoleLoading, role]);
 
-  // Render guard uses auth-only loading so the layout appears immediately
-  // once Firebase Auth resolves, without waiting for the Firestore user doc.
-  if (isUserLoading || !user) {
+  // Wait for both auth AND role to resolve before rendering dashboard content.
+  // Without this, partner users briefly see dashboard children that fire
+  // Firestore queries against team-only collections, causing permission errors.
+  if (isUserLoading || isRoleLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <div className="flex flex-col items-center gap-4">
