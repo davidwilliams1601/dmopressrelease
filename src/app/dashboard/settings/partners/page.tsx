@@ -22,7 +22,7 @@ import { SendImpactReportButton } from '@/components/settings/send-impact-report
 import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import { Link as LinkIcon, Users, Mail, Copy, Send, MailOpen, MousePointerClick } from 'lucide-react';
 import { format } from 'date-fns';
-import { toDate } from '@/lib/utils';
+import { toDate, getAppBaseUrl } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import type { PartnerInvite, PartnerEmail, User } from '@/lib/types';
 
@@ -173,7 +173,7 @@ export default function PartnersPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          const link = `${window.location.origin}/partner-signup?code=${invite.code}`;
+                          const link = `${getAppBaseUrl()}/partner-signup?code=${invite.code}`;
                           navigator.clipboard.writeText(link);
                           toast({ title: 'Copied!', description: 'Invite link copied to clipboard.' });
                         }}

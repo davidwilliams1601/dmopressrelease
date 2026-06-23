@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Copy, Globe } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAppBaseUrl } from '@/lib/utils';
 
 type Props = {
   orgSlug: string;
@@ -11,7 +12,7 @@ type Props = {
 
 export default function NewsroomLinkCard({ orgSlug }: Props) {
   const { toast } = useToast();
-  const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/newsroom/${orgSlug}`;
+  const link = `${getAppBaseUrl()}/newsroom/${orgSlug}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(link);

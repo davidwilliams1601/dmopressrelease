@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Copy, Newspaper } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAppBaseUrl } from '@/lib/utils';
 
 type Props = {
   orgSlug: string;
@@ -11,7 +12,7 @@ type Props = {
 
 export default function MediaEnquiryLinkCard({ orgSlug }: Props) {
   const { toast } = useToast();
-  const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/media/${orgSlug}`;
+  const link = `${getAppBaseUrl()}/media/${orgSlug}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(link);

@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Sparkles, Loader2, Copy, Check } from 'lucide-react';
 import { generateSocialPosts } from '@/ai/flows/generate-social-posts';
+import { getAppBaseUrl } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import type { GenerateSocialPostsOutput } from '@/ai/flows/generate-social-posts';
 
@@ -44,7 +45,7 @@ export function SocialPostGenerator({
 }: SocialPostGeneratorProps) {
   const releaseUrl =
     orgSlug && releaseSlug
-      ? `${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/releases/${orgSlug}/${releaseSlug}`
+      ? `${getAppBaseUrl()}/releases/${orgSlug}/${releaseSlug}`
       : null;
   const [isGenerating, setIsGenerating] = useState(false);
   const [posts, setPosts] = useState<GenerateSocialPostsOutput | null>(null);

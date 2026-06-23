@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Link as LinkIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAppBaseUrl } from '@/lib/utils';
 
 type GenerateInviteDialogProps = {
   orgId: string;
@@ -45,7 +46,7 @@ export function GenerateInviteDialog({ orgId, onInviteCreated }: GenerateInviteD
       });
 
       const data = result.data as any;
-      const link = `${window.location.origin}/partner-signup?code=${data.code}`;
+      const link = `${getAppBaseUrl()}/partner-signup?code=${data.code}`;
       setInviteLink(link);
 
       toast({
