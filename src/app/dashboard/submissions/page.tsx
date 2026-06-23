@@ -144,9 +144,10 @@ export default function SubmissionsPage() {
   const filteredAndSorted = useMemo(() => {
     let result = allSubmissions;
 
-    // Status filter — 'pending' shows submitted + reviewed
+    // Status filter — 'pending' shows only items still awaiting triage.
+    // 'reviewed' means accepted, so it must not appear in the triage queue.
     if (statusFilter === 'pending') {
-      result = result.filter((s) => s.status === 'submitted' || s.status === 'reviewed');
+      result = result.filter((s) => s.status === 'submitted');
     } else if (statusFilter !== 'all') {
       result = result.filter((s) => s.status === statusFilter);
     }
@@ -179,7 +180,7 @@ export default function SubmissionsPage() {
   // Summary stats
   const stats = useMemo(() => {
     const pending = allSubmissions.filter(
-      (s) => s.status === 'submitted' || s.status === 'reviewed'
+      (s) => s.status === 'submitted'
     );
     const highScore = pending.filter((s) => (s.aiEditorialScore ?? 0) >= 7);
     const accepted = allSubmissions.filter((s) => s.status === 'reviewed' || s.status === 'used');

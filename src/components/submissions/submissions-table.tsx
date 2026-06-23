@@ -54,6 +54,14 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   archived: 'outline',
 };
 
+// User-facing labels — internally 'reviewed' is the accepted state.
+const statusLabel: Record<string, string> = {
+  submitted: 'Submitted',
+  reviewed: 'Accepted',
+  used: 'Used',
+  archived: 'Archived',
+};
+
 type QuickAction = (submissionId: string, status: 'reviewed' | 'archived') => Promise<void>;
 
 type SubmissionsTableProps = {
@@ -223,7 +231,7 @@ export function SubmissionsTable({
                 {/* Status */}
                 <TableCell>
                   <Badge variant={statusVariant[sub.status] || 'secondary'} className="text-xs">
-                    {sub.status}
+                    {statusLabel[sub.status] || sub.status}
                   </Badge>
                 </TableCell>
 
