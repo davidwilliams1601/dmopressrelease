@@ -1,4 +1,4 @@
-export type VerticalId = 'dmo' | 'charity' | 'trade-body';
+export type VerticalId = 'dmo' | 'charity' | 'trade-body' | 'publisher';
 
 export type SocialHandles = {
   instagram?: string;
@@ -192,6 +192,9 @@ export type PartnerSubmission = {
   status: 'submitted' | 'reviewed' | 'used' | 'archived';
   aiThemes?: string[];
   aiThemeAnalysis?: string;
+  aiEditorialScore?: number;
+  aiEditorialRationale?: string;
+  aiContentType?: string;
   aiAnalyzedAt?: Date | any;
   createdAt: Date | any;
   updatedAt?: Date | any;

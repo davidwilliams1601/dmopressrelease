@@ -10,9 +10,12 @@ import {
   getDocs,
   limit,
   startAfter,
+  doc,
+  serverTimestamp,
   QueryDocumentSnapshot,
   DocumentData,
 } from 'firebase/firestore';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -27,7 +30,8 @@ import { Button } from '@/components/ui/button';
 import { SubmissionsTable } from '@/components/submissions/submissions-table';
 import { GenerateDraftDialog } from '@/components/submissions/generate-draft-dialog';
 import { GenerateWebContentDialog } from '@/components/submissions/generate-web-content-dialog';
-import { Inbox, Loader2 } from 'lucide-react';
+import { Inbox, Loader2, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import type { PartnerSubmission, Tag } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -37,9 +41,11 @@ const PAGE_SIZE = 25;
 export default function SubmissionsPage() {
   const { orgId, isLoading: isUserLoading } = useUserData();
   const { firestore } = useFirebase();
+  const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [tagFilter, setTagFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('pending');
+  const [scoreFilter, setScoreFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('score');
 
   // Pagination state
   const [allSubmissions, setAllSubmissions] = useState<(PartnerSubmission & { id: string })[]>([]);
@@ -60,7 +66,8 @@ export default function SubmissionsPage() {
   const { data: tagsData } = useCollection<Tag>(tagsRef);
   const tags = tagsData || [];
 
-  // Initial fetch
+  // Initial fetch — always ordered by createdAt desc from Firestore;
+  // client-side sort then applies for score ordering
   useEffect(() => {
     if (!orgId) return;
 
@@ -115,18 +122,69 @@ export default function SubmissionsPage() {
     setIsLoadingMore(false);
   }, [firestore, orgId, lastDoc, isLoadingMore]);
 
-  const filteredSubmissions = useMemo(() => {
+  // Quick accept / archive from table row
+  const handleQuickAction = useCallback(async (
+    submissionId: string,
+    status: 'reviewed' | 'archived'
+  ) => {
+    if (!orgId) return;
+    const ref = doc(firestore, 'orgs', orgId, 'submissions', submissionId);
+    await updateDocumentNonBlocking(ref, { status, updatedAt: serverTimestamp() });
+    setAllSubmissions((prev) =>
+      prev.map((s) => s.id === submissionId ? { ...s, status } : s)
+    );
+    toast({
+      title: status === 'reviewed' ? 'Accepted' : 'Archived',
+      description: status === 'reviewed'
+        ? 'Submission marked as accepted.'
+        : 'Submission moved to archive.',
+    });
+  }, [firestore, orgId, toast]);
+
+  const filteredAndSorted = useMemo(() => {
     let result = allSubmissions;
-    if (statusFilter !== 'all') {
+
+    // Status filter — 'pending' shows submitted + reviewed
+    if (statusFilter === 'pending') {
+      result = result.filter((s) => s.status === 'submitted' || s.status === 'reviewed');
+    } else if (statusFilter !== 'all') {
       result = result.filter((s) => s.status === statusFilter);
     }
-    if (tagFilter !== 'all') {
-      result = result.filter((s) => s.tagIds?.includes(tagFilter));
+
+    // Score filter
+    if (scoreFilter === 'high') {
+      result = result.filter((s) => (s.aiEditorialScore ?? 0) >= 7);
+    } else if (scoreFilter === 'medium') {
+      result = result.filter((s) => {
+        const sc = s.aiEditorialScore ?? 0;
+        return sc >= 4 && sc < 7;
+      });
+    } else if (scoreFilter === 'low') {
+      result = result.filter((s) => (s.aiEditorialScore ?? 0) > 0 && (s.aiEditorialScore ?? 0) < 4);
     }
+
+    // Sort
+    if (sortBy === 'score') {
+      result = [...result].sort(
+        (a, b) => (b.aiEditorialScore ?? 0) - (a.aiEditorialScore ?? 0)
+      );
+    }
+    // 'date' keeps Firestore's existing createdAt desc order
+
     return result;
-  }, [allSubmissions, statusFilter, tagFilter]);
+  }, [allSubmissions, statusFilter, scoreFilter, sortBy]);
 
   const selectedSubmissions = allSubmissions.filter((s) => selectedIds.includes(s.id));
+
+  // Summary stats
+  const stats = useMemo(() => {
+    const pending = allSubmissions.filter(
+      (s) => s.status === 'submitted' || s.status === 'reviewed'
+    );
+    const highScore = pending.filter((s) => (s.aiEditorialScore ?? 0) >= 7);
+    const accepted = allSubmissions.filter((s) => s.status === 'reviewed' || s.status === 'used');
+    return { pending: pending.length, highScore: highScore.length, accepted: accepted.length };
+  }, [allSubmissions]);
 
   if (isUserLoading) {
     return (
@@ -141,9 +199,9 @@ export default function SubmissionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-headline font-bold">Partner Submissions</h1>
+          <h1 className="text-2xl font-headline font-bold">Story Pitches</h1>
           <p className="text-muted-foreground">
-            Review content submitted by partners and generate press release drafts.
+            Review and triage incoming submissions. Sorted by editorial score by default.
           </p>
         </div>
         {selectedIds.length > 0 && orgId && (
@@ -164,31 +222,65 @@ export default function SubmissionsPage() {
         )}
       </div>
 
-      <div className="flex items-center gap-4">
+      {/* Summary stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="p-4 flex items-center gap-3">
+          <Clock className="h-8 w-8 text-muted-foreground shrink-0" />
+          <div>
+            <p className="text-2xl font-bold">{stats.pending}</p>
+            <p className="text-xs text-muted-foreground">Awaiting triage</p>
+          </div>
+        </Card>
+        <Card className="p-4 flex items-center gap-3">
+          <TrendingUp className="h-8 w-8 text-green-600 shrink-0" />
+          <div>
+            <p className="text-2xl font-bold text-green-700">{stats.highScore}</p>
+            <p className="text-xs text-muted-foreground">High score (7+)</p>
+          </div>
+        </Card>
+        <Card className="p-4 flex items-center gap-3">
+          <CheckCircle className="h-8 w-8 text-muted-foreground shrink-0" />
+          <div>
+            <p className="text-2xl font-bold">{stats.accepted}</p>
+            <p className="text-xs text-muted-foreground">Accepted</p>
+          </div>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="pending">Needs triage</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="submitted">Submitted</SelectItem>
-            <SelectItem value="reviewed">Reviewed</SelectItem>
-            <SelectItem value="used">Used</SelectItem>
+            <SelectItem value="reviewed">Accepted</SelectItem>
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
 
-        <Select value={tagFilter} onValueChange={setTagFilter}>
+        <Select value={scoreFilter} onValueChange={setScoreFilter}>
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Tag" />
+            <SelectValue placeholder="Score" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Tags</SelectItem>
-            {tags.map((tag) => (
-              <SelectItem key={tag.id} value={tag.id}>
-                {tag.name}
-              </SelectItem>
-            ))}
+            <SelectItem value="all">All scores</SelectItem>
+            <SelectItem value="high">High (7–10)</SelectItem>
+            <SelectItem value="medium">Medium (4–6)</SelectItem>
+            <SelectItem value="low">Low (1–3)</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="score">Sort: Score ↓</SelectItem>
+            <SelectItem value="date">Sort: Newest first</SelectItem>
           </SelectContent>
         </Select>
 
@@ -206,7 +298,7 @@ export default function SubmissionsPage() {
             Submissions
           </CardTitle>
           <CardDescription>
-            Showing {filteredSubmissions.length} submission{filteredSubmissions.length !== 1 ? 's' : ''}
+            Showing {filteredAndSorted.length} submission{filteredAndSorted.length !== 1 ? 's' : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -216,20 +308,21 @@ export default function SubmissionsPage() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
-          ) : filteredSubmissions.length === 0 ? (
+          ) : filteredAndSorted.length === 0 ? (
             <div className="py-12 text-center">
               <Inbox className="mx-auto h-12 w-12 text-muted-foreground/50" />
               <p className="mt-4 text-muted-foreground">
-                No submissions yet. Partners will appear here once they submit content.
+                No submissions match these filters.
               </p>
             </div>
           ) : (
             <>
               <SubmissionsTable
-                submissions={filteredSubmissions}
+                submissions={filteredAndSorted}
                 tags={tags}
                 selectedIds={selectedIds}
                 onSelectionChange={setSelectedIds}
+                onQuickAction={handleQuickAction}
               />
               {hasMore && (
                 <div className="mt-4 flex justify-center">

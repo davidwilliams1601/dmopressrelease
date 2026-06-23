@@ -136,6 +136,54 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     ],
   },
 
+  publisher: {
+    id: 'publisher',
+    displayName: 'Trade Publisher / Media',
+    nav: {
+      releases: 'Features',
+      outlets: 'Media Contacts',
+      mediaRequests: 'Editorial Enquiries',
+      submissions: 'Story Pitches',
+      content: 'Web Content',
+      partnerPortalTitle: 'Contributor Portal',
+      partnersSettings: 'Contributors',
+    },
+    ai: {
+      orgTypeDescription: 'trade publisher and specialist media outlet',
+      contentDomain: 'further education, skills and workforce development',
+      audienceOptions: ['Educators & Practitioners', 'Policy Makers', 'Employers & Industry', 'General'],
+      expertPersona: 'further education editorial journalist and commissioning editor',
+      themeExamples:
+        '"Apprenticeships", "T-Levels", "Skills Policy", "Ofsted & Regulation", "Higher Technical Qualifications", "Digital Skills", "Employer Partnerships", "Inclusion & SEND", "EdTech & Innovation", "Funding & Finance", "Leadership & Governance", "Workforce Development"',
+      webContentStyle: 'Authoritative, practitioner-focused language with clear news value',
+      webContentTypes: ['News Story', 'Feature', 'Opinion & Comment', 'Case Study', 'Policy Update', 'General'],
+      suggestedContentTypeInstruction:
+        'Suggest the most appropriate content type from: "News Story", "Feature", "Opinion & Comment", "Case Study", "Policy Update", "General"',
+    },
+    consent: {
+      contentUsage:
+        'I consent to this publication using my submitted content in articles and digital communications.',
+      marketing:
+        'I agree to receive occasional updates and newsletters from the editorial team.',
+    },
+    provision: {
+      description: 'Creates a new publisher organisation and its first admin account.',
+    },
+    partnerCategories: [
+      'Further Education College',
+      'Independent Training Provider',
+      'Awarding Organisation',
+      'Higher Education Institution',
+      'EdTech & Technology',
+      'Employer & Industry Body',
+      'Government & Public Sector',
+      'Think Tank & Research',
+      'Professional Association',
+      'Consultancy & Advisory',
+      'Other',
+    ],
+  },
+
   'trade-body': {
     id: 'trade-body',
     displayName: 'Trade Body / Industry Association',

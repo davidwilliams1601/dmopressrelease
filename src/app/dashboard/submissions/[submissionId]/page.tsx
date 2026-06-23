@@ -178,6 +178,40 @@ export default function SubmissionDetailPage() {
         </div>
 
         <div className="space-y-6">
+          {/* Editorial score card */}
+          {submission.aiEditorialScore !== undefined && (
+            <Card className={
+              submission.aiEditorialScore >= 7
+                ? 'border-green-200 bg-green-50'
+                : submission.aiEditorialScore >= 4
+                ? 'border-amber-200 bg-amber-50'
+                : 'border-red-200 bg-red-50'
+            }>
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Editorial Score</span>
+                  <span className={`text-2xl font-bold ${
+                    submission.aiEditorialScore >= 7
+                      ? 'text-green-700'
+                      : submission.aiEditorialScore >= 4
+                      ? 'text-amber-700'
+                      : 'text-red-700'
+                  }`}>
+                    {submission.aiEditorialScore}<span className="text-sm font-normal text-muted-foreground">/10</span>
+                  </span>
+                </div>
+                {submission.aiEditorialRationale && (
+                  <p className="text-xs text-muted-foreground">{submission.aiEditorialRationale}</p>
+                )}
+                {submission.aiContentType && (
+                  <div className="mt-2">
+                    <Badge variant="outline" className="text-xs">{submission.aiContentType}</Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Status & Actions</CardTitle>
