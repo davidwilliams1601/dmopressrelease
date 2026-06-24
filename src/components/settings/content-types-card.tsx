@@ -19,6 +19,8 @@ import { updateDocumentNonBlocking } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { getVerticalConfig } from '@/lib/verticals';
+import { getEntitlements } from '@/hooks/use-entitlements';
+import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
 import type { Organization } from '@/lib/types';
 
 type ContentType = { name: string; description?: string };
@@ -37,6 +39,7 @@ export default function ContentTypesCard({ organization }: Props) {
     (name) => ({ name })
   );
 
+  const canCustomize = getEntitlements(organization).can('customContentTypes');
   const isCustomised = !!organization.contentTypes && organization.contentTypes.length > 0;
 
   const [types, setTypes] = useState<ContentType[]>(
@@ -146,7 +149,26 @@ export default function ContentTypesCard({ organization }: Props) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!isEditing ? (
+        {!canCustomize ? (
+          <>
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">
+                Using defaults from {verticalConfig.displayName}
+              </Label>
+              <ul className="space-y-1">
+                {verticalDefaults.map((t) => (
+                  <li
+                    key={t.name}
+                    className="text-sm rounded-md border bg-muted/50 px-3 py-2"
+                  >
+                    {t.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <UpgradePrompt feature="customContentTypes" />
+          </>
+        ) : !isEditing ? (
           <>
             <div className="space-y-2">
               <Label className="text-sm text-muted-foreground">
@@ -224,12 +246,14 @@ export default function ContentTypesCard({ organization }: Props) {
           </>
         )}
       </CardContent>
-      <CardFooter className="border-t px-6 py-4">
-        <Button onClick={handleSave} disabled={isSaving}>
-          <Save className="h-4 w-4" />
-          {isSaving ? 'Saving...' : 'Save Content Types'}
-        </Button>
-      </CardFooter>
+      {canCustomize && (
+        <CardFooter className="border-t px-6 py-4">
+          <Button onClick={handleSave} disabled={isSaving}>
+            <Save className="h-4 w-4" />
+            {isSaving ? 'Saving...' : 'Save Content Types'}
+          </Button>
+        </CardFooter>
+      )}
     </Card>
   );
 }

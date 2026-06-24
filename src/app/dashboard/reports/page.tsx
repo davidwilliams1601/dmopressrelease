@@ -8,6 +8,8 @@ import { useUserData } from '@/hooks/use-user-data';
 import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import { useOrganization } from '@/hooks/use-organization';
 import { useReportData } from '@/hooks/use-report-data';
+import { getEntitlements } from '@/hooks/use-entitlements';
+import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
 import { getMonthRange, formatPeriodLabel, type DateRange } from '@/lib/report-utils';
 import { format } from 'date-fns';
 
@@ -24,12 +26,12 @@ export const dynamic = 'force-dynamic';
 export default function ReportsPage() {
   const { orgId, isLoading: isUserLoading } = useUserData();
   const { config } = useVerticalConfig(orgId);
-  const { organization } = useOrganization(orgId);
+  const { organization, isLoading: isOrgLoading } = useOrganization(orgId);
   const [dateRange, setDateRange] = useState<DateRange>(() => getMonthRange(new Date()));
 
   const report = useReportData(orgId ?? null, dateRange);
 
-  if (isUserLoading || report.isLoading) {
+  if (isUserLoading || isOrgLoading || report.isLoading) {
     return (
       <div className="flex flex-col gap-6">
         <div>
@@ -42,6 +44,20 @@ export default function ReportsPage() {
           ))}
         </div>
         <Skeleton className="h-[300px] rounded-xl" />
+      </div>
+    );
+  }
+
+  if (!getEntitlements(organization).can('advancedReporting')) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-3xl font-headline font-bold">Reports</h1>
+          <p className="text-muted-foreground">
+            Advanced reporting and analytics for your organisation.
+          </p>
+        </div>
+        <UpgradePrompt feature="advancedReporting" />
       </div>
     );
   }

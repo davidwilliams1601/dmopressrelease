@@ -11,6 +11,9 @@ import ContentTypesCard from '@/components/settings/content-types-card';
 import BrandingCard from '@/components/settings/branding-card';
 import { useUserData } from '@/hooks/use-user-data';
 import { useOrganization } from '@/hooks/use-organization';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { CreditCard } from 'lucide-react';
 
 export default function SettingsPage() {
   const { orgId, isLoading: isUserDataLoading } = useUserData();
@@ -47,6 +50,14 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">
           Manage your organization details and preferences.
         </p>
+      </div>
+      <div>
+        <Button asChild variant="outline">
+          <Link href="/dashboard/settings/billing">
+            <CreditCard className="h-4 w-4" />
+            Plan &amp; Billing
+          </Link>
+        </Button>
       </div>
       <SettingsForm organization={organization} />
       <BrandingCard organization={organization} />

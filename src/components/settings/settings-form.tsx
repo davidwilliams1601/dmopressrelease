@@ -21,6 +21,8 @@ import { doc, serverTimestamp } from 'firebase/firestore';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getVerticalConfig } from '@/lib/verticals';
+import { getEntitlements } from '@/hooks/use-entitlements';
+import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
 import { generateBoilerplate } from '@/ai/flows/generate-boilerplate';
 import { generateToneNotes } from '@/ai/flows/generate-tone-notes';
 
@@ -49,6 +51,8 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
   const [isGeneratingTone, setIsGeneratingTone] = useState(false);
 
   const verticalConfig = getVerticalConfig(organization.vertical);
+  const entitlements = getEntitlements(organization);
+  const canUseApprovals = entitlements.can('approvalWorkflows');
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -74,7 +78,8 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
         ...(maxSubmissionsPerPartner && maxSubmissionsPerPartner > 0
           ? { maxSubmissionsPerPartner }
           : { maxSubmissionsPerPartner: null }),
-        approvalWorkflowEnabled: approvalEnabled,
+        // Guard against enabling a gated feature even if the UI is bypassed.
+        approvalWorkflowEnabled: canUseApprovals ? approvalEnabled : false,
         updatedAt: serverTimestamp(),
       });
 
@@ -326,10 +331,14 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
             </div>
             <Switch
               id="approval-workflow"
-              checked={approvalEnabled}
+              checked={canUseApprovals && approvalEnabled}
               onCheckedChange={setApprovalEnabled}
+              disabled={!canUseApprovals}
             />
           </div>
+          {!canUseApprovals && (
+            <UpgradePrompt feature="approvalWorkflows" />
+          )}
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
           <Button type="submit" disabled={isSaving}>
