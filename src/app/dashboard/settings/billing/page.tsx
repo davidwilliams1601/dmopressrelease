@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -16,7 +17,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useUserData } from '@/hooks/use-user-data';
 import { useOrganization } from '@/hooks/use-organization';
 import { getEntitlements } from '@/hooks/use-entitlements';
+import { useBillingPortal } from '@/hooks/use-billing-portal';
 import { TIERS, type TierId } from '@/lib/tiers';
+import { toDate } from '@/lib/utils';
 
 const TIER_ORDER: TierId[] = ['starter', 'professional', 'organisation'];
 
@@ -27,9 +30,19 @@ const FEATURE_LABELS: Record<string, string> = {
   whitelabel: 'Full whitelabel',
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  trialing: 'Free trial',
+  active: 'Active',
+  past_due: 'Payment failed',
+  paused: 'Paused',
+  canceled: 'Cancelled',
+  incomplete: 'Incomplete',
+};
+
 export default function BillingPage() {
   const { orgId, isLoading: isUserLoading } = useUserData();
   const { organization, isLoading: isOrgLoading } = useOrganization(orgId);
+  const { openPortal, isLoading: isPortalLoading } = useBillingPortal();
 
   if (isUserLoading || isOrgLoading) {
     return (
@@ -42,8 +55,18 @@ export default function BillingPage() {
 
   const entitlements = getEntitlements(organization);
   const current = entitlements.tierConfig;
+  const status = organization?.subscriptionStatus;
+  const hasBilling = !!organization?.stripeCustomerId;
 
   const fmtLimit = (n: number | null) => (n === null ? 'Unlimited' : String(n));
+
+  const trialDaysLeft = (() => {
+    if (status !== 'trialing' || !organization?.trialEndsAt) return null;
+    return Math.max(
+      0,
+      Math.ceil((toDate(organization.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    );
+  })();
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,6 +90,21 @@ export default function BillingPage() {
           </div>
         </CardHeader>
         <CardContent className="grid gap-2 text-sm">
+          {status && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Status</span>
+              <span
+                className={
+                  status === 'past_due' || status === 'paused' || status === 'canceled'
+                    ? 'font-medium text-red-600'
+                    : ''
+                }
+              >
+                {STATUS_LABELS[status] ?? status}
+                {trialDaysLeft !== null && ` — ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left`}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-muted-foreground">Partner accounts</span>
             <span>{fmtLimit(entitlements.maxPartners)}</span>
@@ -76,6 +114,17 @@ export default function BillingPage() {
             <span>{fmtLimit(entitlements.maxUsers)}</span>
           </div>
         </CardContent>
+        {hasBilling && (
+          <CardFooter className="border-t px-6 py-4">
+            <Button onClick={openPortal} disabled={isPortalLoading}>
+              {isPortalLoading
+                ? 'Opening…'
+                : status === 'trialing'
+                ? 'Add payment method'
+                : 'Manage billing'}
+            </Button>
+          </CardFooter>
+        )}
       </Card>
 
       <div className="grid gap-4 md:grid-cols-3">

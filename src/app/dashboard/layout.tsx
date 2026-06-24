@@ -1,6 +1,7 @@
 'use client';
 import AppSidebar from '@/components/layout/app-sidebar';
 import AppHeader from '@/components/layout/header';
+import { TrialBanner } from '@/components/billing/trial-banner';
 import {
   SidebarProvider,
   Sidebar,
@@ -67,7 +68,10 @@ export default function DashboardLayout({
       </Sidebar>
       <SidebarInset>
         <AppHeader />
-        <main className="p-4 lg:p-6">{children}</main>
+        <main className="p-4 lg:p-6 space-y-4">
+          <TrialBanner />
+          {children}
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );
