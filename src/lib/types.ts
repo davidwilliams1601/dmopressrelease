@@ -33,6 +33,12 @@ export type Organization = {
   maxSubmissionsPerPartner?: number;
   maxUsers?: number;
   tier?: 'starter' | 'professional' | 'organisation';
+  // Stripe billing (synced by signup + the billing webhook)
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused' | 'incomplete';
+  trialEndsAt?: any;
+  currentPeriodEnd?: any;
   approvalWorkflowEnabled?: boolean;
   contentTypes?: Array<{ name: string; description?: string }>;
   branding?: OrgBranding;

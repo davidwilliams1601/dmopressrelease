@@ -576,6 +576,9 @@ export * from './media-requests';
 // Export super-admin functions
 export * from './super-admin';
 
+// Export billing / self-serve signup functions
+export * from './billing';
+
 // Export partner notification functions
 export * from './partner-notifications';
 

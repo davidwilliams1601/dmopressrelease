@@ -1,17 +1,22 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import SignupForm from '@/components/auth/signup-form';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useUser } from '@/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
+import { getTierConfig } from '@/lib/tiers';
 
 export default function SignupPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // ?plan= drives the tier; invalid/missing falls back to Starter.
+  const tier = getTierConfig(searchParams.get('plan'));
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -40,18 +45,21 @@ export default function SignupPage() {
           PressPilot
         </h1>
         <p className="text-muted-foreground mt-2">
-          Your Copilot for Travel-Trade PR
+          Turn member content into published stories
         </p>
       </div>
 
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="font-headline text-2xl">
-            Create an Account
+            Start your free trial
           </CardTitle>
+          <CardDescription>
+            {tier.name} plan · £{tier.priceMonthly}/month after a 30-day free trial
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <SignupForm />
+          <SignupForm plan={tier.id} />
         </CardContent>
         <Separator className="my-4" />
         <CardFooter className="justify-center">
