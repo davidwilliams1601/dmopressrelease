@@ -244,6 +244,18 @@ async function syncSubscription(sub: Stripe.Subscription): Promise<void> {
   console.log(`[stripeWebhook] Synced ${ref.id}: status=${sub.status}, tier=${tier ?? 'unchanged'}`);
 }
 
+/** Track whether the org has a default payment method on file (set via the portal). */
+async function handleCustomerUpdated(customer: Stripe.Customer): Promise<void> {
+  const q = await db.collection('orgs').where('stripeCustomerId', '==', customer.id).limit(1).get();
+  if (q.empty) return;
+  const hasPaymentMethod = !!customer.invoice_settings?.default_payment_method;
+  await q.docs[0].ref.set(
+    { hasPaymentMethod, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+    { merge: true }
+  );
+  console.log(`[stripeWebhook] ${q.docs[0].id} hasPaymentMethod=${hasPaymentMethod}`);
+}
+
 /** Mark an org past_due when an invoice payment fails. */
 async function markPaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
@@ -286,6 +298,9 @@ export const stripeWebhook = functions
         case 'customer.subscription.updated':
         case 'customer.subscription.deleted':
           await syncSubscription(event.data.object as Stripe.Subscription);
+          break;
+        case 'customer.updated':
+          await handleCustomerUpdated(event.data.object as Stripe.Customer);
           break;
         case 'invoice.payment_failed':
           await markPaymentFailed(event.data.object as Stripe.Invoice);

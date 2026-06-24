@@ -37,6 +37,7 @@ export type Organization = {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused' | 'incomplete';
+  hasPaymentMethod?: boolean;
   trialEndsAt?: any;
   currentPeriodEnd?: any;
   approvalWorkflowEnabled?: boolean;

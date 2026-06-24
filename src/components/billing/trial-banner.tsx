@@ -33,6 +33,8 @@ export function TrialBanner() {
   if (status === 'trialing') {
     const days = daysUntil(organization?.trialEndsAt);
     if (days === null) return null;
+    // Card already on file — no need to nag during the trial.
+    if (organization?.hasPaymentMethod) return null;
     tone = days <= 3 ? 'danger' : days <= 7 ? 'warn' : 'info';
     message =
       days <= 0

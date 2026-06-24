@@ -102,6 +102,7 @@ export default function BillingPage() {
               >
                 {STATUS_LABELS[status] ?? status}
                 {trialDaysLeft !== null && ` — ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left`}
+                {organization?.hasPaymentMethod && ' · card on file'}
               </span>
             </div>
           )}
@@ -119,7 +120,7 @@ export default function BillingPage() {
             <Button onClick={openPortal} disabled={isPortalLoading}>
               {isPortalLoading
                 ? 'Opening…'
-                : status === 'trialing'
+                : status === 'trialing' && !organization?.hasPaymentMethod
                 ? 'Add payment method'
                 : 'Manage billing'}
             </Button>
