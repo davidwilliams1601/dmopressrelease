@@ -41,6 +41,15 @@ function tsFromUnix(seconds: number | null | undefined): admin.firestore.Timesta
 }
 
 /**
+ * Private billing state lives in a subcollection that is NOT publicly readable
+ * (the org doc itself is public for newsroom pages). Stripe ids, subscription
+ * status, trial dates and card-on-file are kept here, away from anonymous reads.
+ */
+function billingRef(orgId: string) {
+  return db.collection('orgs').doc(orgId).collection('billing').doc('state');
+}
+
+/**
  * Self-serve signup. Creates the Auth user, the org (with claims + first admin),
  * a Stripe customer, and a 30-day trialing subscription with NO card required.
  * The client signs in with the same credentials afterwards.
@@ -121,18 +130,24 @@ export const createOrgWithTrial = functions
         vertical: 'dmo',
         pressContact: { name, email },
         tier: plan,
-        stripeCustomerId: customer.id,
-        stripeSubscriptionId: subscription.id,
-        subscriptionStatus: subscription.status, // 'trialing'
-        trialEndsAt: tsFromUnix(subscription.trial_end),
-        // current_period_end moved onto subscription items in recent API versions.
-        currentPeriodEnd: tsFromUnix(subscription.items.data[0]?.current_period_end),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         selfServeSignup: true,
       };
       if (limits.maxPartners != null) orgData.maxPartners = limits.maxPartners;
       if (limits.maxUsers != null) orgData.maxUsers = limits.maxUsers;
       await db.collection('orgs').doc(slug).set(orgData);
+
+      // Private billing state — kept out of the publicly-readable org doc.
+      await billingRef(slug).set({
+        stripeCustomerId: customer.id,
+        stripeSubscriptionId: subscription.id,
+        subscriptionStatus: subscription.status, // 'trialing'
+        hasPaymentMethod: false,
+        trialEndsAt: tsFromUnix(subscription.trial_end),
+        // current_period_end moved onto subscription items in recent API versions.
+        currentPeriodEnd: tsFromUnix(subscription.items.data[0]?.current_period_end),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
       // 5. First admin user document.
       const initials = name
@@ -157,6 +172,7 @@ export const createOrgWithTrial = functions
       // Roll back so a failure doesn't leave orphans.
       console.error('createOrgWithTrial failed, rolling back:', error);
       await admin.auth().deleteUser(userRecord.uid).catch(() => undefined);
+      await billingRef(slug).delete().catch(() => undefined);
       await db.collection('orgs').doc(slug).delete().catch(() => undefined);
       if (subscriptionId) {
         await getStripe().subscriptions.cancel(subscriptionId).catch(() => undefined);
@@ -193,8 +209,8 @@ export const createBillingPortalSession = functions
       throw new functions.https.HttpsError('permission-denied', 'Only admins can manage billing.');
     }
 
-    const orgSnap = await db.collection('orgs').doc(orgId).get();
-    const customerId = orgSnap.data()?.stripeCustomerId as string | undefined;
+    const billingSnap = await billingRef(orgId).get();
+    const customerId = billingSnap.data()?.stripeCustomerId as string | undefined;
     if (!customerId) {
       throw new functions.https.HttpsError('failed-precondition', 'No billing account found for this organisation.');
     }
@@ -215,67 +231,72 @@ export const createBillingPortalSession = functions
     return { url: session.url };
   });
 
-/** Find the org doc for a subscription via metadata.orgId, falling back to the customer id. */
-async function findOrgRefForSubscription(
-  sub: Stripe.Subscription
-): Promise<admin.firestore.DocumentReference | null> {
-  const orgId = sub.metadata?.orgId;
-  if (orgId) {
-    const ref = db.collection('orgs').doc(orgId);
-    if ((await ref.get()).exists) return ref;
-  }
-  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
-  const q = await db.collection('orgs').where('stripeCustomerId', '==', customerId).limit(1).get();
-  return q.empty ? null : q.docs[0].ref;
+/** Resolve the org id for a subscription/customer via Stripe metadata (set at creation). */
+async function orgExists(orgId: string): Promise<boolean> {
+  return (await db.collection('orgs').doc(orgId).get()).exists;
 }
 
-/** Sync subscription state (status, tier, limits, trial/period end) onto the org. */
+/** Sync subscription state onto the private billing subdoc + tier/limits onto the org. */
 async function syncSubscription(sub: Stripe.Subscription): Promise<void> {
-  const ref = await findOrgRefForSubscription(sub);
-  if (!ref) {
-    console.warn(`[stripeWebhook] No org found for subscription ${sub.id}`);
+  const orgId = sub.metadata?.orgId;
+  if (!orgId || !(await orgExists(orgId))) {
+    console.warn(`[stripeWebhook] No org for subscription ${sub.id} (metadata.orgId=${orgId})`);
     return;
   }
+  // Private billing state.
+  await billingRef(orgId).set(
+    {
+      stripeSubscriptionId: sub.id,
+      subscriptionStatus: sub.status,
+      trialEndsAt: tsFromUnix(sub.trial_end),
+      currentPeriodEnd: tsFromUnix(sub.items.data[0]?.current_period_end),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  // Tier + limits drive entitlements; live on the (public) org doc.
   const tier = tierForPriceId(sub.items.data[0]?.price?.id);
-  const update: Record<string, any> = {
-    stripeSubscriptionId: sub.id,
-    subscriptionStatus: sub.status,
-    trialEndsAt: tsFromUnix(sub.trial_end),
-    currentPeriodEnd: tsFromUnix(sub.items.data[0]?.current_period_end),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
   if (tier) {
-    update.tier = tier;
-    update.maxPartners = TIER_LIMITS[tier].maxPartners; // null = unlimited
-    update.maxUsers = TIER_LIMITS[tier].maxUsers;
+    await db.collection('orgs').doc(orgId).set(
+      {
+        tier,
+        maxPartners: TIER_LIMITS[tier].maxPartners, // null = unlimited
+        maxUsers: TIER_LIMITS[tier].maxUsers,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
   }
-  await ref.set(update, { merge: true });
-  console.log(`[stripeWebhook] Synced ${ref.id}: status=${sub.status}, tier=${tier ?? 'unchanged'}`);
+  console.log(`[stripeWebhook] Synced ${orgId}: status=${sub.status}, tier=${tier ?? 'unchanged'}`);
 }
 
 /** Track whether the org has a default payment method on file (set via the portal). */
 async function handleCustomerUpdated(customer: Stripe.Customer): Promise<void> {
-  const q = await db.collection('orgs').where('stripeCustomerId', '==', customer.id).limit(1).get();
-  if (q.empty) return;
+  const orgId = customer.metadata?.orgId;
+  if (!orgId) return;
   const hasPaymentMethod = !!customer.invoice_settings?.default_payment_method;
-  await q.docs[0].ref.set(
+  await billingRef(orgId).set(
     { hasPaymentMethod, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
     { merge: true }
   );
-  console.log(`[stripeWebhook] ${q.docs[0].id} hasPaymentMethod=${hasPaymentMethod}`);
+  console.log(`[stripeWebhook] ${orgId} hasPaymentMethod=${hasPaymentMethod}`);
 }
 
-/** Mark an org past_due when an invoice payment fails. */
+/** Mark an org past_due when an invoice payment fails (org resolved via its subscription). */
 async function markPaymentFailed(invoice: Stripe.Invoice): Promise<void> {
-  const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
-  if (!customerId) return;
-  const q = await db.collection('orgs').where('stripeCustomerId', '==', customerId).limit(1).get();
-  if (q.empty) return;
-  await q.docs[0].ref.set(
+  const subId =
+    typeof (invoice as any).subscription === 'string'
+      ? (invoice as any).subscription
+      : (invoice as any).subscription?.id;
+  if (!subId) return;
+  const sub = await getStripe().subscriptions.retrieve(subId).catch(() => null);
+  const orgId = sub?.metadata?.orgId;
+  if (!orgId) return;
+  await billingRef(orgId).set(
     { subscriptionStatus: 'past_due', updatedAt: admin.firestore.FieldValue.serverTimestamp() },
     { merge: true }
   );
-  console.log(`[stripeWebhook] Marked ${q.docs[0].id} past_due`);
+  console.log(`[stripeWebhook] Marked ${orgId} past_due`);
 }
 
 /**

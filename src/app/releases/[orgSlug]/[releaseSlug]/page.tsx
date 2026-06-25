@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { Book, Calendar, ArrowLeft } from 'lucide-react';
 import { resolveOrgColors, getAttribution } from '@/lib/brand-utils';
 
@@ -54,12 +54,10 @@ export default function PublicReleasePage() {
       try {
         const db = getClientFirestore();
 
-        const orgSnap = await getDocs(
-          query(collection(db, 'orgs'), where('slug', '==', orgSlug), limit(1))
-        );
-        if (orgSnap.empty) { setNotFound(true); return; }
+        // Org doc id == slug, so fetch by id (no collection enumeration needed).
+        const orgDoc = await getDoc(doc(db, 'orgs', orgSlug));
+        if (!orgDoc.exists()) { setNotFound(true); return; }
 
-        const orgDoc = orgSnap.docs[0];
         const orgData = orgDoc.data();
         const orgObj: OrgData = {
           id: orgDoc.id,

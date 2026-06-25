@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+import { getFirestore, collection, query, where, orderBy, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { Book, Calendar, Mail, Newspaper } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { resolveOrgColors, getAttribution } from '@/lib/brand-utils';
@@ -71,15 +71,9 @@ export default function NewsroomPage() {
       try {
         const db = getClientFirestore();
 
-        // Look up org by slug
-        const orgSnap = await getDocs(
-          query(collection(db, 'orgs'), where('slug', '==', orgSlug), limit(1))
-        );
-
-        let orgDoc: any = null;
-        if (!orgSnap.empty) {
-          orgDoc = orgSnap.docs[0];
-        }
+        // Org doc id == slug, so fetch by id (no collection enumeration needed).
+        const orgDocSnap = await getDoc(doc(db, 'orgs', orgSlug));
+        const orgDoc: any = orgDocSnap.exists() ? orgDocSnap : null;
 
         if (!orgDoc) {
           setNotFound(true);

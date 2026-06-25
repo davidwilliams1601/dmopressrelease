@@ -90,13 +90,7 @@ service cloud.firestore {
     function billingFieldsUnchanged() {
       return request.resource.data.get('tier', null) == resource.data.get('tier', null)
         && request.resource.data.get('maxPartners', null) == resource.data.get('maxPartners', null)
-        && request.resource.data.get('maxUsers', null) == resource.data.get('maxUsers', null)
-        && request.resource.data.get('subscriptionStatus', null) == resource.data.get('subscriptionStatus', null)
-        && request.resource.data.get('stripeCustomerId', null) == resource.data.get('stripeCustomerId', null)
-        && request.resource.data.get('stripeSubscriptionId', null) == resource.data.get('stripeSubscriptionId', null)
-        && request.resource.data.get('hasPaymentMethod', null) == resource.data.get('hasPaymentMethod', null)
-        && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)
-        && request.resource.data.get('currentPeriodEnd', null) == resource.data.get('currentPeriodEnd', null);
+        && request.resource.data.get('maxUsers', null) == resource.data.get('maxUsers', null);
     }
 
 
@@ -108,12 +102,20 @@ service cloud.firestore {
      * @principle Restricts modification of core organization data to Admins and disallows client-side creation/deletion.
      */
     match /orgs/{orgId} {
-      // Public read for newsroom pages (org name, slug, boilerplate)
+      // Public read of a single org doc (newsroom/release pages fetch by id == slug).
+      // No public `list` — prevents enumerating all orgs and their plans.
       allow get: if true;
-      allow list: if true;
+      allow list: if false;
       allow create: if false;
       allow update: if isOrgAdmin(orgId) && resource != null && billingFieldsUnchanged();
       allow delete: if false;
+
+      // Private billing state (Stripe ids, subscription status, trial, card-on-file).
+      // Readable only by the org's own team; written only by Cloud Functions.
+      match /billing/{docId} {
+        allow read: if isTeamMember(orgId);
+        allow write: if false;
+      }
     }
 
     /**

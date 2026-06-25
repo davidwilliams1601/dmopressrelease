@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useUserData } from '@/hooks/use-user-data';
 import { useOrganization } from '@/hooks/use-organization';
 import { getEntitlements } from '@/hooks/use-entitlements';
+import { useOrgBilling } from '@/hooks/use-org-billing';
 import { useBillingPortal } from '@/hooks/use-billing-portal';
 import { TIERS, type TierId } from '@/lib/tiers';
 import { toDate } from '@/lib/utils';
@@ -42,6 +43,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default function BillingPage() {
   const { orgId, isLoading: isUserLoading } = useUserData();
   const { organization, isLoading: isOrgLoading } = useOrganization(orgId);
+  const { billing } = useOrgBilling(orgId);
   const { openPortal, isLoading: isPortalLoading } = useBillingPortal();
 
   if (isUserLoading || isOrgLoading) {
@@ -55,16 +57,16 @@ export default function BillingPage() {
 
   const entitlements = getEntitlements(organization);
   const current = entitlements.tierConfig;
-  const status = organization?.subscriptionStatus;
-  const hasBilling = !!organization?.stripeCustomerId;
+  const status = billing?.subscriptionStatus;
+  const hasBilling = !!billing?.stripeCustomerId;
 
   const fmtLimit = (n: number | null) => (n === null ? 'Unlimited' : String(n));
 
   const trialDaysLeft = (() => {
-    if (status !== 'trialing' || !organization?.trialEndsAt) return null;
+    if (status !== 'trialing' || !billing?.trialEndsAt) return null;
     return Math.max(
       0,
-      Math.ceil((toDate(organization.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      Math.ceil((toDate(billing.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     );
   })();
 
@@ -102,7 +104,7 @@ export default function BillingPage() {
               >
                 {STATUS_LABELS[status] ?? status}
                 {trialDaysLeft !== null && ` — ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left`}
-                {organization?.hasPaymentMethod && ' · card on file'}
+                {billing?.hasPaymentMethod && ' · card on file'}
               </span>
             </div>
           )}
@@ -120,7 +122,7 @@ export default function BillingPage() {
             <Button onClick={openPortal} disabled={isPortalLoading}>
               {isPortalLoading
                 ? 'Opening…'
-                : status === 'trialing' && !organization?.hasPaymentMethod
+                : status === 'trialing' && !billing?.hasPaymentMethod
                 ? 'Add payment method'
                 : 'Manage billing'}
             </Button>

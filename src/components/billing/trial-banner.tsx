@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toDate } from '@/lib/utils';
 import { useUserData } from '@/hooks/use-user-data';
-import { useOrganization } from '@/hooks/use-organization';
+import { useOrgBilling } from '@/hooks/use-org-billing';
 import { useBillingPortal } from '@/hooks/use-billing-portal';
 
 function daysUntil(ts: any): number | null {
@@ -20,10 +20,10 @@ function daysUntil(ts: any): number | null {
  */
 export function TrialBanner() {
   const { orgId } = useUserData();
-  const { organization } = useOrganization(orgId);
+  const { billing } = useOrgBilling(orgId);
   const { openPortal, isLoading } = useBillingPortal();
 
-  const status = organization?.subscriptionStatus;
+  const status = billing?.subscriptionStatus;
   if (!status || status === 'active') return null;
 
   let tone: 'info' | 'warn' | 'danger' = 'info';
@@ -31,10 +31,10 @@ export function TrialBanner() {
   let cta = 'Add payment method';
 
   if (status === 'trialing') {
-    const days = daysUntil(organization?.trialEndsAt);
+    const days = daysUntil(billing?.trialEndsAt);
     if (days === null) return null;
     // Card already on file — no need to nag during the trial.
-    if (organization?.hasPaymentMethod) return null;
+    if (billing?.hasPaymentMethod) return null;
     tone = days <= 3 ? 'danger' : days <= 7 ? 'warn' : 'info';
     message =
       days <= 0

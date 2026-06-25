@@ -33,16 +33,22 @@ export type Organization = {
   maxSubmissionsPerPartner?: number;
   maxUsers?: number;
   tier?: 'starter' | 'professional' | 'organisation';
-  // Stripe billing (synced by signup + the billing webhook)
+  approvalWorkflowEnabled?: boolean;
+  contentTypes?: Array<{ name: string; description?: string }>;
+  branding?: OrgBranding;
+};
+
+/**
+ * Private billing state, stored at orgs/{orgId}/billing/state (NOT on the public
+ * org doc). Readable by the org's own team; written only by Cloud Functions.
+ */
+export type OrgBillingState = {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused' | 'incomplete';
   hasPaymentMethod?: boolean;
   trialEndsAt?: any;
   currentPeriodEnd?: any;
-  approvalWorkflowEnabled?: boolean;
-  contentTypes?: Array<{ name: string; description?: string }>;
-  branding?: OrgBranding;
 };
 
 export type User = {
