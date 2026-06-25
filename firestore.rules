@@ -82,6 +82,23 @@ service cloud.firestore {
       return request.resource.data.orgId == resource.data.orgId;
     }
 
+    /**
+     * Billing / entitlement fields are written ONLY by Cloud Functions (Admin SDK
+     * bypasses rules). Client updates must leave them unchanged — otherwise an org
+     * admin could self-upgrade their tier/limits and bypass Stripe billing.
+     */
+    function billingFieldsUnchanged() {
+      return request.resource.data.get('tier', null) == resource.data.get('tier', null)
+        && request.resource.data.get('maxPartners', null) == resource.data.get('maxPartners', null)
+        && request.resource.data.get('maxUsers', null) == resource.data.get('maxUsers', null)
+        && request.resource.data.get('subscriptionStatus', null) == resource.data.get('subscriptionStatus', null)
+        && request.resource.data.get('stripeCustomerId', null) == resource.data.get('stripeCustomerId', null)
+        && request.resource.data.get('stripeSubscriptionId', null) == resource.data.get('stripeSubscriptionId', null)
+        && request.resource.data.get('hasPaymentMethod', null) == resource.data.get('hasPaymentMethod', null)
+        && request.resource.data.get('trialEndsAt', null) == resource.data.get('trialEndsAt', null)
+        && request.resource.data.get('currentPeriodEnd', null) == resource.data.get('currentPeriodEnd', null);
+    }
+
 
     /**
      * @description Rules for the top-level Organization documents.
@@ -95,7 +112,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if true;
       allow create: if false;
-      allow update: if isOrgAdmin(orgId) && resource != null;
+      allow update: if isOrgAdmin(orgId) && resource != null && billingFieldsUnchanged();
       allow delete: if false;
     }
 
