@@ -199,9 +199,18 @@ export const createBillingPortalSession = functions
       throw new functions.https.HttpsError('failed-precondition', 'No billing account found for this organisation.');
     }
 
+    // Only allow return URLs on our own app to avoid open-redirect abuse.
+    // The trailing slash check prevents look-alikes like app.press-pilot.com.evil.com.
+    const fallbackReturn = `${APP_URL}/dashboard/settings/billing`;
+    const requested = typeof data?.returnUrl === 'string' ? data.returnUrl : '';
+    const returnUrl =
+      requested === APP_URL || requested.startsWith(`${APP_URL}/`)
+        ? requested
+        : fallbackReturn;
+
     const session = await getStripe().billingPortal.sessions.create({
       customer: customerId,
-      return_url: data?.returnUrl || `${APP_URL}/dashboard/settings/billing`,
+      return_url: returnUrl,
     });
     return { url: session.url };
   });
