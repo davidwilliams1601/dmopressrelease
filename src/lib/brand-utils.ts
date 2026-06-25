@@ -1,6 +1,6 @@
-export const DEFAULT_PRIMARY = '#2563eb';
-export const DEFAULT_PRIMARY_LIGHT = '#eff6ff';
-export const DEFAULT_SECONDARY = '#1e40af';
+export const DEFAULT_PRIMARY = '#0B6E7F'; // Press Teal
+export const DEFAULT_PRIMARY_LIGHT = '#DDEDF0'; // Press Tint
+export const DEFAULT_SECONDARY = '#06363F'; // Press Deep
 
 export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const match = hex.replace('#', '').match(/^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);

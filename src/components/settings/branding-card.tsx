@@ -203,12 +203,12 @@ export default function BrandingCard({ organization }: BrandingCardProps) {
                 id="primary-color"
                 value={primaryColor}
                 onChange={(e) => setPrimaryColor(e.target.value)}
-                placeholder="#2563eb"
+                placeholder="#0B6E7F"
                 className="font-mono"
               />
             </div>
             {primaryColor && !isValidHex(primaryColor) && primaryColor !== DEFAULT_PRIMARY && (
-              <p className="text-xs text-destructive">Enter a valid hex colour (e.g. #2563eb)</p>
+              <p className="text-xs text-destructive">Enter a valid hex colour (e.g. #0B6E7F)</p>
             )}
           </div>
 

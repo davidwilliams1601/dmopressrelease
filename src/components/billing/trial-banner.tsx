@@ -57,7 +57,7 @@ export function TrialBanner() {
   }
 
   const styles = {
-    info: 'border-blue-200 bg-blue-50 text-blue-900',
+    info: 'border-teal-200 bg-teal-50 text-teal-900',
     warn: 'border-amber-200 bg-amber-50 text-amber-900',
     danger: 'border-red-200 bg-red-50 text-red-900',
   }[tone];

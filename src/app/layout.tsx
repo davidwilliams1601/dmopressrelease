@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Space_Grotesk } from 'next/font/google';
+import { Inter, Fraunces } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 import { cn } from '@/lib/utils';
@@ -10,9 +10,11 @@ const GA_ID = 'G-CBWTR5MN8H';
 const GTM_ID = 'GTM-PP2SMK5D';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const spaceGrotesk = Space_Grotesk({
+// Brand display face — Fraunces (serif). Replaces Space Grotesk per brand sheet v1.0.
+const fraunces = Fraunces({
   subsets: ['latin'],
-  variable: '--font-space-grotesk',
+  variable: '--font-fraunces',
+  weight: ['400', '500', '600'],
 });
 
 export const metadata: Metadata = {
@@ -70,7 +72,7 @@ export default function RootLayout({
         className={cn(
           'min-h-screen bg-background font-body antialiased',
           inter.variable,
-          spaceGrotesk.variable
+          fraunces.variable
         )}
       >
         <noscript>
