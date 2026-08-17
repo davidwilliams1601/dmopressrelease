@@ -9,6 +9,10 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
+        // /dmo and / now 301-redirect to press-pilot.com (next.config.ts) so
+        // they don't need disallowing here. /signup and /partner-signup are
+        // marked noindex via their own layout.tsx instead of disallowed, since
+        // they still need to be crawlable/clickable as functional flows.
         disallow: [
           '/dashboard',
           '/admin',

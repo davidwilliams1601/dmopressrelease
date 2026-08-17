@@ -1,42 +1,17 @@
 import type { MetadataRoute } from 'next';
 
-// Update this if the production domain changes.
+// app.press-pilot.com is the product surface for existing/signing-up
+// customers only. All marketing/SEO content lives on press-pilot.com —
+// this sitemap only lists pages that genuinely have no home there yet
+// (the legal pages). / and /dmo used to be listed here but now redirect
+// to press-pilot.com (see next.config.ts), and /signup / /partner-signup
+// are functional flows marked noindex rather than sitemap-listed.
 const BASE_URL = 'https://app.press-pilot.com';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 
   return [
-    {
-      url: `${BASE_URL}/`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 1.0,
-    },
-    {
-      url: `${BASE_URL}/dmo`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/signup`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.6,
-    },
-    {
-      url: `${BASE_URL}/partner-signup`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.4,
-    },
-    {
-      url: `${BASE_URL}/media`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.4,
-    },
     {
       url: `${BASE_URL}/legal/terms`,
       lastModified: now,
