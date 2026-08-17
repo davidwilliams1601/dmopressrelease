@@ -9,12 +9,12 @@ export default function PrivacyPolicyPage() {
   return (
     <article className="prose prose-neutral max-w-none prose-headings:font-semibold prose-h1:text-2xl prose-h2:text-base prose-h2:uppercase prose-h2:tracking-wide prose-h3:text-[15px] prose-p:text-sm prose-li:text-sm prose-table:text-sm">
       <h1 className="text-center">Privacy Policy</h1>
-      <p className="text-center text-gray-500 text-sm">PressPilot — Last updated: March 2026</p>
+      <p className="text-center text-gray-500 text-sm">Press Pilot — Last updated: August 2026</p>
 
       <p>For the full privacy policy document, please see our <a href="/legal/privacy-policy.html" className="text-blue-600 underline">detailed Privacy Policy</a>.</p>
 
       <h2>Overview</h2>
-      <p>PressPilot is operated by [Your Company Legal Name]. We are committed to protecting the privacy and security of personal data in accordance with the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.</p>
+      <p>The Press Pilot platform is operated under the trading name Press Pilot. We are committed to protecting the privacy and security of personal data in accordance with the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018. This policy applies both to the Press Pilot platform (app.press-pilot.com) and to our marketing website (press-pilot.com), including any forms you submit there.</p>
 
       <h2>What We Collect</h2>
       <ul>
@@ -23,6 +23,7 @@ export default function PrivacyPolicyPage() {
         <li><strong>Media contact data</strong> — managed by organisations, processed on their behalf</li>
         <li><strong>Email engagement</strong> — open/click events, timestamps, IP addresses</li>
         <li><strong>Technical data</strong> — browser type, IP address, pages visited</li>
+        <li><strong>Marketing website enquiries</strong> — name, work email address, organisation, and message content submitted via the contact form or demo request form on press-pilot.com</li>
         <li><strong>Payment data</strong> — processed by Stripe (we do not store card details)</li>
       </ul>
 
