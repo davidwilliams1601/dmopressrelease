@@ -74,6 +74,7 @@ export function GenerateDraftDialog({
           tags: (s.tagIds || []).map((id) => tagMap.get(id)?.name || id),
           aiThemes: s.aiThemes,
           socialHandles: s.partnerSocialHandles,
+          sourceOrgName: s.sourceOrgName,
         })),
         brandToneNotes: org?.brandToneNotes || '',
         targetMarket: targetMarket || undefined,
@@ -81,6 +82,7 @@ export function GenerateDraftDialog({
         orgTypeDescription: config.ai.orgTypeDescription,
         contentDomain: config.ai.contentDomain,
         audienceOptions: config.ai.audienceOptions,
+        showEscalationSourceCredit: org?.showEscalationSourceCredit,
       });
 
       if (result.success) {

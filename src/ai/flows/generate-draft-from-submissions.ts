@@ -17,6 +17,8 @@ const SubmissionInputSchema = z.object({
   tags: z.array(z.string()),
   aiThemes: z.array(z.string()).optional(),
   socialHandles: SocialHandlesSchema.optional(),
+  /** Set only on submissions escalated up from a daughter org (federated tenants). */
+  sourceOrgName: z.string().optional(),
 });
 
 const GenerateDraftInputSchema = z.object({
@@ -27,6 +29,8 @@ const GenerateDraftInputSchema = z.object({
   orgTypeDescription: z.string().optional().describe('Organisation type (e.g. "Destination Marketing Organization")'),
   contentDomain: z.string().optional().describe('Content domain (e.g. "tourism experiences")'),
   audienceOptions: z.array(z.string()).optional().describe('Valid audience options for the press release'),
+  /** Org setting: whether a credit line should be appended when the draft includes escalated submissions. Defaults to true (on) when omitted, matching the Organization schema default. */
+  showEscalationSourceCredit: z.boolean().optional(),
 });
 
 export type GenerateDraftInput = z.infer<typeof GenerateDraftInputSchema>;
@@ -43,6 +47,34 @@ export type GenerateDraftOutput = z.infer<typeof GenerateDraftOutputSchema>;
 type GenerateDraftResult =
   | { success: true; data: GenerateDraftOutput }
   | { success: false; error: string };
+
+/**
+ * Builds the "Additional reporting from X" credit line for submissions that were
+ * escalated up from a daughter org, per the resolved showEscalationSourceCredit
+ * decision in the federated-tenants build plan. Returns null when there's nothing
+ * to credit, or when the org has explicitly switched the credit off.
+ */
+function buildEscalationCreditLine(
+  submissions: z.infer<typeof SubmissionInputSchema>[],
+  showEscalationSourceCredit: boolean | undefined
+): string | null {
+  if (showEscalationSourceCredit === false) return null;
+
+  const sourceOrgNames: string[] = [];
+  for (const s of submissions) {
+    if (s.sourceOrgName && !sourceOrgNames.includes(s.sourceOrgName)) {
+      sourceOrgNames.push(s.sourceOrgName);
+    }
+  }
+  if (sourceOrgNames.length === 0) return null;
+
+  const names =
+    sourceOrgNames.length === 1
+      ? sourceOrgNames[0]
+      : `${sourceOrgNames.slice(0, -1).join(', ')} and ${sourceOrgNames[sourceOrgNames.length - 1]}`;
+
+  return `Additional reporting from ${names}.`;
+}
 
 export async function generateDraftFromSubmissions(
   input: GenerateDraftInput
@@ -91,7 +123,13 @@ The body copy should be well-structured with paragraphs, quotes where appropriat
       return {success: false, error: 'No output from AI model'};
     }
 
-    return {success: true, data: output};
+    // Append a credit line for any escalated submissions, deterministically rather than
+    // relying on the AI to remember to include it. Skipped entirely when the org has
+    // switched showEscalationSourceCredit off (explicit false) - defaults to on.
+    const creditLine = buildEscalationCreditLine(input.submissions, input.showEscalationSourceCredit);
+    const bodyCopy = creditLine ? `${output.bodyCopy}\n\n${creditLine}` : output.bodyCopy;
+
+    return {success: true, data: {...output, bodyCopy}};
   } catch (error: any) {
     console.error('[Generate Draft] Error:', error.message);
     return {success: false, error: error.message || 'Unknown error during draft generation'};

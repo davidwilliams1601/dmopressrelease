@@ -37,6 +37,9 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
   const [approvalEnabled, setApprovalEnabled] = useState(
     organization.approvalWorkflowEnabled ?? false
   );
+  const [escalationCreditEnabled, setEscalationCreditEnabled] = useState(
+    organization.showEscalationSourceCredit ?? true
+  );
 
   const [boilerplate, setBoilerplate] = useState(organization.boilerplate ?? '');
   const [brandToneNotes, setBrandToneNotes] = useState(organization.brandToneNotes ?? '');
@@ -80,6 +83,7 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
           : { maxSubmissionsPerPartner: null }),
         // Guard against enabling a gated feature even if the UI is bypassed.
         approvalWorkflowEnabled: canUseApprovals ? approvalEnabled : false,
+        showEscalationSourceCredit: escalationCreditEnabled,
         updatedAt: serverTimestamp(),
       });
 
@@ -338,6 +342,24 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
           </div>
           {!canUseApprovals && (
             <UpgradePrompt feature="approvalWorkflows" />
+          )}
+
+          {organization.canProvisionChildOrgs && (
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="escalation-credit" className="text-base">Credit Escalated Stories</Label>
+                <p className="text-sm text-muted-foreground">
+                  When a member organisation pushes a story up and it's drafted into one of your
+                  releases, add a line crediting them (e.g. "Additional reporting from [member org]").
+                  Turn off for a fully silent rollup.
+                </p>
+              </div>
+              <Switch
+                id="escalation-credit"
+                checked={escalationCreditEnabled}
+                onCheckedChange={setEscalationCreditEnabled}
+              />
+            </div>
           )}
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
