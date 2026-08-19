@@ -29,8 +29,16 @@ function daysAgo(n: number): admin.firestore.Timestamp {
 // ---------------------------------------------------------------------------
 // Demo seed data
 // ---------------------------------------------------------------------------
+//
+// Demo data is vertical-aware: writeDemoData() looks up the org's `vertical`
+// field and picks the matching dataset below. Verticals without a bespoke
+// dataset (charity, trade-body, publisher) fall back to the original DMO/
+// tourism dataset for now, matching pre-existing behaviour — only 'education'
+// has a tailored dataset so far, since that's the vertical currently being
+// added. Add a new entry to DEMO_DATASETS to give another vertical its own
+// realistic content.
 
-const DEMO_PARTNERS = [
+const DEMO_PARTNERS_DMO = [
   { id: 'demo-partner-1', name: 'The Harbour Hotel', email: 'enquiries@harbourhotel.co.uk', category: 'Accommodation' },
   { id: 'demo-partner-2', name: 'St Ives Surf School', email: 'hello@stivessurfschool.co.uk', category: 'Activity & Adventure' },
   { id: 'demo-partner-3', name: 'The Seafood Restaurant', email: 'reservations@rickstein.com', category: 'Food & Drink' },
@@ -48,7 +56,7 @@ const DEMO_PARTNERS = [
   { id: 'demo-partner-15', name: 'Fifteen Cornwall', email: 'info@fifteencornwall.co.uk', category: 'Food & Drink' },
 ];
 
-const DEMO_OUTLET_LISTS = [
+const DEMO_OUTLET_LISTS_DMO = [
   {
     id: 'demo-list-national',
     name: 'National Travel Press',
@@ -79,7 +87,7 @@ const DEMO_OUTLET_LISTS = [
   },
 ];
 
-const DEMO_RELEASES = [
+const DEMO_RELEASES_DMO = [
   {
     id: 'demo-release-1',
     headline: "Cornwall's Coastal Hotels See Record Summer Bookings",
@@ -165,7 +173,7 @@ The award follows a record year for Cornwall tourism, with the region welcoming 
   },
 ];
 
-const DEMO_SUBMISSIONS = [
+const DEMO_SUBMISSIONS_DMO = [
   {
     id: 'demo-sub-1',
     partnerId: 'demo-partner-1',
@@ -253,6 +261,237 @@ We're also launching a community cookbook featuring recipes from past and presen
 ];
 
 // ---------------------------------------------------------------------------
+// Education demo data (schools submitting success stories to their
+// education provider / multi-academy trust). Pupils are referred to by year
+// group rather than named individually, consistent with the safeguarding-
+// aware tone the education vertical's AI persona uses.
+// ---------------------------------------------------------------------------
+
+const DEMO_PARTNERS_EDUCATION = [
+  { id: 'demo-edu-partner-1', name: 'Riverside Primary School', email: 'office@riversideprimary.sch.uk', category: 'Primary School' },
+  { id: 'demo-edu-partner-2', name: 'Oakfield Secondary Academy', email: 'comms@oakfieldacademy.sch.uk', category: 'Secondary School' },
+  { id: 'demo-edu-partner-3', name: 'Greenwood Sixth Form College', email: 'press@greenwoodsfc.ac.uk', category: 'Sixth Form / FE College' },
+  { id: 'demo-edu-partner-4', name: 'Meadow View Special School', email: 'admin@meadowview.sch.uk', category: 'Special School' },
+  { id: 'demo-edu-partner-5', name: 'Thameside Multi-Academy Trust', email: 'comms@thamesidemat.org.uk', category: 'Multi-Academy Trust' },
+  { id: 'demo-edu-partner-6', name: "St Augustine's Independent School", email: 'office@staugustines.sch.uk', category: 'Independent School' },
+  { id: 'demo-edu-partner-7', name: 'Little Explorers Nursery', email: 'hello@littleexplorersnursery.co.uk', category: 'Early Years / Nursery' },
+  { id: 'demo-edu-partner-8', name: 'Northgate Community College', email: 'press@northgatecc.sch.uk', category: 'Secondary School' },
+];
+
+const DEMO_OUTLET_LISTS_EDUCATION = [
+  {
+    id: 'demo-edu-list-trade',
+    name: 'Education Trade Press',
+    description: 'National education trade titles covering schools, MATs and the wider sector.',
+    recipients: [
+      { id: 'demo-edu-r-1', name: 'Sam Fletcher', email: 's.fletcher@schoolsweek.co.uk', outlet: 'Schools Week', position: 'News Editor' },
+      { id: 'demo-edu-r-2', name: 'Priya Anand', email: 'p.anand@tes.com', outlet: 'TES (Times Educational Supplement)', position: 'Reporter' },
+      { id: 'demo-edu-r-3', name: 'Callum Ross', email: 'c.ross@feweek.co.uk', outlet: 'FE Week', position: 'Senior Reporter' },
+      { id: 'demo-edu-r-4', name: 'Nina Okafor', email: 'n.okafor@sec-ed.co.uk', outlet: 'SecEd', position: 'Editor' },
+    ],
+  },
+  {
+    id: 'demo-edu-list-regional',
+    name: 'Local & Regional Press',
+    description: 'Regional newspapers and broadcast desks with dedicated education reporters.',
+    recipients: [
+      { id: 'demo-edu-r-5', name: 'Holly Bennett', email: 'h.bennett@localgazette.co.uk', outlet: 'Local Gazette', position: 'Education Reporter' },
+      { id: 'demo-edu-r-6', name: 'Aaron Shaw', email: 'a.shaw@regionalecho.co.uk', outlet: 'Regional Echo', position: 'News Editor' },
+      { id: 'demo-edu-r-7', name: 'Grace Lin', email: 'g.lin@bbc.co.uk', outlet: 'BBC Regional News', position: 'Reporter' },
+    ],
+  },
+];
+
+const DEMO_RELEASES_EDUCATION = [
+  {
+    id: 'demo-edu-release-1',
+    headline: 'Thameside Trust Schools Celebrate Record GCSE Results',
+    slug: 'thameside-trust-record-gcse-results',
+    campaignType: 'Seasonal',
+    targetMarket: 'UK',
+    audience: 'Local Press',
+    status: 'Sent',
+    sends: 412, opens: 201, clicks: 58,
+    createdAt: daysAgo(18),
+    updatedAt: daysAgo(15),
+    bodyCopy: `Schools across the Thameside Multi-Academy Trust are celebrating their best-ever set of GCSE results this summer, with the proportion of pupils achieving grade 4 and above in English and maths rising for the third consecutive year.
+
+Oakfield Secondary Academy and Northgate Community College both reported significant gains, with Oakfield seeing 92% of Year 11 pupils achieve grade 4+ in English and maths — up from 84% last year. Staff credit a renewed focus on targeted small-group support and a trust-wide reading intervention programme rolled out over the past two academic years.
+
+"These results reflect the hard work of our pupils and the dedication of every member of staff across our schools," said the Trust's Director of Education. "We are especially proud of the progress made by pupils who joined us below expected standards and have gone on to exceed them."
+
+The Trust says it will use the results to inform its improvement plans for the coming year, with a particular focus on widening access to STEM subjects at GCSE and A Level.
+
+About Thameside Multi-Academy Trust:
+Thameside Multi-Academy Trust supports eight schools across the region. For media enquiries contact comms@thamesidemat.org.uk.`,
+  },
+  {
+    id: 'demo-edu-release-2',
+    headline: 'Riverside Primary Launches Reading Recovery Programme Backed by Local Businesses',
+    slug: 'riverside-primary-reading-recovery-programme',
+    campaignType: 'Product Launch',
+    targetMarket: 'UK',
+    audience: 'Parents & Families',
+    status: 'Ready',
+    approvalStatus: 'approved',
+    sends: 0, opens: 0, clicks: 0,
+    createdAt: daysAgo(6),
+    updatedAt: daysAgo(2),
+    bodyCopy: `Riverside Primary School has launched a new Reading Recovery programme aimed at supporting pupils who fell behind in early literacy, funded through a partnership with three local businesses.
+
+The programme pairs specially trained teaching assistants with small groups of pupils for daily 20-minute sessions, using a structured phonics approach shown to accelerate reading progress. Early results from a pilot group of Year 2 pupils show an average of eight months' reading age gained over a single term.
+
+"Every child deserves to leave primary school as a confident reader," said the school's headteacher. "This partnership means we can give extra support to the pupils who need it most, without taking resources away from the rest of the class."
+
+The scheme is being funded for its first two years by local sponsors, with the school hoping to secure further funding to extend it trust-wide.`,
+  },
+  {
+    id: 'demo-edu-release-3',
+    headline: 'Meadow View Special School Rated Outstanding by Ofsted',
+    slug: 'meadow-view-special-school-ofsted-outstanding',
+    campaignType: 'Award',
+    targetMarket: 'UK',
+    audience: 'Education Sector',
+    status: 'Sent',
+    sends: 289, opens: 134, clicks: 41,
+    createdAt: daysAgo(40),
+    updatedAt: daysAgo(33),
+    bodyCopy: `Meadow View Special School has been rated 'Outstanding' in every category by Ofsted following its latest inspection, with inspectors singling out the school's approach to pupil wellbeing and personalised learning plans for particular praise.
+
+Inspectors noted that pupils "make exceptional progress from their starting points" and praised the school's close working relationships with families and outside specialists. The report also highlighted staff training and a calm, consistent approach to behaviour support as key strengths.
+
+"This is a wonderful recognition of the whole school community's commitment to our pupils," said the headteacher. "Every judgement reflects the exceptional care and skill our staff bring to work every day."
+
+The full inspection report is available on the Ofsted website.`,
+  },
+];
+
+const DEMO_SUBMISSIONS_EDUCATION = [
+  {
+    id: 'demo-edu-sub-1',
+    partnerId: 'demo-edu-partner-1',
+    partnerName: 'Riverside Primary School',
+    partnerEmail: 'office@riversideprimary.sch.uk',
+    title: 'Riverside Pupils Raise £2,400 for Local Foodbank in Sponsored Winter Walk',
+    bodyCopy: `Pupils across Riverside Primary School took part in a sponsored winter walk last week, raising an incredible £2,400 for the local foodbank.
+
+Every class walked a mile around the school field in the cold, with many pupils and families choosing to dress up in festive jumpers for the occasion. The event was organised by the School Council, who wanted to do something to help local families over the winter months.
+
+"We're so proud of how much the whole school got behind this," said the School Council's Year 6 representatives. "Knowing we've helped families in our own community feels really special."
+
+The school will be presenting the donation to the foodbank in person next week. We'd love this to be included in any local community or fundraising coverage — happy to provide photos with parental consent already confirmed.`,
+    tagIds: [],
+    imageUrls: [],
+    imageStoragePaths: [],
+    imageMetadata: [],
+    status: 'submitted',
+    subjectConsentConfirmed: true,
+    subjectConsentText: 'I confirm that written parental/guardian consent has been obtained for every pupil named or pictured in this submission, in line with the school\u2019s safeguarding and data protection policy, and that this consent is held on file at the school.',
+    createdAt: daysAgo(4),
+  },
+  {
+    id: 'demo-edu-sub-2',
+    partnerId: 'demo-edu-partner-2',
+    partnerName: 'Oakfield Secondary Academy',
+    partnerEmail: 'comms@oakfieldacademy.sch.uk',
+    title: 'Year 11 Students Achieve Best-Ever GCSE Results',
+    bodyCopy: `Oakfield Secondary Academy is celebrating its best-ever set of GCSE results, with 92% of Year 11 students achieving grade 4 or above in both English and maths.
+
+The cohort's progress has been particularly strong among students who joined the academy below expected standards in Year 7, with the school's targeted small-group intervention programme credited as a key factor.
+
+"This group of students have worked incredibly hard, and it's brilliant to see that reflected in their results," said the Head of Year 11. "We're really proud of every one of them."
+
+Happy to share more detail on the intervention programme for any feature on school improvement or attainment.`,
+    tagIds: [],
+    imageUrls: [],
+    imageStoragePaths: [],
+    imageMetadata: [],
+    status: 'reviewed',
+    reviewNotes: 'Strong attainment story — good fit for the trust-wide GCSE results release.',
+    subjectConsentConfirmed: true,
+    subjectConsentText: 'I confirm that written parental/guardian consent has been obtained for every pupil named or pictured in this submission, in line with the school\u2019s safeguarding and data protection policy, and that this consent is held on file at the school.',
+    createdAt: daysAgo(9),
+    updatedAt: daysAgo(7),
+  },
+  {
+    id: 'demo-edu-sub-3',
+    partnerId: 'demo-edu-partner-3',
+    partnerName: 'Greenwood Sixth Form College',
+    partnerEmail: 'press@greenwoodsfc.ac.uk',
+    title: 'Greenwood Students Secure Record Number of Russell Group University Offers',
+    bodyCopy: `Greenwood Sixth Form College has recorded its highest-ever number of Russell Group university offers this year, with students securing places to study subjects ranging from medicine to law and engineering.
+
+The college's dedicated careers and higher education team has expanded its one-to-one support over the past two years, including mock interviews with local professionals and additional support for students applying to competitive courses.
+
+"Seeing our students achieve offers at this level is a testament to their ambition and the support they've had from staff throughout their time here," said the college's Head of Careers.
+
+Happy to arrange interviews with students and staff for any feature on higher education access or careers guidance.`,
+    tagIds: [],
+    imageUrls: [],
+    imageStoragePaths: [],
+    imageMetadata: [],
+    status: 'submitted',
+    subjectConsentConfirmed: true,
+    subjectConsentText: 'I confirm that written parental/guardian consent has been obtained for every pupil named or pictured in this submission, in line with the school\u2019s safeguarding and data protection policy, and that this consent is held on file at the school.',
+    createdAt: daysAgo(2),
+  },
+  {
+    id: 'demo-edu-sub-4',
+    partnerId: 'demo-edu-partner-4',
+    partnerName: 'Meadow View Special School',
+    partnerEmail: 'admin@meadowview.sch.uk',
+    title: 'Meadow View Pupils Shine at Regional Inclusive Sports Festival',
+    bodyCopy: `Pupils from Meadow View Special School took part in the regional Inclusive Sports Festival last month, with the school's team bringing home medals in swimming, boccia and athletics.
+
+The festival, which brings together special schools from across the region, gives pupils the chance to compete and take part in adapted sports events tailored to a range of needs and abilities. Staff say the event is one of the highlights of the school year.
+
+"Watching our pupils take part with such enthusiasm and confidence is incredibly rewarding," said the school's PE lead. "Events like this are so important for building self-esteem alongside physical skills."
+
+This story ties in well with our recent Ofsted 'Outstanding' rating and would be a nice addition to any inclusive education or SEND feature.`,
+    tagIds: [],
+    imageUrls: [],
+    imageStoragePaths: [],
+    imageMetadata: [],
+    status: 'used',
+    usedInReleaseIds: ['demo-edu-release-3'],
+    subjectConsentConfirmed: true,
+    subjectConsentText: 'I confirm that written parental/guardian consent has been obtained for every pupil named or pictured in this submission, in line with the school\u2019s safeguarding and data protection policy, and that this consent is held on file at the school.',
+    createdAt: daysAgo(30),
+    updatedAt: daysAgo(25),
+  },
+];
+
+type DemoDataset = {
+  partners: typeof DEMO_PARTNERS_DMO;
+  outletLists: typeof DEMO_OUTLET_LISTS_DMO;
+  releases: typeof DEMO_RELEASES_DMO;
+  submissions: Array<Record<string, unknown>>;
+};
+
+/**
+ * Vertical-aware demo datasets. Verticals not listed here fall back to 'dmo'
+ * (pre-existing behaviour, unchanged) — see writeDemoData().
+ */
+const DEMO_DATASETS: Record<string, DemoDataset> = {
+  dmo: {
+    partners: DEMO_PARTNERS_DMO,
+    outletLists: DEMO_OUTLET_LISTS_DMO,
+    releases: DEMO_RELEASES_DMO,
+    submissions: DEMO_SUBMISSIONS_DMO,
+  },
+  education: {
+    partners: DEMO_PARTNERS_EDUCATION,
+    outletLists: DEMO_OUTLET_LISTS_EDUCATION,
+    releases: DEMO_RELEASES_EDUCATION,
+    submissions: DEMO_SUBMISSIONS_EDUCATION,
+  },
+};
+
+function getDemoDataset(vertical: string | undefined): DemoDataset {
+  return DEMO_DATASETS[vertical ?? 'dmo'] ?? DEMO_DATASETS.dmo;
+}
+
+// ---------------------------------------------------------------------------
 // Cloud Functions
 // ---------------------------------------------------------------------------
 
@@ -321,13 +560,17 @@ export const resetDemoOrg = functions
     return { success: true };
   });
 
-/** Write all demo data into an org. */
+/** Write all demo data into an org, using the dataset matching its vertical. */
 async function writeDemoData(orgId: string) {
   const orgRef = db.collection('orgs').doc(orgId);
 
+  const orgDoc = await orgRef.get();
+  const vertical = orgDoc.data()?.vertical as string | undefined;
+  const dataset = getDemoDataset(vertical);
+
   // Partners (as user documents with role Partner)
   const partnerBatch = db.batch();
-  for (const p of DEMO_PARTNERS) {
+  for (const p of dataset.partners) {
     const initials = p.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
     partnerBatch.set(orgRef.collection('users').doc(p.id), {
       id: p.id,
@@ -344,13 +587,13 @@ async function writeDemoData(orgId: string) {
 
   // Releases
   const releaseBatch = db.batch();
-  for (const r of DEMO_RELEASES) {
+  for (const r of dataset.releases) {
     releaseBatch.set(orgRef.collection('releases').doc(r.id), { ...r, orgId });
   }
   await releaseBatch.commit();
 
   // Outlet lists + recipients
-  for (const list of DEMO_OUTLET_LISTS) {
+  for (const list of dataset.outletLists) {
     const { recipients, ...listMeta } = list;
     await orgRef.collection('outletLists').doc(list.id).set({
       ...listMeta,
@@ -370,8 +613,8 @@ async function writeDemoData(orgId: string) {
 
   // Submissions
   const subBatch = db.batch();
-  for (const s of DEMO_SUBMISSIONS) {
-    subBatch.set(orgRef.collection('submissions').doc(s.id), { ...s, orgId });
+  for (const s of dataset.submissions) {
+    subBatch.set(orgRef.collection('submissions').doc(s.id as string), { ...s, orgId });
   }
   await subBatch.commit();
 }
