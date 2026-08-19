@@ -11,7 +11,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { Organization } from '@/lib/types';
+import { REGIONS } from '@/lib/regions';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Save, Sparkles, Loader2 } from 'lucide-react';
@@ -44,6 +52,7 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
   const [boilerplate, setBoilerplate] = useState(organization.boilerplate ?? '');
   const [brandToneNotes, setBrandToneNotes] = useState(organization.brandToneNotes ?? '');
   const [editorialPriorities, setEditorialPriorities] = useState(organization.editorialPriorities ?? '');
+  const [region, setRegion] = useState(organization.region ?? '');
 
   // Boilerplate AI
   const [showBoilerplateAI, setShowBoilerplateAI] = useState(false);
@@ -78,6 +87,7 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
         boilerplate,
         brandToneNotes,
         editorialPriorities,
+        region: region || null,
         ...(maxSubmissionsPerPartner && maxSubmissionsPerPartner > 0
           ? { maxSubmissionsPerPartner }
           : { maxSubmissionsPerPartner: null }),
@@ -178,6 +188,25 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
               placeholder="e.g., Visit Kent"
               required
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="region">Region</Label>
+            <Select value={region} onValueChange={setRegion}>
+              <SelectTrigger id="region">
+                <SelectValue placeholder="Not set" />
+              </SelectTrigger>
+              <SelectContent>
+                {REGIONS.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Where you operate. Powers regional trend and benchmarking features as they roll out.
+            </p>
           </div>
 
           <div className="grid gap-2">

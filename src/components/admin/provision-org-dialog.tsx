@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Switch } from '@/components/ui/switch';
 import { VERTICALS } from '@/lib/verticals';
+import { REGIONS } from '@/lib/regions';
 import type { VerticalId } from '@/lib/types';
 
 type ProvisionResult = {
@@ -89,7 +90,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
         maxUsers: maxUsers ? parseInt(maxUsers, 10) : undefined,
         tier: tier || undefined,
         parentOrgId: parentOrgId.trim() || undefined,
-        region: region.trim() || undefined,
+        region: region || undefined,
       });
       setResult(response.data);
       if (seedDemo) {
@@ -274,12 +275,18 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="region">Region <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                    <Input
-                      id="region"
-                      value={region}
-                      onChange={(e) => setRegion(e.target.value)}
-                      placeholder="e.g. South West England"
-                    />
+                    <Select value={region} onValueChange={setRegion}>
+                      <SelectTrigger id="region">
+                        <SelectValue placeholder="Not set" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REGIONS.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">

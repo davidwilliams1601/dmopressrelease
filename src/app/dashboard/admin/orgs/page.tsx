@@ -26,6 +26,7 @@ import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
 import { SeedDemoDialog } from '@/components/admin/seed-demo-dialog';
 import { ResetPasswordDialog } from '@/components/admin/reset-password-dialog';
 import { VerticalCategoriesCard } from '@/components/admin/vertical-categories-card';
+import { getRegionLabel } from '@/lib/regions';
 import { format, formatDistanceToNow } from 'date-fns';
 
 type OrgStat = {
@@ -49,6 +50,7 @@ type OrgStat = {
   maxChildOrgs: number | null;
   childOrgDefaultTier: string | null;
   contractValueMonthly: number | null;
+  region: string | null;
   escalatedInCount: number;
   escalatedInUsedCount: number;
 };
@@ -299,9 +301,14 @@ export default function AdminOrgsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {VERTICAL_LABELS[org.vertical] || org.vertical}
-                      </Badge>
+                      <div className="flex flex-col gap-0.5">
+                        <Badge variant="outline" className="text-xs w-fit">
+                          {VERTICAL_LABELS[org.vertical] || org.vertical}
+                        </Badge>
+                        {org.region && (
+                          <span className="text-xs text-muted-foreground">{getRegionLabel(org.region)}</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-0.5">

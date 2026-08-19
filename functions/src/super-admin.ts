@@ -382,6 +382,7 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         maxChildOrgs: org.maxChildOrgs ?? null,
         childOrgDefaultTier: org.childOrgDefaultTier ?? null,
         contractValueMonthly: org.contractValueMonthly ?? null,
+        region: org.region ?? null,
         escalatedInCount,
         escalatedInUsedCount,
       };

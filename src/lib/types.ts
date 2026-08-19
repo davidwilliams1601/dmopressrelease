@@ -1,5 +1,21 @@
 export type VerticalId = 'dmo' | 'charity' | 'trade-body' | 'publisher' | 'education';
 
+/** Curated UK region/nation options for Organization.region — see src/lib/regions.ts. */
+export type RegionId =
+  | 'north-east'
+  | 'north-west'
+  | 'yorkshire-humber'
+  | 'east-midlands'
+  | 'west-midlands'
+  | 'east-of-england'
+  | 'london'
+  | 'south-east'
+  | 'south-west'
+  | 'scotland'
+  | 'wales'
+  | 'northern-ireland'
+  | 'uk-wide';
+
 export type SocialHandles = {
   instagram?: string;
   twitter?: string;
@@ -50,7 +66,14 @@ export type Organization = {
   childOrgDefaultTier?: 'starter' | 'professional' | 'organisation';
   /** When an escalated submission is drafted into a release, whether to credit the source org (e.g. "Additional reporting from X"). Defaults to on. */
   showEscalationSourceCredit?: boolean;
-  /** Structured geography, e.g. "Cornwall" or "South West England" — enables regional trend/benchmarking products. */
+  /**
+   * UK region/nation the org operates in, from the curated list in src/lib/regions.ts
+   * (RegionId) — enables regional trend/benchmarking products. Typed as `string` rather
+   * than `RegionId` so pre-existing free-text values written before the list existed
+   * still round-trip; all UI that sets this field should only offer the curated options.
+   * Editable by the org's own Admin (self-service, like boilerplate/brandToneNotes) as
+   * well as by Press Pilot via the Provision Org dialog at creation time.
+   */
   region?: string;
   /** Manually-entered actual monthly Enterprise contract value in GBP, for network-root orgs whose real invoice differs from the sum of member tier prices. Set only by Press Pilot, via the super-admin "Edit Limits" dialog. Meaningful on network roots (canProvisionChildOrgs/parentOrgId-less orgs with members) — undefined/null elsewhere. */
   contractValueMonthly?: number | null;
