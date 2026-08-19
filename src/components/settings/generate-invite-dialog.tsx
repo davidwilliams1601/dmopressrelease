@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Link as LinkIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getAppBaseUrl } from '@/lib/utils';
+import { SendInviteEmailForm } from '@/components/settings/send-invite-email-form';
 
 type GenerateInviteDialogProps = {
   orgId: string;
@@ -26,6 +27,8 @@ export function GenerateInviteDialog({ orgId, onInviteCreated }: GenerateInviteD
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteId, setInviteId] = useState<string | null>(null);
+  const [partnerLabel, setPartnerLabel] = useState<string>('');
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -48,6 +51,8 @@ export function GenerateInviteDialog({ orgId, onInviteCreated }: GenerateInviteD
       const data = result.data as any;
       const link = `${getAppBaseUrl()}/partner-signup?code=${data.code}`;
       setInviteLink(link);
+      setInviteId(data.inviteId);
+      setPartnerLabel(label);
 
       toast({
         title: 'Invite created',
@@ -70,10 +75,12 @@ export function GenerateInviteDialog({ orgId, onInviteCreated }: GenerateInviteD
   const handleClose = () => {
     setOpen(false);
     setInviteLink(null);
+    setInviteId(null);
+    setPartnerLabel('');
   };
 
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => { setOpen(newOpen); if (!newOpen) setInviteLink(null); }}>
+    <Dialog open={open} onOpenChange={(newOpen) => { setOpen(newOpen); if (!newOpen) { setInviteLink(null); setInviteId(null); setPartnerLabel(''); } }}>
       <DialogTrigger asChild>
         <Button>
           <LinkIcon />
@@ -111,6 +118,13 @@ export function GenerateInviteDialog({ orgId, onInviteCreated }: GenerateInviteD
                   </Button>
                 </div>
               </div>
+              {inviteId && (
+                <SendInviteEmailForm
+                  orgId={orgId}
+                  inviteId={inviteId}
+                  defaultPartnerName={partnerLabel}
+                />
+              )}
             </div>
             <DialogFooter>
               <Button onClick={handleClose}>Done</Button>

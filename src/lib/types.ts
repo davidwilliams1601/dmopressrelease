@@ -176,6 +176,11 @@ export type PartnerInvite = {
   useCount: number;
   status: 'active' | 'expired' | 'revoked';
   label?: string;
+  sentTo?: string;
+  sentAt?: Date | any;
+  sentBy?: string;
+  sentNote?: string | null;
+  sendCount?: number;
 };
 
 export type Tag = {

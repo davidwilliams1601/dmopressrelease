@@ -10,11 +10,17 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/',
+        // Only redirect on the real production custom domain. Without this
+        // host check, every deployment (including Vercel preview URLs used
+        // for testing) also 301s straight to the live production site,
+        // making previews unusable for review.
+        has: [{ type: 'host', value: 'app.press-pilot.com' }],
         destination: 'https://press-pilot.com/',
         permanent: true,
       },
       {
         source: '/dmo',
+        has: [{ type: 'host', value: 'app.press-pilot.com' }],
         destination: 'https://press-pilot.com/solutions/dmos',
         permanent: true,
       },
