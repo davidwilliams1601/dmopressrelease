@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useFirebase } from '@/firebase';
 import { useUserData } from '@/hooks/use-user-data';
+import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import { useRouter } from 'next/navigation';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,6 +43,7 @@ const SOCIAL_FIELDS: { key: keyof SocialHandles; label: string; placeholder: str
 export function SubmissionForm() {
   const { firestore, user } = useFirebase();
   const { orgId, name: userName, email: userEmail, socialHandles: savedHandles } = useUserData();
+  const { config: verticalConfig } = useVerticalConfig(orgId);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -49,7 +52,10 @@ export function SubmissionForm() {
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [socialHandles, setSocialHandles] = useState<SocialHandles>({});
+  const [subjectConsentConfirmed, setSubjectConsentConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const photoReleaseText = verticalConfig.consent.photoRelease;
 
   // AI improve state
   const [isImproving, setIsImproving] = useState(false);
@@ -84,6 +90,15 @@ export function SubmissionForm() {
       return;
     }
 
+    if (photoReleaseText && !subjectConsentConfirmed) {
+      toast({
+        title: 'Consent required',
+        description: 'Please confirm the consent statement before submitting.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -107,6 +122,8 @@ export function SubmissionForm() {
         imageMetadata: images.map((img) => img.metadata),
         status: 'submitted',
         partnerSocialHandles: cleanHandles,
+        subjectConsentConfirmed: photoReleaseText ? subjectConsentConfirmed : null,
+        subjectConsentText: photoReleaseText ?? null,
         createdAt: serverTimestamp(),
       }, {});
 
@@ -324,6 +341,30 @@ export function SubmissionForm() {
         </CardContent>
       </Card>
 
+      {photoReleaseText && (
+        <Card className="border-amber-200">
+          <CardHeader>
+            <CardTitle>Consent</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start gap-3 rounded-md border p-4">
+              <Checkbox
+                id="subjectConsentConfirmed"
+                checked={subjectConsentConfirmed}
+                onCheckedChange={(v) => setSubjectConsentConfirmed(v === true)}
+                required
+              />
+              <Label
+                htmlFor="subjectConsentConfirmed"
+                className="text-sm font-normal leading-snug cursor-pointer"
+              >
+                {photoReleaseText} <span className="text-destructive">*</span>
+              </Label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Images (Optional)</CardTitle>
@@ -342,7 +383,15 @@ export function SubmissionForm() {
       </Card>
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={isSubmitting || !title.trim() || !bodyCopy.trim()}>
+        <Button
+          type="submit"
+          disabled={
+            isSubmitting ||
+            !title.trim() ||
+            !bodyCopy.trim() ||
+            (!!photoReleaseText && !subjectConsentConfirmed)
+          }
+        >
           <Send />
           {isSubmitting ? 'Submitting...' : 'Submit Content'}
         </Button>

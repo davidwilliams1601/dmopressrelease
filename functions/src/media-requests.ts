@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { escapeHtml } from './html-utils';
+import { getMediaRequestTopicsLabel } from './vertical-labels';
 
 const db = admin.firestore();
 
@@ -167,9 +168,10 @@ async function sendNotificationEmail(orgId: string, request: Record<string, any>
   const deadline = request.deadline ? escapeHtml(request.deadline) : null;
   const additionalInfo = request.additionalInfo ? escapeHtml(request.additionalInfo) : null;
   const orgName = escapeHtml(org?.name || 'Your Organisation');
+  const topicsLabel = getMediaRequestTopicsLabel(org?.vertical);
 
   const optionalRows = [
-    destinations ? `<tr><td style="padding:6px 0;color:#666;width:140px;vertical-align:top;">Destinations</td><td style="padding:6px 0;">${destinations}</td></tr>` : '',
+    destinations ? `<tr><td style="padding:6px 0;color:#666;width:140px;vertical-align:top;">${topicsLabel}</td><td style="padding:6px 0;">${destinations}</td></tr>` : '',
     deadline ? `<tr><td style="padding:6px 0;color:#666;width:140px;vertical-align:top;">Deadline</td><td style="padding:6px 0;">${deadline}</td></tr>` : '',
     additionalInfo ? `<tr><td style="padding:6px 0;color:#666;width:140px;vertical-align:top;">Additional Info</td><td style="padding:6px 0;">${additionalInfo}</td></tr>` : '',
   ].join('');

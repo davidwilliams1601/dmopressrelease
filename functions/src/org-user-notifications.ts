@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { escapeHtml } from './html-utils';
 import { emailWrapper, emailButton } from './email-branding';
+import { getMediaRequestTopicsLabel } from './vertical-labels';
 
 const db = admin.firestore();
 
@@ -146,6 +147,7 @@ export const onNewMediaRequest = functions.firestore
       if (!orgDoc.exists) return;
       const orgData = orgDoc.data()!;
       const org = { name: orgData.name || 'Your organisation', branding: orgData.branding, tier: orgData.tier };
+      const topicsLabel = getMediaRequestTopicsLabel(orgData.vertical);
 
       const recipients = await getOptedInUsers(orgId, 'mediaRequests');
       if (recipients.length === 0) {
@@ -162,7 +164,7 @@ export const onNewMediaRequest = functions.firestore
 
       const optionalRows = [
         destinations
-          ? `<tr><td style="padding:6px 0;color:#64748b;width:100px;vertical-align:top;">Destinations</td><td style="padding:6px 0;">${destinations}</td></tr>`
+          ? `<tr><td style="padding:6px 0;color:#64748b;width:100px;vertical-align:top;">${topicsLabel}</td><td style="padding:6px 0;">${destinations}</td></tr>`
           : '',
         deadline
           ? `<tr><td style="padding:6px 0;color:#64748b;vertical-align:top;">Deadline</td><td style="padding:6px 0;font-weight:600;color:#dc2626;">${deadline}</td></tr>`

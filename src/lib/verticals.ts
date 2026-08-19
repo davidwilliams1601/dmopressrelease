@@ -24,10 +24,31 @@ export type AiContext = {
 export type ConsentText = {
   contentUsage: string;
   marketing: string;
+  /**
+   * Optional per-submission consent covering the subject of the content itself
+   * (e.g. parental/guardian consent for a named or pictured minor). Shown as an
+   * additional required checkbox on the submission form only when present —
+   * verticals that don't need it (adult-facing partners) simply omit this field.
+   */
+  photoRelease?: string;
 };
 
 export type ProvisionText = {
   description: string;
+};
+
+export type PartnerSignupText = {
+  /** Short noun for an individual partner entity, e.g. 'business', 'school', 'charity'. */
+  noun: string;
+  /** Placeholder example shown in the "tell us about yourself" textarea on partner signup. */
+  descriptionPlaceholder: string;
+};
+
+export type MediaRequestText = {
+  /** Label for the optional "what this story should cover" field on the public journalist story-request form. */
+  topicsLabel: string;
+  /** Placeholder example shown in that field. */
+  topicsPlaceholder: string;
 };
 
 export type VerticalConfig = {
@@ -37,6 +58,8 @@ export type VerticalConfig = {
   ai: AiContext;
   consent: ConsentText;
   provision: ProvisionText;
+  partnerSignup: PartnerSignupText;
+  mediaRequest: MediaRequestText;
   partnerCategories: string[];
 };
 
@@ -67,12 +90,21 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     },
     consent: {
       contentUsage:
-        'I consent to Visit [Destination] using this content in press releases and digital communications.',
+        'I agree that content I submit may be used in press releases, website updates, and other publications produced by the DMO.',
       marketing:
         'I agree to receive occasional updates and newsletters from the DMO.',
     },
     provision: {
       description: 'Creates a new organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'business',
+      descriptionPlaceholder:
+        "e.g. We're a family-run hotel in the heart of Canterbury with 24 rooms, a restaurant, and a spa. We specialise in leisure breaks and have been operating since 1998.",
+    },
+    mediaRequest: {
+      topicsLabel: 'Destinations of Interest',
+      topicsPlaceholder: 'e.g. Canterbury, Whitstable, Herne Bay',
     },
     partnerCategories: [
       'Accommodation',
@@ -116,12 +148,21 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     },
     consent: {
       contentUsage:
-        'I consent to this charity using my story in press releases and digital communications.',
+        'I agree that content I submit may be used in press releases, website updates, and other publications produced by this charity.',
       marketing:
         'I agree to receive occasional updates and newsletters from the organisation.',
     },
     provision: {
       description: 'Creates a new organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'organisation',
+      descriptionPlaceholder:
+        "e.g. We're a community-led food bank supporting families across the borough, running weekly distribution sessions and a holiday hunger programme for local schools.",
+    },
+    mediaRequest: {
+      topicsLabel: 'Focus Areas of Interest',
+      topicsPlaceholder: 'e.g. Food poverty, youth services, winter fundraising appeal',
     },
     partnerCategories: [
       'Community Group',
@@ -162,12 +203,21 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     },
     consent: {
       contentUsage:
-        'I consent to this publication using my submitted content in articles and digital communications.',
+        'I agree that content I submit may be used in articles, website updates, and other publications produced by this publication.',
       marketing:
         'I agree to receive occasional updates and newsletters from the editorial team.',
     },
     provision: {
       description: 'Creates a new publisher organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'organisation',
+      descriptionPlaceholder:
+        "e.g. We're a further education college offering vocational courses and apprenticeships across construction, health & social care, and digital skills to around 4,000 learners a year.",
+    },
+    mediaRequest: {
+      topicsLabel: 'Coverage Areas of Interest',
+      topicsPlaceholder: 'e.g. Apprenticeships, T-Levels, skills policy',
     },
     partnerCategories: [
       'Further Education College',
@@ -210,12 +260,21 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     },
     consent: {
       contentUsage:
-        'I consent to the trade body using this content in press releases and member communications.',
+        'I agree that content I submit may be used in press releases, website updates, and other publications produced by the trade body.',
       marketing:
         'I agree to receive occasional updates and newsletters from the organisation.',
     },
     provision: {
       description: 'Creates a new organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'organisation',
+      descriptionPlaceholder:
+        "e.g. We're a mid-sized manufacturer supplying precision components to the automotive sector, employing 45 people across our site in the West Midlands.",
+    },
+    mediaRequest: {
+      topicsLabel: 'Sectors of Interest',
+      topicsPlaceholder: 'e.g. Manufacturing, supply chain, sustainability',
     },
     partnerCategories: [
       'Manufacturer',
@@ -227,6 +286,64 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       'Professional Services',
       'Start-up & SME',
       'Enterprise',
+      'Other',
+    ],
+  },
+
+  education: {
+    id: 'education',
+    displayName: 'Education Provider / Multi-Academy Trust',
+    nav: {
+      releases: 'Press Releases',
+      outlets: 'Media Contacts',
+      mediaRequests: 'Media Enquiries',
+      submissions: 'Success Stories',
+      content: 'Web Content',
+      partnerPortalTitle: 'School Portal',
+      partnersSettings: 'Schools',
+    },
+    ai: {
+      orgTypeDescription: 'education provider working with schools and multi-academy trusts',
+      contentDomain: 'pupil achievement, school success stories, and educational outcomes',
+      audienceOptions: ['Parents & Families', 'Local Press', 'Governors & Trustees', 'Education Sector', 'General Public'],
+      expertPersona:
+        'education sector PR specialist and former schools communications lead who understands safeguarding-first storytelling — celebrates pupil and school achievement in warm, accessible language while staying mindful of child safeguarding norms (e.g. avoiding full names alongside identifying photos unless consent is confirmed, using year group rather than exact age, and steering clear of details that could identify a child’s home or routine)',
+      themeExamples:
+        '"Exam Results & Attainment", "Ofsted & Inspection", "Pupil Achievement", "Extracurricular & Sport", "Fundraising & Community", "Staff & Governor News", "School Improvement", "Careers & Aspirations", "Inclusion & SEND", "Events & Open Days"',
+      webContentStyle:
+        'Warm, achievement-focused language that celebrates pupils, staff and schools while remaining safeguarding-appropriate',
+      webContentTypes: ['Success Story', 'Press Release', 'Event', 'Ofsted Update', 'General'],
+      suggestedContentTypeInstruction:
+        'Suggest the most appropriate content type from: "Success Story", "Press Release", "Event", "Ofsted Update", "General"',
+    },
+    consent: {
+      contentUsage:
+        'I confirm this school has the right to submit this content and consents to it being used in press releases, website updates, and other publications produced by the education provider.',
+      marketing:
+        'I agree to receive occasional updates and opportunities, such as campaign briefs and partner news.',
+      photoRelease:
+        'I confirm that written parental/guardian consent has been obtained for every pupil named or pictured in this submission, in line with the school’s safeguarding and data protection policy, and that this consent is held on file at the school.',
+    },
+    provision: {
+      description: 'Creates a new education provider organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'school',
+      descriptionPlaceholder:
+        'e.g. We\u2019re a two-form-entry primary school with around 420 pupils, known locally for our strong reading programme and forest school sessions.',
+    },
+    mediaRequest: {
+      topicsLabel: 'Subjects / Programmes of Interest',
+      topicsPlaceholder: 'e.g. Exam results, Ofsted outcomes, extracurricular achievements',
+    },
+    partnerCategories: [
+      'Primary School',
+      'Secondary School',
+      'Sixth Form / FE College',
+      'Special School',
+      'Multi-Academy Trust',
+      'Independent School',
+      'Early Years / Nursery',
       'Other',
     ],
   },

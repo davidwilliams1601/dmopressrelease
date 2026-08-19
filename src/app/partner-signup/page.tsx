@@ -95,7 +95,7 @@ export default function PartnerSignupPage() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Missing Invite Code</AlertTitle>
               <AlertDescription>
-                You need a valid invite link to create a partner account. Please contact your DMO for an invite.
+                You need a valid invite link to create a partner account. Please contact the organisation that invited you for a new link.
               </AlertDescription>
             </Alert>
           )}

@@ -253,7 +253,7 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Industry benchmark</p>
                 <p className="text-2xl font-bold">38%</p>
-                <p className="text-xs text-muted-foreground">(DMO sector estimate)</p>
+                <p className="text-xs text-muted-foreground">(cross-industry PR email estimate)</p>
               </div>
             </div>
             <p className="mt-4 text-sm text-muted-foreground">

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,12 +10,52 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Send, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getVerticalConfig, DEFAULT_VERTICAL, type VerticalConfig } from '@/lib/verticals';
+import type { VerticalId } from '@/lib/types';
+
+// Public page — same lightweight client Firebase init pattern used by the
+// newsroom page, so this stays free of any auth/Admin SDK dependency.
+const firebaseConfig = {
+  apiKey: 'AIzaSyCEQji1lRBsREmY7Vt5l8_XDyTY0Pp_Oqc',
+  authDomain: 'dmo-press-release.firebaseapp.com',
+  projectId: 'dmo-press-release',
+  storageBucket: 'dmo-press-release.firebasestorage.app',
+  messagingSenderId: '959287689887',
+  appId: '1:959287689887:web:4af709961507f1790ad8aa',
+};
+
+function getClientFirestore() {
+  const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+  return getFirestore(app);
+}
 
 type Props = {
   orgSlug: string;
 };
 
 export default function StoryRequestForm({ orgSlug }: Props) {
+  const [verticalConfig, setVerticalConfig] = useState<VerticalConfig>(DEFAULT_VERTICAL);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const firestore = getClientFirestore();
+        const orgSnap = await getDoc(doc(firestore, 'orgs', orgSlug));
+        if (!cancelled && orgSnap.exists()) {
+          const vertical = orgSnap.data().vertical as VerticalId | undefined;
+          setVerticalConfig(getVerticalConfig(vertical));
+        }
+      } catch {
+        // Non-fatal — falls back silently to DMO defaults. This is only used
+        // for display copy; the org itself is re-validated server-side on submit.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgSlug]);
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [outlet, setOutlet] = useState('');
@@ -166,12 +208,12 @@ export default function StoryRequestForm({ orgSlug }: Props) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="destinations">Destinations of Interest</Label>
+        <Label htmlFor="destinations">{verticalConfig.mediaRequest.topicsLabel}</Label>
         <Input
           id="destinations"
           name="destinations"
           type="text"
-          placeholder="e.g. Canterbury, Whitstable, Herne Bay"
+          placeholder={verticalConfig.mediaRequest.topicsPlaceholder}
           value={destinations}
           onChange={(e) => setDestinations(e.target.value)}
         />

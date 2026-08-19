@@ -27,6 +27,7 @@ import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { Release, Organization } from '@/lib/types';
+import { getVerticalConfig } from '@/lib/verticals';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import {
@@ -351,6 +352,7 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
             headline={currentHeadline}
             bodyCopy={currentBodyCopy}
             orgName={organization.name}
+            orgTypeDescription={getVerticalConfig(organization.vertical).ai.orgTypeDescription}
             orgSlug={organization.slug}
             releaseSlug={release.slug}
             brandToneNotes={organization.brandToneNotes}

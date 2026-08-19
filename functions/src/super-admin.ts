@@ -308,6 +308,7 @@ const DEFAULT_VERTICAL_CATEGORIES: Record<string, string[]> = {
   dmo: ['Accommodation', 'Attraction', 'Activity & Adventure', 'Food & Drink', 'Events & Festivals', 'Transport', 'Retail', 'Spa & Wellness', 'Arts & Culture', 'Nature & Outdoor', 'Sport', 'Other'],
   charity: ['Community Group', 'Health & Wellbeing', 'Education & Training', 'Social Care', 'Environment & Conservation', 'Arts & Culture', 'Housing & Homelessness', 'International Aid', 'Other'],
   'trade-body': ['Manufacturer', 'Retailer', 'Service Provider', 'Consultant & Advisory', 'Technology', 'Media & Communications', 'Professional Services', 'Start-up & SME', 'Enterprise', 'Other'],
+  education: ['Primary School', 'Secondary School', 'Sixth Form / FE College', 'Special School', 'Multi-Academy Trust', 'Independent School', 'Early Years / Nursery', 'Other'],
 };
 
 /**
@@ -340,7 +341,7 @@ export const updateVerticalCategories = functions.https.onCall(async (data, cont
   const { verticalId, categories } = data;
 
   if (!verticalId || !Object.keys(DEFAULT_VERTICAL_CATEGORIES).includes(verticalId)) {
-    throw new functions.https.HttpsError('invalid-argument', 'verticalId must be one of: dmo, charity, trade-body.');
+    throw new functions.https.HttpsError('invalid-argument', 'verticalId must be one of: dmo, charity, trade-body, education.');
   }
   if (!Array.isArray(categories) || categories.length === 0) {
     throw new functions.https.HttpsError('invalid-argument', 'categories must be a non-empty array of strings.');
