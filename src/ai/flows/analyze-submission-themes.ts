@@ -9,6 +9,12 @@ const AnalyzeThemesInputSchema = z.object({
   themeExamples: z.string().optional().describe('Comma-separated examples of relevant themes'),
   contentTypeOptions: z.string().optional().describe('Comma-separated content type labels to choose from'),
   editorialPriorities: z.string().optional().describe('Org-specific editorial priorities to weight heavily when scoring'),
+  /**
+   * Curated theme list (federated-tenants step 8 pilot) — when provided and non-empty,
+   * the model is hard-constrained to pick only from this list via a z.enum output schema,
+   * instead of the usual free-text themes. Absent/empty = unchanged free-text behaviour.
+   */
+  themeTaxonomy: z.array(z.string()).optional().describe('Fixed list of allowed themes to classify into, if the org has a curated taxonomy configured'),
 });
 
 export type AnalyzeThemesInput = z.infer<typeof AnalyzeThemesInputSchema>;
@@ -20,6 +26,20 @@ const AnalyzeThemesOutputSchema = z.object({
   editorialRationale: z.string().describe('One to two sentences explaining the score'),
   contentType: z.string().describe('The single best-fit content type label'),
 });
+
+/**
+ * Builds a taxonomy-constrained variant of the output schema: `themes` becomes
+ * z.array(z.enum(...)) over the curated list instead of free-text strings, so Genkit
+ * itself rejects any theme the model invents outside the list — the "same pattern
+ * already used for other structured AI outputs in the codebase" the build plan calls for.
+ */
+function buildOutputSchema(themeTaxonomy?: string[]) {
+  if (!themeTaxonomy || themeTaxonomy.length === 0) return AnalyzeThemesOutputSchema;
+  const [first, ...rest] = themeTaxonomy;
+  return AnalyzeThemesOutputSchema.extend({
+    themes: z.array(z.enum([first, ...rest])).describe('1-3 themes chosen only from the curated taxonomy'),
+  });
+}
 
 export type AnalyzeThemesOutput = z.infer<typeof AnalyzeThemesOutputSchema>;
 
@@ -40,6 +60,11 @@ export async function analyzeSubmissionThemes(
       ? `\n\nORGANISATION EDITORIAL PRIORITIES (weight these heavily when scoring):\n${input.editorialPriorities.trim()}`
       : '';
 
+    const hasTaxonomy = !!input.themeTaxonomy && input.themeTaxonomy.length > 0;
+    const themesInstruction = hasTaxonomy
+      ? `THEMES: Choose 1 to 3 themes ONLY from this exact list — do not invent new themes or rephrase them: ${input.themeTaxonomy!.map((t) => `"${t}"`).join(', ')}. If nothing else fits well, use "Other".`
+      : `THEMES: Identify 2-5 relevant themes (e.g., ${themeExamples}, etc.). Be specific and relevant to the content.`;
+
     const {output} = await ai.generate({
       prompt: `You are a ${persona}. Analyse the following content submission and return a structured assessment.
 
@@ -48,7 +73,7 @@ Title: ${input.title}
 Content:
 ${input.bodyCopy}
 
-THEMES: Identify 2-5 relevant themes (e.g., ${themeExamples}, etc.). Be specific and relevant to the content.
+${themesInstruction}
 
 EDITORIAL SCORE: Rate 1-10 as a whole number based on editorial relevance, news value, writing quality, and completeness.
 1-3 = low value (off-topic, purely promotional, or too thin to use)
@@ -58,7 +83,7 @@ EDITORIAL SCORE: Rate 1-10 as a whole number based on editorial relevance, news 
 Provide a one to two sentence rationale for the score.${prioritiesBlock}
 
 CONTENT TYPE: Choose the single best fit from: ${contentTypeOptions}`,
-      output: {schema: AnalyzeThemesOutputSchema},
+      output: {schema: buildOutputSchema(input.themeTaxonomy)},
     });
 
     if (!output) {

@@ -93,6 +93,20 @@ service cloud.firestore {
         && request.resource.data.get('maxUsers', null) == resource.data.get('maxUsers', null);
     }
 
+    /**
+     * Federated-tenant structural fields are written ONLY by Cloud Functions
+     * (provisionNewOrg, createChildOrg, the Admin SDK bypasses rules). An org's
+     * own admin must not be able to re-parent themselves, edit their ancestor
+     * chain, grant themselves child-org provisioning, or raise their own seat cap.
+     */
+    function federationFieldsUnchanged() {
+      return request.resource.data.get('parentOrgId', null) == resource.data.get('parentOrgId', null)
+        && request.resource.data.get('ancestorOrgIds', null) == resource.data.get('ancestorOrgIds', null)
+        && request.resource.data.get('canProvisionChildOrgs', null) == resource.data.get('canProvisionChildOrgs', null)
+        && request.resource.data.get('maxChildOrgs', null) == resource.data.get('maxChildOrgs', null)
+        && request.resource.data.get('childOrgDefaultTier', null) == resource.data.get('childOrgDefaultTier', null);
+    }
+
 
     /**
      * @description Rules for the top-level Organization documents.
@@ -107,7 +121,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
       allow create: if false;
-      allow update: if isOrgAdmin(orgId) && resource != null && billingFieldsUnchanged();
+      allow update: if isOrgAdmin(orgId) && resource != null && billingFieldsUnchanged() && federationFieldsUnchanged();
       allow delete: if false;
 
       // Private billing state (Stripe ids, subscription status, trial, card-on-file).

@@ -24,16 +24,23 @@ import {
   Globe,
   Building2,
   BarChart3,
+  Network,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useUserData } from '@/hooks/use-user-data';
 import { useVerticalConfig } from '@/hooks/use-vertical-config';
+import { useOrganization } from '@/hooks/use-organization';
 import UserNav from './user-nav';
 
 export default function AppSidebar() {
   const pathname = usePathname();
   const { role, isSuperAdmin, orgId } = useUserData();
   const { config } = useVerticalConfig(orgId);
+  const { organization } = useOrganization(orgId);
+  // Shown for any org that's part of a federated tree — a root/parent network
+  // (canProvisionChildOrgs) or a mid-tier/leaf member (parentOrgId set) — since
+  // getOrgRollup works, and is useful, at any node in the tree.
+  const isInFederatedNetwork = !!organization && (organization.canProvisionChildOrgs || !!organization.parentOrgId);
 
   const navItems = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -44,6 +51,9 @@ export default function AppSidebar() {
     { href: '/dashboard/outlets', icon: Users, label: config.nav.outlets },
     { href: '/dashboard/settings/team', icon: UserCog, label: 'Team' },
     { href: '/dashboard/reports', icon: BarChart3, label: 'Reports', adminOnly: true },
+    ...(isInFederatedNetwork
+      ? [{ href: '/dashboard/network', icon: Network, label: 'Network', adminOnly: true }]
+      : []),
     { href: '/dashboard/settings/tags', icon: Tag, label: 'Tags', adminOnly: true },
     { href: '/dashboard/settings/partners', icon: LinkIcon, label: config.nav.partnersSettings, adminOnly: true },
     { href: '/dashboard/settings', icon: Settings, label: 'Settings' },

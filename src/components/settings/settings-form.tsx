@@ -11,7 +11,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { Organization } from '@/lib/types';
+import { REGIONS } from '@/lib/regions';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Save, Sparkles, Loader2 } from 'lucide-react';
@@ -37,10 +45,14 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
   const [approvalEnabled, setApprovalEnabled] = useState(
     organization.approvalWorkflowEnabled ?? false
   );
+  const [escalationCreditEnabled, setEscalationCreditEnabled] = useState(
+    organization.showEscalationSourceCredit ?? true
+  );
 
   const [boilerplate, setBoilerplate] = useState(organization.boilerplate ?? '');
   const [brandToneNotes, setBrandToneNotes] = useState(organization.brandToneNotes ?? '');
   const [editorialPriorities, setEditorialPriorities] = useState(organization.editorialPriorities ?? '');
+  const [region, setRegion] = useState(organization.region ?? '');
 
   // Boilerplate AI
   const [showBoilerplateAI, setShowBoilerplateAI] = useState(false);
@@ -75,11 +87,13 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
         boilerplate,
         brandToneNotes,
         editorialPriorities,
+        region: region || null,
         ...(maxSubmissionsPerPartner && maxSubmissionsPerPartner > 0
           ? { maxSubmissionsPerPartner }
           : { maxSubmissionsPerPartner: null }),
         // Guard against enabling a gated feature even if the UI is bypassed.
         approvalWorkflowEnabled: canUseApprovals ? approvalEnabled : false,
+        showEscalationSourceCredit: escalationCreditEnabled,
         updatedAt: serverTimestamp(),
       });
 
@@ -174,6 +188,25 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
               placeholder="e.g., Visit Kent"
               required
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="region">Region</Label>
+            <Select value={region} onValueChange={setRegion}>
+              <SelectTrigger id="region">
+                <SelectValue placeholder="Not set" />
+              </SelectTrigger>
+              <SelectContent>
+                {REGIONS.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Where you operate. Powers regional trend and benchmarking features as they roll out.
+            </p>
           </div>
 
           <div className="grid gap-2">
@@ -338,6 +371,24 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
           </div>
           {!canUseApprovals && (
             <UpgradePrompt feature="approvalWorkflows" />
+          )}
+
+          {organization.canProvisionChildOrgs && (
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="escalation-credit" className="text-base">Credit Escalated Stories</Label>
+                <p className="text-sm text-muted-foreground">
+                  When a member organisation pushes a story up and it's drafted into one of your
+                  releases, add a line crediting them (e.g. "Additional reporting from [member org]").
+                  Turn off for a fully silent rollup.
+                </p>
+              </div>
+              <Switch
+                id="escalation-credit"
+                checked={escalationCreditEnabled}
+                onCheckedChange={setEscalationCreditEnabled}
+              />
+            </div>
           )}
         </CardContent>
         <CardFooter className="border-t px-6 py-4">

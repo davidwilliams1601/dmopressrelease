@@ -1,5 +1,21 @@
 export type VerticalId = 'dmo' | 'charity' | 'trade-body' | 'publisher' | 'education';
 
+/** Curated UK region/nation options for Organization.region — see src/lib/regions.ts. */
+export type RegionId =
+  | 'north-east'
+  | 'north-west'
+  | 'yorkshire-humber'
+  | 'east-midlands'
+  | 'west-midlands'
+  | 'east-of-england'
+  | 'london'
+  | 'south-east'
+  | 'south-west'
+  | 'scotland'
+  | 'wales'
+  | 'northern-ireland'
+  | 'uk-wide';
+
 export type SocialHandles = {
   instagram?: string;
   twitter?: string;
@@ -32,10 +48,35 @@ export type Organization = {
   maxPartners?: number;
   maxSubmissionsPerPartner?: number;
   maxUsers?: number;
-  tier?: 'starter' | 'professional' | 'organisation';
+  tier?: 'starter' | 'professional' | 'organisation' | 'enterprise';
   approvalWorkflowEnabled?: boolean;
   contentTypes?: Array<{ name: string; description?: string }>;
   branding?: OrgBranding;
+
+  // --- Federated tenants (members-of-members) ---
+  /** Direct parent org, if this org is a daughter/member of a larger network. Absent/null = root org. */
+  parentOrgId?: string | null;
+  /** Denormalised full ancestor chain, root-first, so Firestore can query "all descendants of X" in one call. */
+  ancestorOrgIds?: string[];
+  /** Gates self-service "add a daughter org" capability for a root/parent org. Set only by Press Pilot. */
+  canProvisionChildOrgs?: boolean;
+  /** Seat cap on self-service daughter-org creation, e.g. 10 licensed LVEP seats. Set only by Press Pilot. */
+  maxChildOrgs?: number;
+  /** Tier auto-assigned to every self-provisioned daughter org. Set only by Press Pilot. */
+  childOrgDefaultTier?: 'starter' | 'professional' | 'organisation';
+  /** When an escalated submission is drafted into a release, whether to credit the source org (e.g. "Additional reporting from X"). Defaults to on. */
+  showEscalationSourceCredit?: boolean;
+  /**
+   * UK region/nation the org operates in, from the curated list in src/lib/regions.ts
+   * (RegionId) — enables regional trend/benchmarking products. Typed as `string` rather
+   * than `RegionId` so pre-existing free-text values written before the list existed
+   * still round-trip; all UI that sets this field should only offer the curated options.
+   * Editable by the org's own Admin (self-service, like boilerplate/brandToneNotes) as
+   * well as by Press Pilot via the Provision Org dialog at creation time.
+   */
+  region?: string;
+  /** Manually-entered actual monthly Enterprise contract value in GBP, for network-root orgs whose real invoice differs from the sum of member tier prices. Set only by Press Pilot, via the super-admin "Edit Limits" dialog. Meaningful on network roots (canProvisionChildOrgs/parentOrgId-less orgs with members) — undefined/null elsewhere. */
+  contractValueMonthly?: number | null;
 };
 
 /**
@@ -225,6 +266,20 @@ export type PartnerSubmission = {
   subjectConsentConfirmed?: boolean | null;
   /** Snapshot of the consent wording shown to the submitter at time of submission, for audit purposes. */
   subjectConsentText?: string | null;
+
+  // --- Story escalation (federated tenants) ---
+  /** Set on an escalated COPY living in the parent org's submissions: the daughter org this story originated from. */
+  sourceOrgId?: string;
+  /** Set on an escalated COPY: id of the original submission doc in the daughter org, for traceability. */
+  sourceSubmissionId?: string;
+  /** Set on an escalated COPY: snapshot of the daughter org's display name at the time of escalation. */
+  sourceOrgName?: string;
+  /** Set on the ORIGINAL submission once a team member pushes it up to the parent org. */
+  escalatedAt?: Date | any;
+  /** Set on the ORIGINAL submission: which parent org it was escalated to. */
+  escalatedToOrgId?: string;
+  /** Set on the ORIGINAL submission: id of the copy created in the parent org's submissions, for traceability. */
+  escalatedToSubmissionId?: string;
 };
 
 export type MediaRequest = {

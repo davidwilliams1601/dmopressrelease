@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { getTierPriceMonthly } from './tiers';
 
 const db = admin.firestore();
 
@@ -63,6 +64,8 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
     maxPartners,
     maxUsers,
     tier,
+    parentOrgId,
+    region,
   } = data;
 
   if (!orgName || !orgSlug || !adminName || !adminEmail) {
@@ -89,6 +92,22 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
     );
   }
 
+  // If this org is being provisioned under a parent (federated tenants), validate the
+  // parent exists and compute the denormalised ancestor chain up front so descendant
+  // rollup queries (`ancestorOrgIds array-contains orgId`) work at any depth.
+  let ancestorOrgIds: string[] | undefined;
+  if (parentOrgId) {
+    const parentSnap = await db.collection('orgs').doc(parentOrgId).get();
+    if (!parentSnap.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        `Parent organisation "${parentOrgId}" does not exist.`
+      );
+    }
+    const parentData = parentSnap.data() || {};
+    ancestorOrgIds = [...(parentData.ancestorOrgIds || []), parentOrgId];
+  }
+
   // Generate a secure temporary password
   const tempPassword = crypto.randomBytes(12).toString('base64').slice(0, 16);
 
@@ -112,6 +131,11 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
     if (maxPartners && maxPartners > 0) orgData.maxPartners = maxPartners;
     if (maxUsers && maxUsers > 0) orgData.maxUsers = maxUsers;
     if (tier) orgData.tier = tier;
+    if (region) orgData.region = region;
+    if (parentOrgId) {
+      orgData.parentOrgId = parentOrgId;
+      orgData.ancestorOrgIds = ancestorOrgIds;
+    }
     await orgRef.set(orgData);
 
     // 2. Create the Firebase Auth user for the first admin
@@ -174,6 +198,113 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
 });
 
 /**
+ * Attach an EXISTING org to a parent org (or detach it back to root),
+ * for cases where a DMO/org was onboarded standalone and only later gets
+ * grouped under a newly-formed LVEP / Visit England / Auris Tech style
+ * parent. provisionNewOrg only sets parentOrgId at creation time - this
+ * is the retrofit path. Super-admin only.
+ *
+ * Guards against cycles (an org can't become its own descendant's child)
+ * and cascades the ancestorOrgIds change to every existing descendant of
+ * orgId, since their denormalised ancestor chains all need the new
+ * ancestors spliced in ahead of orgId.
+ */
+export const setOrgParent = functions.https.onCall(async (data, context) => {
+  requireSuperAdmin(context);
+
+  const { orgId, parentOrgId } = data;
+
+  if (!orgId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required field: orgId');
+  }
+
+  const orgRef = db.collection('orgs').doc(orgId);
+  const orgSnap = await orgRef.get();
+  if (!orgSnap.exists) {
+    throw new functions.https.HttpsError('not-found', `Organisation ${orgId} not found.`);
+  }
+
+  // Existing descendants of orgId, found BEFORE we change anything - both to check for
+  // cycles and because every one of them needs its ancestorOrgIds cascaded afterwards.
+  const descendantsSnap = await db
+    .collection('orgs')
+    .where('ancestorOrgIds', 'array-contains', orgId)
+    .get();
+
+  let newAncestorOrgIds: string[] = [];
+
+  if (parentOrgId) {
+    if (parentOrgId === orgId) {
+      throw new functions.https.HttpsError('invalid-argument', 'An organisation cannot be its own parent.');
+    }
+    if (descendantsSnap.docs.some((d) => d.id === parentOrgId)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        `Cannot set parent to ${parentOrgId} - it is already a descendant of ${orgId}, which would create a cycle.`
+      );
+    }
+    const parentSnap = await db.collection('orgs').doc(parentOrgId).get();
+    if (!parentSnap.exists) {
+      throw new functions.https.HttpsError('not-found', `Parent organisation "${parentOrgId}" does not exist.`);
+    }
+    const parentData = parentSnap.data() || {};
+    newAncestorOrgIds = [...(parentData.ancestorOrgIds || []), parentOrgId];
+  }
+
+  // Chunk into batches of 400 to stay well under Firestore's 500-write batch limit,
+  // covering: the org itself, plus a cascading update for every existing descendant.
+  const writes: Array<() => Promise<void>> = [];
+  const BATCH_SIZE = 400;
+
+  const allUpdates: Array<{ ref: admin.firestore.DocumentReference; data: Record<string, any> }> = [
+    {
+      ref: orgRef,
+      data: {
+        parentOrgId: parentOrgId || admin.firestore.FieldValue.delete(),
+        ancestorOrgIds: newAncestorOrgIds,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+    },
+  ];
+
+  for (const descDoc of descendantsSnap.docs) {
+    const descData = descDoc.data();
+    const oldChain: string[] = descData.ancestorOrgIds || [];
+    const idx = oldChain.indexOf(orgId);
+    // idx should always be found since this doc matched the array-contains query, but
+    // guard defensively rather than write a broken chain if data is ever inconsistent.
+    if (idx === -1) continue;
+    const descNewChain = [...newAncestorOrgIds, orgId, ...oldChain.slice(idx + 1)];
+    allUpdates.push({
+      ref: descDoc.ref,
+      data: {
+        ancestorOrgIds: descNewChain,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+    });
+  }
+
+  for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) {
+    const chunk = allUpdates.slice(i, i + BATCH_SIZE);
+    const batch = db.batch();
+    for (const { ref, data: updateData } of chunk) {
+      batch.update(ref, updateData);
+    }
+    writes.push(() => batch.commit().then(() => undefined));
+  }
+
+  for (const write of writes) {
+    await write();
+  }
+
+  console.log(
+    `Org re-parented: ${orgId} -> ${parentOrgId || '(root)'} | cascaded to ${descendantsSnap.size} existing descendant(s)`
+  );
+
+  return { success: true, cascadedDescendantCount: descendantsSnap.size };
+});
+
+/**
  * Return usage stats for every organisation. Super-admin only.
  *
  * Returns per-org:
@@ -218,6 +349,18 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         }
       }
 
+      // Federated-tenants escalation counters (submissions pushed INTO this org from
+      // one of its own children, and how many of those got drafted into a release).
+      let escalatedInCount = 0;
+      let escalatedInUsedCount = 0;
+      for (const sub of submissionsSnap.docs) {
+        const s = sub.data();
+        if (s.sourceOrgId) {
+          escalatedInCount++;
+          if (s.status === 'used') escalatedInUsedCount++;
+        }
+      }
+
       return {
         id: orgId,
         name: org.name || orgId,
@@ -233,6 +376,15 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         releaseSentCount,
         totalEmailsSent,
         lastActivityAt: lastActivityAt ?? null,
+        parentOrgId: org.parentOrgId ?? null,
+        ancestorOrgIds: (org.ancestorOrgIds as string[] | undefined) ?? [],
+        canProvisionChildOrgs: !!org.canProvisionChildOrgs,
+        maxChildOrgs: org.maxChildOrgs ?? null,
+        childOrgDefaultTier: org.childOrgDefaultTier ?? null,
+        contractValueMonthly: org.contractValueMonthly ?? null,
+        region: org.region ?? null,
+        escalatedInCount,
+        escalatedInUsedCount,
       };
     })
   );
@@ -247,8 +399,121 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
     { orgCount: 0, totalPartners: 0, totalReleasesSent: 0, totalEmailsSent: 0 }
   );
 
-  return { orgs: orgStats, totals };
+  const networks = buildNetworkStats(orgStats);
+
+  // Revenue segmentation: which orgs belong to a network (a root with children, or a
+  // root explicitly flagged canProvisionChildOrgs) vs standalone. Tier price is a
+  // display estimate only (see TIER_PRICE_MONTHLY doc comment) — real invoicing for
+  // bespoke Enterprise deals is manual and tracked via the root org's
+  // contractValueMonthly override, surfaced per-network above rather than folded into
+  // this platform-wide total.
+  const networkMemberIds = new Set<string>();
+  for (const net of networks) {
+    for (const m of net.members) networkMemberIds.add(m.id);
+  }
+  let standaloneMrr = 0;
+  let networkMrr = 0;
+  for (const o of orgStats) {
+    const price = getTierPriceMonthly(o.tier);
+    if (networkMemberIds.has(o.id)) {
+      networkMrr += price;
+    } else {
+      standaloneMrr += price;
+    }
+  }
+
+  return {
+    orgs: orgStats,
+    totals: { ...totals, standaloneMrr, networkMrr, totalMrr: standaloneMrr + networkMrr },
+    networks,
+  };
 });
+
+type OrgStatForNetwork = {
+  id: string;
+  name: string;
+  tier: string | null;
+  parentOrgId: string | null;
+  ancestorOrgIds: string[];
+  canProvisionChildOrgs: boolean;
+  maxChildOrgs: number | null;
+  contractValueMonthly: number | null;
+  partnerCount: number;
+  submissionCount: number;
+  releaseSentCount: number;
+  totalEmailsSent: number;
+  escalatedInCount: number;
+  escalatedInUsedCount: number;
+};
+
+/**
+ * Group the flat org list into federated networks (a root org plus everything
+ * beneath it) and compute the aggregate stats the platform admin "Networks" view
+ * needs — member/seat counts, aggregate usage, MRR, and escalation health.
+ *
+ * A group only counts as a reportable "network" if it actually has more than one
+ * org in it, or its root has been flagged canProvisionChildOrgs (so a
+ * newly-signed network deal with zero daughters provisioned yet still shows up,
+ * e.g. "0 of 10 seats used"). Plain standalone orgs are excluded — they're already
+ * covered by the flat org list.
+ */
+function buildNetworkStats(orgStats: OrgStatForNetwork[]) {
+  const byId = new Map(orgStats.map((o) => [o.id, o]));
+  const groups = new Map<string, OrgStatForNetwork[]>();
+
+  for (const o of orgStats) {
+    const rootId = o.ancestorOrgIds.length > 0 ? o.ancestorOrgIds[0] : o.id;
+    if (!groups.has(rootId)) groups.set(rootId, []);
+    groups.get(rootId)!.push(o);
+  }
+
+  const networks = [];
+  for (const [rootId, members] of groups.entries()) {
+    const root = byId.get(rootId);
+    if (!root) continue; // defensive — root should always exist in the same org set
+    if (members.length <= 1 && !root.canProvisionChildOrgs) continue; // not a network
+
+    const rootAncestorLen = root.ancestorOrgIds.length;
+    const directChildCount = members.filter((m) => m.parentOrgId === rootId).length;
+    const maxDepth = members.reduce((max, m) => Math.max(max, m.ancestorOrgIds.length - rootAncestorLen), 0);
+
+    const agg = members.reduce(
+      (acc, m) => ({
+        totalPartners: acc.totalPartners + m.partnerCount,
+        totalSubmissions: acc.totalSubmissions + m.submissionCount,
+        totalReleasesSent: acc.totalReleasesSent + m.releaseSentCount,
+        totalEmailsSent: acc.totalEmailsSent + m.totalEmailsSent,
+        totalEscalated: acc.totalEscalated + m.escalatedInCount,
+        totalEscalatedUsed: acc.totalEscalatedUsed + m.escalatedInUsedCount,
+        tierDerivedMrr: acc.tierDerivedMrr + getTierPriceMonthly(m.tier),
+      }),
+      {
+        totalPartners: 0,
+        totalSubmissions: 0,
+        totalReleasesSent: 0,
+        totalEmailsSent: 0,
+        totalEscalated: 0,
+        totalEscalatedUsed: 0,
+        tierDerivedMrr: 0,
+      }
+    );
+
+    networks.push({
+      rootOrgId: rootId,
+      rootOrgName: root.name,
+      memberCount: members.length,
+      directChildCount,
+      maxChildOrgs: root.maxChildOrgs,
+      maxDepth, // 1 = root + one level of children (Auris Tech shape); 2+ = Visit England shape
+      ...agg,
+      escalationConversionRate: agg.totalEscalated > 0 ? agg.totalEscalatedUsed / agg.totalEscalated : 0,
+      contractValueMonthly: root.contractValueMonthly,
+      members: members.map((m) => ({ id: m.id, name: m.name })),
+    });
+  }
+
+  return networks.sort((a, b) => b.tierDerivedMrr - a.tierDerivedMrr);
+}
 
 /**
  * Permanently delete an organisation and all associated data. Super-admin only.
@@ -361,6 +626,104 @@ export const updateVerticalCategories = functions.https.onCall(async (data, cont
 });
 
 /**
+ * Curated per-vertical theme taxonomies used to constrain AI theme classification
+ * (see functions/src/submission-analysis.ts and src/ai/flows/analyze-submission-themes.ts).
+ * An empty list means "unconstrained" — that vertical keeps today's free-text `aiThemes`
+ * behaviour unchanged. Populated for `education` as the federated-tenants step 8 pilot
+ * (Auris Tech's network); other verticals stay empty until there's a reason to curate them.
+ */
+const DEFAULT_THEME_TAXONOMY: Record<string, string[]> = {
+  dmo: [],
+  charity: [],
+  'trade-body': [],
+  education: [
+    'Reading & Literacy Engagement',
+    'Academic Achievement & Awards',
+    'Careers, Skills & Future Readiness',
+    'Wellbeing & Mental Health',
+    'Inclusion, SEN & Accessibility',
+    'Community & Local Partnership',
+    'Arts, Culture & Creativity',
+    'Sport & Physical Activity',
+    'Fundraising & Charity',
+    'Digital & EdTech Innovation',
+    'Environmental & Sustainability',
+    'Other',
+  ],
+};
+
+/**
+ * Get the current curated theme taxonomy for all verticals. Super-admin only.
+ * Returns Firestore overrides merged with hardcoded defaults — same shape and
+ * doc (/platform/config) as getVerticalCategories.
+ */
+export const getVerticalThemeTaxonomy = functions.https.onCall(async (_data, context) => {
+  requireSuperAdmin(context);
+
+  const doc = await db.collection('platform').doc('config').get();
+  const stored = doc.exists ? (doc.data()?.verticals || {}) : {};
+
+  const result: Record<string, string[]> = {};
+  for (const verticalId of Object.keys(DEFAULT_THEME_TAXONOMY)) {
+    result[verticalId] = stored[verticalId]?.themeTaxonomy ?? DEFAULT_THEME_TAXONOMY[verticalId];
+  }
+
+  return { verticals: result };
+});
+
+/**
+ * Update the curated theme taxonomy for a single vertical. Super-admin only.
+ * Writes to /platform/config in Firestore, mirroring updateVerticalCategories exactly.
+ *
+ * Input: { verticalId: string, themes: string[] }
+ * An empty `themes` array is allowed and intentional — it reverts that vertical to
+ * unconstrained free-text theme generation.
+ */
+export const updateVerticalThemeTaxonomy = functions.https.onCall(async (data, context) => {
+  requireSuperAdmin(context);
+
+  const { verticalId, themes } = data;
+
+  if (!verticalId || !Object.keys(DEFAULT_THEME_TAXONOMY).includes(verticalId)) {
+    throw new functions.https.HttpsError('invalid-argument', 'verticalId must be one of: dmo, charity, trade-body, education.');
+  }
+  if (!Array.isArray(themes)) {
+    throw new functions.https.HttpsError('invalid-argument', 'themes must be an array of strings (may be empty).');
+  }
+  const clean = Array.from(new Set(themes.map((t: any) => String(t).trim()).filter(Boolean)));
+  if (clean.length > 50) {
+    throw new functions.https.HttpsError('invalid-argument', 'themes cannot contain more than 50 entries.');
+  }
+
+  await db.collection('platform').doc('config').set(
+    { verticals: { [verticalId]: { themeTaxonomy: clean } } },
+    { merge: true }
+  );
+
+  console.log(
+    `[updateVerticalThemeTaxonomy] ${verticalId} updated by ${context.auth!.uid}: ${clean.join(', ') || '(cleared — unconstrained)'}`
+  );
+  return { success: true, themes: clean };
+});
+
+/**
+ * Resolve the effective theme taxonomy for one vertical — Firestore override if set,
+ * otherwise the hardcoded default. Shared by submission-analysis.ts so the trigger
+ * doesn't duplicate this merge logic. Not exported as a callable.
+ */
+export async function resolveThemeTaxonomy(vertical: string | undefined): Promise<string[]> {
+  if (!vertical || !(vertical in DEFAULT_THEME_TAXONOMY)) return [];
+  try {
+    const doc = await db.collection('platform').doc('config').get();
+    const stored = doc.exists ? doc.data()?.verticals?.[vertical]?.themeTaxonomy : undefined;
+    if (Array.isArray(stored)) return stored;
+  } catch (err) {
+    console.warn(`[resolveThemeTaxonomy] Firestore read failed for vertical ${vertical}, using default:`, err);
+  }
+  return DEFAULT_THEME_TAXONOMY[vertical] ?? [];
+}
+
+/**
  * Update partner/submission limits for an organisation. Super-admin only.
  *
  * Input:
@@ -370,7 +733,7 @@ export const updateVerticalCategories = functions.https.onCall(async (data, cont
 export const updateOrgLimits = functions.https.onCall(async (data, context) => {
   requireSuperAdmin(context);
 
-  const { orgId, maxPartners, maxUsers, tier } = data;
+  const { orgId, maxPartners, maxUsers, tier, contractValueMonthly, canProvisionChildOrgs, maxChildOrgs, childOrgDefaultTier } = data;
 
   if (!orgId) {
     throw new functions.https.HttpsError('invalid-argument', 'Missing required field: orgId');
@@ -404,15 +767,60 @@ export const updateOrgLimits = functions.https.onCall(async (data, context) => {
 
   if (tier === null || tier === undefined || tier === '') {
     update.tier = admin.firestore.FieldValue.delete();
-  } else if (['starter', 'professional', 'organisation'].includes(tier)) {
+  } else if (['starter', 'professional', 'organisation', 'enterprise'].includes(tier)) {
+    // 'enterprise' included here — this is the only path that ever sets it, for bespoke
+    // manually-invoiced network-root deals (e.g. Auris Tech). Never offered via self-serve
+    // signup (functions/src/billing.ts rejects it) or as a childOrgDefaultTier below.
     update.tier = tier;
   } else {
-    throw new functions.https.HttpsError('invalid-argument', 'tier must be starter, professional, organisation, or null.');
+    throw new functions.https.HttpsError('invalid-argument', 'tier must be starter, professional, organisation, enterprise, or null.');
+  }
+
+  // Optional manually-entered contract value, for network-root orgs where the actual
+  // Enterprise invoice doesn't match the sum of member tier prices. Left untouched if
+  // the caller doesn't send the field at all (older client) — explicit null clears it.
+  if (contractValueMonthly !== undefined) {
+    if (contractValueMonthly === null) {
+      update.contractValueMonthly = admin.firestore.FieldValue.delete();
+    } else if (typeof contractValueMonthly === 'number' && contractValueMonthly >= 0) {
+      update.contractValueMonthly = contractValueMonthly;
+    } else {
+      throw new functions.https.HttpsError('invalid-argument', 'contractValueMonthly must be a non-negative number or null.');
+    }
+  }
+
+  // Federated-tenants seat licensing (step 5) — lets a network-root org's admins self-serve
+  // create daughter orgs, capped at maxChildOrgs direct children, always at childOrgDefaultTier.
+  // Only Press Pilot (super-admin, via this callable) can grant/revoke/resize the licence.
+  if (canProvisionChildOrgs !== undefined) {
+    if (typeof canProvisionChildOrgs !== 'boolean') {
+      throw new functions.https.HttpsError('invalid-argument', 'canProvisionChildOrgs must be a boolean.');
+    }
+    update.canProvisionChildOrgs = canProvisionChildOrgs;
+  }
+
+  if (maxChildOrgs === null || maxChildOrgs === undefined) {
+    if (maxChildOrgs === null) update.maxChildOrgs = admin.firestore.FieldValue.delete();
+  } else if (typeof maxChildOrgs === 'number' && maxChildOrgs > 0) {
+    update.maxChildOrgs = maxChildOrgs;
+  } else {
+    throw new functions.https.HttpsError('invalid-argument', 'maxChildOrgs must be a positive number or null.');
+  }
+
+  // Deliberately excludes 'enterprise', unlike the main tier field above: a self-provisioned
+  // daughter org is never itself a bespoke manually-invoiced deal, so it can only default to
+  // one of the three self-serve tiers.
+  if (childOrgDefaultTier === null || childOrgDefaultTier === undefined || childOrgDefaultTier === '') {
+    if (childOrgDefaultTier === null || childOrgDefaultTier === '') update.childOrgDefaultTier = admin.firestore.FieldValue.delete();
+  } else if (['starter', 'professional', 'organisation'].includes(childOrgDefaultTier)) {
+    update.childOrgDefaultTier = childOrgDefaultTier;
+  } else {
+    throw new functions.https.HttpsError('invalid-argument', 'childOrgDefaultTier must be starter, professional, organisation, or null.');
   }
 
   await orgRef.update(update);
 
-  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'}`);
+  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'} | contractValueMonthly=${contractValueMonthly ?? 'unchanged/none'} | canProvisionChildOrgs=${canProvisionChildOrgs ?? 'unchanged'} | maxChildOrgs=${maxChildOrgs ?? 'unchanged/none'} | childOrgDefaultTier=${childOrgDefaultTier ?? 'unchanged/none'}`);
 
   return { success: true };
 });

@@ -33,6 +33,35 @@
         "brandToneNotes": {
           "type": "string",
           "description": "Notes on brand and tone, used in AI prompts."
+        },
+        "parentOrgId": {
+          "type": ["string", "null"],
+          "description": "Direct parent org, if this org is a daughter/member of a larger network (federated tenants). Absent or null means this is a root org."
+        },
+        "ancestorOrgIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Denormalised full ancestor chain, root-first, enabling a single 'all descendants of X' Firestore query at any depth."
+        },
+        "canProvisionChildOrgs": {
+          "type": "boolean",
+          "description": "Gates self-service creation of daughter orgs beneath this org. Set only by Press Pilot, tier-gated to Enterprise."
+        },
+        "maxChildOrgs": {
+          "type": "number",
+          "description": "Licensed seat cap on self-service daughter-org creation. Set only by Press Pilot."
+        },
+        "childOrgDefaultTier": {
+          "type": "string",
+          "description": "Tier automatically assigned to every self-provisioned daughter org. Set only by Press Pilot."
+        },
+        "showEscalationSourceCredit": {
+          "type": "boolean",
+          "description": "Whether a release drafted from an escalated submission carries a visible source credit line. Defaults to true."
+        },
+        "region": {
+          "type": "string",
+          "description": "UK region or nation from a curated list (src/lib/regions.ts), enabling regional trend and benchmarking products. Set via a dropdown in org settings (self-service) or the super-admin Provision Org dialog (at creation time)."
         }
       },
       "required": [

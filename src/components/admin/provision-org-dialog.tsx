@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Switch } from '@/components/ui/switch';
 import { VERTICALS } from '@/lib/verticals';
+import { REGIONS } from '@/lib/regions';
 import type { VerticalId } from '@/lib/types';
 
 type ProvisionResult = {
@@ -58,8 +59,10 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
   const [vertical, setVertical] = useState<VerticalId>('dmo');
   const [maxPartners, setMaxPartners] = useState('');
   const [maxUsers, setMaxUsers] = useState('');
-  const [tier, setTier] = useState<'starter' | 'professional' | 'organisation' | ''>('');
+  const [tier, setTier] = useState<'starter' | 'professional' | 'organisation' | 'enterprise' | ''>('');
   const [seedDemo, setSeedDemo] = useState(false);
+  const [parentOrgId, setParentOrgId] = useState('');
+  const [region, setRegion] = useState('');
 
   const handleOrgNameChange = (value: string) => {
     setOrgName(value);
@@ -86,6 +89,8 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
         maxPartners: maxPartners ? parseInt(maxPartners, 10) : undefined,
         maxUsers: maxUsers ? parseInt(maxUsers, 10) : undefined,
         tier: tier || undefined,
+        parentOrgId: parentOrgId.trim() || undefined,
+        region: region || undefined,
       });
       setResult(response.data);
       if (seedDemo) {
@@ -121,6 +126,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
     setPressContactName(''); setPressContactEmail('');
     setAdminName(''); setAdminEmail('');
     setVertical('dmo'); setMaxPartners(''); setMaxUsers(''); setTier(''); setSeedDemo(false);
+    setParentOrgId(''); setRegion('');
   };
 
   return (
@@ -257,6 +263,35 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="parentOrgId">Parent Org ID <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Input
+                      id="parentOrgId"
+                      value={parentOrgId}
+                      onChange={(e) => setParentOrgId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                      placeholder="e.g. auris-tech"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="region">Region <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Select value={region} onValueChange={setRegion}>
+                      <SelectTrigger id="region">
+                        <SelectValue placeholder="Not set" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REGIONS.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Set Parent Org ID to create this org as a daughter of an existing organisation (federated tenants) — e.g. National Read Aloud Challenge under Auris Tech. Leave blank for a standalone or root org.
+                </p>
                 <div className="grid gap-2">
                   <Label htmlFor="tier">Plan Tier</Label>
                   <Select value={tier} onValueChange={(v) => setTier(v as any)}>
@@ -267,8 +302,12 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
                       <SelectItem value="starter">Starter</SelectItem>
                       <SelectItem value="professional">Professional</SelectItem>
                       <SelectItem value="organisation">Organisation</SelectItem>
+                      <SelectItem value="enterprise">Enterprise (manually invoiced)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Enterprise is for bespoke, manually-invoiced network deals (e.g. Auris Tech) — not sold via self-serve checkout. Set the real contract value later via Edit Limits.
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
