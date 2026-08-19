@@ -36,6 +36,22 @@ export type Organization = {
   approvalWorkflowEnabled?: boolean;
   contentTypes?: Array<{ name: string; description?: string }>;
   branding?: OrgBranding;
+
+  // --- Federated tenants (members-of-members) ---
+  /** Direct parent org, if this org is a daughter/member of a larger network. Absent/null = root org. */
+  parentOrgId?: string | null;
+  /** Denormalised full ancestor chain, root-first, so Firestore can query "all descendants of X" in one call. */
+  ancestorOrgIds?: string[];
+  /** Gates self-service "add a daughter org" capability for a root/parent org. Set only by Press Pilot. */
+  canProvisionChildOrgs?: boolean;
+  /** Seat cap on self-service daughter-org creation, e.g. 10 licensed LVEP seats. Set only by Press Pilot. */
+  maxChildOrgs?: number;
+  /** Tier auto-assigned to every self-provisioned daughter org. Set only by Press Pilot. */
+  childOrgDefaultTier?: 'starter' | 'professional' | 'organisation';
+  /** When an escalated submission is drafted into a release, whether to credit the source org (e.g. "Additional reporting from X"). Defaults to on. */
+  showEscalationSourceCredit?: boolean;
+  /** Structured geography, e.g. "Cornwall" or "South West England" — enables regional trend/benchmarking products. */
+  region?: string;
 };
 
 /**

@@ -60,6 +60,8 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
   const [maxUsers, setMaxUsers] = useState('');
   const [tier, setTier] = useState<'starter' | 'professional' | 'organisation' | ''>('');
   const [seedDemo, setSeedDemo] = useState(false);
+  const [parentOrgId, setParentOrgId] = useState('');
+  const [region, setRegion] = useState('');
 
   const handleOrgNameChange = (value: string) => {
     setOrgName(value);
@@ -86,6 +88,8 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
         maxPartners: maxPartners ? parseInt(maxPartners, 10) : undefined,
         maxUsers: maxUsers ? parseInt(maxUsers, 10) : undefined,
         tier: tier || undefined,
+        parentOrgId: parentOrgId.trim() || undefined,
+        region: region.trim() || undefined,
       });
       setResult(response.data);
       if (seedDemo) {
@@ -121,6 +125,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
     setPressContactName(''); setPressContactEmail('');
     setAdminName(''); setAdminEmail('');
     setVertical('dmo'); setMaxPartners(''); setMaxUsers(''); setTier(''); setSeedDemo(false);
+    setParentOrgId(''); setRegion('');
   };
 
   return (
@@ -257,6 +262,29 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="parentOrgId">Parent Org ID <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Input
+                      id="parentOrgId"
+                      value={parentOrgId}
+                      onChange={(e) => setParentOrgId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                      placeholder="e.g. auris-tech"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="region">Region <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Input
+                      id="region"
+                      value={region}
+                      onChange={(e) => setRegion(e.target.value)}
+                      placeholder="e.g. South West England"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Set Parent Org ID to create this org as a daughter of an existing organisation (federated tenants) — e.g. National Read Aloud Challenge under Auris Tech. Leave blank for a standalone or root org.
+                </p>
                 <div className="grid gap-2">
                   <Label htmlFor="tier">Plan Tier</Label>
                   <Select value={tier} onValueChange={(v) => setTier(v as any)}>

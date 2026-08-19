@@ -63,6 +63,8 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
     maxPartners,
     maxUsers,
     tier,
+    parentOrgId,
+    region,
   } = data;
 
   if (!orgName || !orgSlug || !adminName || !adminEmail) {
@@ -89,6 +91,22 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
     );
   }
 
+  // If this org is being provisioned under a parent (federated tenants), validate the
+  // parent exists and compute the denormalised ancestor chain up front so descendant
+  // rollup queries (`ancestorOrgIds array-contains orgId`) work at any depth.
+  let ancestorOrgIds: string[] | undefined;
+  if (parentOrgId) {
+    const parentSnap = await db.collection('orgs').doc(parentOrgId).get();
+    if (!parentSnap.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        `Parent organisation "${parentOrgId}" does not exist.`
+      );
+    }
+    const parentData = parentSnap.data() || {};
+    ancestorOrgIds = [...(parentData.ancestorOrgIds || []), parentOrgId];
+  }
+
   // Generate a secure temporary password
   const tempPassword = crypto.randomBytes(12).toString('base64').slice(0, 16);
 
@@ -112,6 +130,11 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
     if (maxPartners && maxPartners > 0) orgData.maxPartners = maxPartners;
     if (maxUsers && maxUsers > 0) orgData.maxUsers = maxUsers;
     if (tier) orgData.tier = tier;
+    if (region) orgData.region = region;
+    if (parentOrgId) {
+      orgData.parentOrgId = parentOrgId;
+      orgData.ancestorOrgIds = ancestorOrgIds;
+    }
     await orgRef.set(orgData);
 
     // 2. Create the Firebase Auth user for the first admin
