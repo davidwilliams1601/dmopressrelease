@@ -19,11 +19,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, RefreshCw, Loader2, Instagram, Twitter, Facebook, Linkedin } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Loader2, Instagram, Twitter, Facebook, Linkedin, Network, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { analyzeSubmissionThemes } from '@/ai/flows/analyze-submission-themes';
 import { getVerticalConfig } from '@/lib/verticals';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import type { Organization, PartnerSubmission, Tag } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +52,14 @@ export default function SubmissionDetailPage() {
 
   const { data: org } = useDoc<Organization>(orgRef);
 
+  const parentOrgRef = useMemoFirebase(() => {
+    if (!org?.parentOrgId) return null;
+    return doc(firestore, 'orgs', org.parentOrgId);
+  }, [firestore, org?.parentOrgId]);
+
+  const { data: parentOrg } = useDoc<Organization>(parentOrgRef);
+  const [isEscalating, setIsEscalating] = useState(false);
+
   const tagsRef = useMemoFirebase(() => {
     if (!orgId) return null;
     return query(
@@ -77,6 +86,31 @@ export default function SubmissionDetailPage() {
       reviewNotes: notes,
       updatedAt: serverTimestamp(),
     });
+  };
+
+  const handleEscalate = async () => {
+    if (!submission || !org?.parentOrgId) return;
+    setIsEscalating(true);
+    try {
+      const functionsInstance = getFunctions();
+      const escalate = httpsCallable<
+        { submissionId: string },
+        { success: boolean; parentOrgName: string }
+      >(functionsInstance, 'escalateSubmissionToParent');
+      const response = await escalate({ submissionId });
+      toast({
+        title: 'Pushed to parent',
+        description: `This story now appears in ${response.data.parentOrgName}'s submissions inbox.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Could not push story',
+        description: error.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsEscalating(false);
+    }
   };
 
   const handleReanalyze = async () => {
@@ -272,6 +306,44 @@ export default function SubmissionDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {org?.parentOrgId && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Parent Network</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {submission.escalatedToOrgId ? (
+                  <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Check className="h-4 w-4 text-green-600 shrink-0" />
+                    Pushed to {parentOrg?.name || 'the parent organisation'}
+                    {submission.escalatedAt ? ` on ${formatDate(submission.escalatedAt)}` : ''}.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Send this story straight into {parentOrg?.name || 'the parent organisation'}'s
+                      submissions inbox, where it will be triaged and scored just like any of their
+                      own partner submissions.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleEscalate}
+                      disabled={isEscalating || !parentOrg}
+                    >
+                      {isEscalating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Network className="h-4 w-4" />
+                      )}
+                      Push to {parentOrg?.name || 'parent'}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

@@ -573,6 +573,9 @@ export * from './submission-analysis';
 // Export media request functions
 export * from './media-requests';
 
+// Export story escalation (federated tenants — push a daughter org's story into its parent's inbox)
+export * from './story-escalation';
+
 // Export super-admin functions
 export * from './super-admin';
 

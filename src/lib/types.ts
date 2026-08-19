@@ -241,6 +241,20 @@ export type PartnerSubmission = {
   subjectConsentConfirmed?: boolean | null;
   /** Snapshot of the consent wording shown to the submitter at time of submission, for audit purposes. */
   subjectConsentText?: string | null;
+
+  // --- Story escalation (federated tenants) ---
+  /** Set on an escalated COPY living in the parent org's submissions: the daughter org this story originated from. */
+  sourceOrgId?: string;
+  /** Set on an escalated COPY: id of the original submission doc in the daughter org, for traceability. */
+  sourceSubmissionId?: string;
+  /** Set on an escalated COPY: snapshot of the daughter org's display name at the time of escalation. */
+  sourceOrgName?: string;
+  /** Set on the ORIGINAL submission once a team member pushes it up to the parent org. */
+  escalatedAt?: Date | any;
+  /** Set on the ORIGINAL submission: which parent org it was escalated to. */
+  escalatedToOrgId?: string;
+  /** Set on the ORIGINAL submission: id of the copy created in the parent org's submissions, for traceability. */
+  escalatedToSubmissionId?: string;
 };
 
 export type MediaRequest = {
