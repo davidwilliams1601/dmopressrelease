@@ -197,6 +197,113 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
 });
 
 /**
+ * Attach an EXISTING org to a parent org (or detach it back to root),
+ * for cases where a DMO/org was onboarded standalone and only later gets
+ * grouped under a newly-formed LVEP / Visit England / Auris Tech style
+ * parent. provisionNewOrg only sets parentOrgId at creation time - this
+ * is the retrofit path. Super-admin only.
+ *
+ * Guards against cycles (an org can't become its own descendant's child)
+ * and cascades the ancestorOrgIds change to every existing descendant of
+ * orgId, since their denormalised ancestor chains all need the new
+ * ancestors spliced in ahead of orgId.
+ */
+export const setOrgParent = functions.https.onCall(async (data, context) => {
+  requireSuperAdmin(context);
+
+  const { orgId, parentOrgId } = data;
+
+  if (!orgId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required field: orgId');
+  }
+
+  const orgRef = db.collection('orgs').doc(orgId);
+  const orgSnap = await orgRef.get();
+  if (!orgSnap.exists) {
+    throw new functions.https.HttpsError('not-found', `Organisation ${orgId} not found.`);
+  }
+
+  // Existing descendants of orgId, found BEFORE we change anything - both to check for
+  // cycles and because every one of them needs its ancestorOrgIds cascaded afterwards.
+  const descendantsSnap = await db
+    .collection('orgs')
+    .where('ancestorOrgIds', 'array-contains', orgId)
+    .get();
+
+  let newAncestorOrgIds: string[] = [];
+
+  if (parentOrgId) {
+    if (parentOrgId === orgId) {
+      throw new functions.https.HttpsError('invalid-argument', 'An organisation cannot be its own parent.');
+    }
+    if (descendantsSnap.docs.some((d) => d.id === parentOrgId)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        `Cannot set parent to ${parentOrgId} - it is already a descendant of ${orgId}, which would create a cycle.`
+      );
+    }
+    const parentSnap = await db.collection('orgs').doc(parentOrgId).get();
+    if (!parentSnap.exists) {
+      throw new functions.https.HttpsError('not-found', `Parent organisation "${parentOrgId}" does not exist.`);
+    }
+    const parentData = parentSnap.data() || {};
+    newAncestorOrgIds = [...(parentData.ancestorOrgIds || []), parentOrgId];
+  }
+
+  // Chunk into batches of 400 to stay well under Firestore's 500-write batch limit,
+  // covering: the org itself, plus a cascading update for every existing descendant.
+  const writes: Array<() => Promise<void>> = [];
+  const BATCH_SIZE = 400;
+
+  const allUpdates: Array<{ ref: admin.firestore.DocumentReference; data: Record<string, any> }> = [
+    {
+      ref: orgRef,
+      data: {
+        parentOrgId: parentOrgId || admin.firestore.FieldValue.delete(),
+        ancestorOrgIds: newAncestorOrgIds,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+    },
+  ];
+
+  for (const descDoc of descendantsSnap.docs) {
+    const descData = descDoc.data();
+    const oldChain: string[] = descData.ancestorOrgIds || [];
+    const idx = oldChain.indexOf(orgId);
+    // idx should always be found since this doc matched the array-contains query, but
+    // guard defensively rather than write a broken chain if data is ever inconsistent.
+    if (idx === -1) continue;
+    const descNewChain = [...newAncestorOrgIds, orgId, ...oldChain.slice(idx + 1)];
+    allUpdates.push({
+      ref: descDoc.ref,
+      data: {
+        ancestorOrgIds: descNewChain,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+    });
+  }
+
+  for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) {
+    const chunk = allUpdates.slice(i, i + BATCH_SIZE);
+    const batch = db.batch();
+    for (const { ref, data: updateData } of chunk) {
+      batch.update(ref, updateData);
+    }
+    writes.push(() => batch.commit().then(() => undefined));
+  }
+
+  for (const write of writes) {
+    await write();
+  }
+
+  console.log(
+    `Org re-parented: ${orgId} -> ${parentOrgId || '(root)'} | cascaded to ${descendantsSnap.size} existing descendant(s)`
+  );
+
+  return { success: true, cascadedDescendantCount: descendantsSnap.size };
+});
+
+/**
  * Return usage stats for every organisation. Super-admin only.
  *
  * Returns per-org:
@@ -256,6 +363,7 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         releaseSentCount,
         totalEmailsSent,
         lastActivityAt: lastActivityAt ?? null,
+        parentOrgId: org.parentOrgId ?? null,
       };
     })
   );

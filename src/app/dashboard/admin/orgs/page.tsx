@@ -20,6 +20,7 @@ import { Building2, Users, Send, Mail, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProvisionOrgDialog } from '@/components/admin/provision-org-dialog';
 import { EditOrgLimitsDialog } from '@/components/admin/edit-org-limits-dialog';
+import { SetOrgParentDialog } from '@/components/admin/set-org-parent-dialog';
 import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
 import { SeedDemoDialog } from '@/components/admin/seed-demo-dialog';
 import { ResetPasswordDialog } from '@/components/admin/reset-password-dialog';
@@ -41,6 +42,7 @@ type OrgStat = {
   releaseSentCount: number;
   totalEmailsSent: number;
   lastActivityAt: any;
+  parentOrgId: string | null;
 };
 
 type Totals = {
@@ -249,6 +251,9 @@ export default function AdminOrgsPage() {
                       <div>
                         <p className="font-medium">{org.name}</p>
                         <code className="text-xs text-muted-foreground">{org.slug}</code>
+                        {org.parentOrgId && (
+                          <p className="text-xs text-muted-foreground">under <code className="font-mono">{org.parentOrgId}</code></p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -301,6 +306,12 @@ export default function AdminOrgsPage() {
                           currentMaxPartners={org.maxPartners ?? undefined}
                           currentMaxUsers={org.maxUsers ?? undefined}
                           currentTier={org.tier ?? undefined}
+                          onUpdated={loadReport}
+                        />
+                        <SetOrgParentDialog
+                          orgId={org.id}
+                          orgName={org.name}
+                          currentParentOrgId={org.parentOrgId}
                           onUpdated={loadReport}
                         />
                         <ResetPasswordDialog
