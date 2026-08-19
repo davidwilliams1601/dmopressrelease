@@ -32,6 +32,7 @@ export function AddUserDialog({ orgId, onUserAdded }: AddUserDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [welcomeEmailSent, setWelcomeEmailSent] = useState(true);
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -60,6 +61,7 @@ export function AddUserDialog({ orgId, onUserAdded }: AddUserDialogProps) {
 
       // Show temporary password
       setTempPassword(data.tempPassword);
+      setWelcomeEmailSent(data.welcomeEmailSent !== false);
 
       toast({
         title: 'User created successfully',
@@ -90,6 +92,7 @@ export function AddUserDialog({ orgId, onUserAdded }: AddUserDialogProps) {
   const handleClose = () => {
     setOpen(false);
     setTempPassword(null);
+    setWelcomeEmailSent(true);
   };
 
   return (
@@ -131,6 +134,11 @@ export function AddUserDialog({ orgId, onUserAdded }: AddUserDialogProps) {
                   </Button>
                 </div>
               </div>
+              <p className="text-sm">
+                {welcomeEmailSent
+                  ? "We've also emailed them a welcome link so they can set their own password."
+                  : "We couldn't send them a welcome email automatically \u2014 please share this password with them directly."}
+              </p>
               <p className="text-sm text-muted-foreground">
                 Make sure to save this password now. You won't be able to see it again.
               </p>

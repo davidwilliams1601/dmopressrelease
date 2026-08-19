@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { sendWelcomeEmail } from './welcome-email';
 
 const db = admin.firestore();
 
@@ -129,12 +130,29 @@ export const createOrgUser = functions.https.onCall(async (data, context) => {
 
     console.log(`User created: ${email} (${userRecord.uid}) for org ${orgId}`);
 
+    // Send the new user a welcome email with a set-password link.
+    // Deliberately non-fatal: the user account is already created above, so
+    // an email outage should never roll that back or fail the whole call.
+    let welcomeEmailSent = false;
+    try {
+      await sendWelcomeEmail({
+        org: { name: orgDoc.data()?.name, tier: orgDoc.data()?.tier || null },
+        toEmail: email,
+        toName: name,
+        isNewOrg: false,
+      });
+      welcomeEmailSent = true;
+    } catch (emailError: any) {
+      console.error(`[createOrgUser] Welcome email failed for ${email}:`, emailError);
+    }
+
     // Return the user details and temp password
     return {
       success: true,
       userId: userRecord.uid,
       email,
       tempPassword,
+      welcomeEmailSent,
       message: 'User created successfully',
     };
   } catch (error: any) {

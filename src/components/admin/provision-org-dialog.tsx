@@ -34,6 +34,7 @@ type ProvisionResult = {
   orgId: string;
   adminUserId: string;
   tempPassword: string;
+  welcomeEmailSent?: boolean;
 };
 
 type ProvisionOrgDialogProps = {
@@ -169,7 +170,10 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
               <Alert>
                 <AlertTitle>Next steps</AlertTitle>
                 <AlertDescription>
-                  Send the admin their email and temporary password. They should log in at <strong>/</strong> and change their password immediately via Settings.
+                  {result.welcomeEmailSent !== false
+                    ? "We've emailed the admin a welcome link so they can set their own password — the temp password above is just a fallback."
+                    : "We couldn't send a welcome email automatically — please share the email and temporary password with the admin directly."}
+                  {' '}They should log in at <strong>/</strong> and change their password immediately via Settings.
                   {seedDemo && <><br /><br />Demo data has been seeded — the org is ready for a prospect walkthrough.</>}
                 </AlertDescription>
               </Alert>
