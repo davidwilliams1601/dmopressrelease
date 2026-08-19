@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Building2, Users, Send, ArrowUpRight, RefreshCw, Network as NetworkIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { CreateChildOrgDialog } from '@/components/network/create-child-org-dialog';
 
 type OrgRollupNode = {
   id: string;
@@ -71,6 +72,9 @@ export default function NetworkRollupPage() {
   const [error, setError] = useState<string | null>(null);
 
   const canSeeNetwork = !!organization && (organization.canProvisionChildOrgs || !!organization.parentOrgId);
+  const directChildCount = rollup ? rollup.nodes.filter((n) => n.depth === 1).length : 0;
+  const canCreateMemberOrgs =
+    !!organization?.canProvisionChildOrgs && !!organization?.maxChildOrgs && role === 'Admin';
 
   const loadRollup = useCallback(async () => {
     if (!orgId) return;
@@ -126,11 +130,28 @@ export default function NetworkRollupPage() {
             {organization?.name} and every member organisation beneath it, rolled up.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadRollup} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={loadRollup} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          {canCreateMemberOrgs && organization && (
+            <CreateChildOrgDialog
+              parentOrgName={organization.name}
+              seatsUsed={directChildCount}
+              maxChildOrgs={organization.maxChildOrgs!}
+              onCreated={loadRollup}
+            />
+          )}
+        </div>
       </div>
+
+      {canCreateMemberOrgs && organization?.maxChildOrgs != null && (
+        <p className="text-sm text-muted-foreground -mt-4">
+          {directChildCount} of {organization.maxChildOrgs} licensed seats used
+          {directChildCount >= organization.maxChildOrgs ? ' — contact Press Pilot to license more.' : '.'}
+        </p>
+      )}
 
       {error && (
         <Card className="border-destructive/50">

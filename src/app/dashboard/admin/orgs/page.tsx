@@ -47,6 +47,7 @@ type OrgStat = {
   ancestorOrgIds: string[];
   canProvisionChildOrgs: boolean;
   maxChildOrgs: number | null;
+  childOrgDefaultTier: string | null;
   contractValueMonthly: number | null;
   escalatedInCount: number;
   escalatedInUsedCount: number;
@@ -349,6 +350,9 @@ export default function AdminOrgsPage() {
                           currentTier={org.tier ?? undefined}
                           currentContractValueMonthly={org.contractValueMonthly}
                           isNetworkRoot={org.canProvisionChildOrgs || (!org.parentOrgId && org.ancestorOrgIds.length === 0 && networks.some((n) => n.rootOrgId === org.id))}
+                          currentCanProvisionChildOrgs={org.canProvisionChildOrgs}
+                          currentMaxChildOrgs={org.maxChildOrgs}
+                          currentChildOrgDefaultTier={org.childOrgDefaultTier}
                           onUpdated={loadReport}
                         />
                         <SetOrgParentDialog

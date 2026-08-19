@@ -380,6 +380,7 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         ancestorOrgIds: (org.ancestorOrgIds as string[] | undefined) ?? [],
         canProvisionChildOrgs: !!org.canProvisionChildOrgs,
         maxChildOrgs: org.maxChildOrgs ?? null,
+        childOrgDefaultTier: org.childOrgDefaultTier ?? null,
         contractValueMonthly: org.contractValueMonthly ?? null,
         escalatedInCount,
         escalatedInUsedCount,
@@ -633,7 +634,7 @@ export const updateVerticalCategories = functions.https.onCall(async (data, cont
 export const updateOrgLimits = functions.https.onCall(async (data, context) => {
   requireSuperAdmin(context);
 
-  const { orgId, maxPartners, maxUsers, tier, contractValueMonthly } = data;
+  const { orgId, maxPartners, maxUsers, tier, contractValueMonthly, canProvisionChildOrgs, maxChildOrgs, childOrgDefaultTier } = data;
 
   if (!orgId) {
     throw new functions.https.HttpsError('invalid-argument', 'Missing required field: orgId');
@@ -686,9 +687,35 @@ export const updateOrgLimits = functions.https.onCall(async (data, context) => {
     }
   }
 
+  // Federated-tenants seat licensing (step 5) — lets a network-root org's admins self-serve
+  // create daughter orgs, capped at maxChildOrgs direct children, always at childOrgDefaultTier.
+  // Only Press Pilot (super-admin, via this callable) can grant/revoke/resize the licence.
+  if (canProvisionChildOrgs !== undefined) {
+    if (typeof canProvisionChildOrgs !== 'boolean') {
+      throw new functions.https.HttpsError('invalid-argument', 'canProvisionChildOrgs must be a boolean.');
+    }
+    update.canProvisionChildOrgs = canProvisionChildOrgs;
+  }
+
+  if (maxChildOrgs === null || maxChildOrgs === undefined) {
+    if (maxChildOrgs === null) update.maxChildOrgs = admin.firestore.FieldValue.delete();
+  } else if (typeof maxChildOrgs === 'number' && maxChildOrgs > 0) {
+    update.maxChildOrgs = maxChildOrgs;
+  } else {
+    throw new functions.https.HttpsError('invalid-argument', 'maxChildOrgs must be a positive number or null.');
+  }
+
+  if (childOrgDefaultTier === null || childOrgDefaultTier === undefined || childOrgDefaultTier === '') {
+    if (childOrgDefaultTier === null || childOrgDefaultTier === '') update.childOrgDefaultTier = admin.firestore.FieldValue.delete();
+  } else if (['starter', 'professional', 'organisation'].includes(childOrgDefaultTier)) {
+    update.childOrgDefaultTier = childOrgDefaultTier;
+  } else {
+    throw new functions.https.HttpsError('invalid-argument', 'childOrgDefaultTier must be starter, professional, organisation, or null.');
+  }
+
   await orgRef.update(update);
 
-  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'} | contractValueMonthly=${contractValueMonthly ?? 'unchanged/none'}`);
+  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'} | contractValueMonthly=${contractValueMonthly ?? 'unchanged/none'} | canProvisionChildOrgs=${canProvisionChildOrgs ?? 'unchanged'} | maxChildOrgs=${maxChildOrgs ?? 'unchanged/none'} | childOrgDefaultTier=${childOrgDefaultTier ?? 'unchanged/none'}`);
 
   return { success: true };
 });
