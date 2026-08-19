@@ -20,7 +20,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import type { MediaRequest } from '@/lib/types';
+import type { MediaRequest, Organization } from '@/lib/types';
+import { getVerticalConfig } from '@/lib/verticals';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,14 @@ export default function MediaRequestDetailPage() {
   }, [firestore, orgId, requestId]);
 
   const { data: request, isLoading: isRequestLoading } = useDoc<MediaRequest>(requestRef);
+
+  const orgRef = useMemoFirebase(() => {
+    if (!orgId) return null;
+    return doc(firestore, 'orgs', orgId);
+  }, [firestore, orgId]);
+
+  const { data: org } = useDoc<Organization>(orgRef);
+  const verticalConfig = getVerticalConfig(org?.vertical);
 
   const handleStatusChange = (status: string) => {
     if (!requestRef || !request) return;
@@ -122,7 +131,7 @@ export default function MediaRequestDetailPage() {
               <CardContent className="space-y-4">
                 {request.destinations && (
                   <div>
-                    <Label className="text-muted-foreground text-xs uppercase tracking-wide">Destinations of Interest</Label>
+                    <Label className="text-muted-foreground text-xs uppercase tracking-wide">{verticalConfig.mediaRequest.topicsLabel}</Label>
                     <p className="mt-1 text-sm">{request.destinations}</p>
                   </div>
                 )}

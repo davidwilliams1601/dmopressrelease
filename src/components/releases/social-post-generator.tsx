@@ -28,6 +28,7 @@ type SocialPostGeneratorProps = {
   headline: string;
   bodyCopy: string;
   orgName: string;
+  orgTypeDescription?: string;
   orgSlug?: string;
   releaseSlug?: string;
   brandToneNotes?: string;
@@ -38,6 +39,7 @@ export function SocialPostGenerator({
   headline,
   bodyCopy,
   orgName,
+  orgTypeDescription,
   orgSlug,
   releaseSlug,
   brandToneNotes,
@@ -72,6 +74,7 @@ export function SocialPostGenerator({
         headline,
         bodyCopy,
         orgName,
+        orgTypeDescription,
         brandToneNotes,
         targetMarket,
       });

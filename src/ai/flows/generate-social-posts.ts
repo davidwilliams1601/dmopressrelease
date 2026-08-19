@@ -6,6 +6,7 @@ const GenerateSocialPostsInputSchema = z.object({
   headline: z.string().describe('Press release headline'),
   bodyCopy: z.string().describe('Press release body copy'),
   orgName: z.string().describe('Organization name'),
+  orgTypeDescription: z.string().optional().describe('Organisation type (e.g. "Destination Marketing Organization", "registered charity")'),
   brandToneNotes: z.string().optional().describe('Brand tone guidelines'),
   targetMarket: z.string().optional().describe('Target market'),
 });
@@ -32,7 +33,7 @@ export async function generateSocialPosts(
     const { ai } = await import('@/ai/genkit');
 
     const { output } = await ai.generate({
-      prompt: `You are a social media expert for ${input.orgName}, a destination marketing organization.
+      prompt: `You are a social media expert for ${input.orgName}, a ${input.orgTypeDescription ?? 'organisation'}.
 
 Generate social media posts to announce the following press release. Adapt tone, length, and style for each platform. Use "[Link]" as a placeholder where the team will add their URL.
 

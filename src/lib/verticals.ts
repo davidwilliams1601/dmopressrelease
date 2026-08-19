@@ -44,6 +44,13 @@ export type PartnerSignupText = {
   descriptionPlaceholder: string;
 };
 
+export type MediaRequestText = {
+  /** Label for the optional "what this story should cover" field on the public journalist story-request form. */
+  topicsLabel: string;
+  /** Placeholder example shown in that field. */
+  topicsPlaceholder: string;
+};
+
 export type VerticalConfig = {
   id: VerticalId;
   displayName: string;
@@ -52,6 +59,7 @@ export type VerticalConfig = {
   consent: ConsentText;
   provision: ProvisionText;
   partnerSignup: PartnerSignupText;
+  mediaRequest: MediaRequestText;
   partnerCategories: string[];
 };
 
@@ -93,6 +101,10 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       noun: 'business',
       descriptionPlaceholder:
         "e.g. We're a family-run hotel in the heart of Canterbury with 24 rooms, a restaurant, and a spa. We specialise in leisure breaks and have been operating since 1998.",
+    },
+    mediaRequest: {
+      topicsLabel: 'Destinations of Interest',
+      topicsPlaceholder: 'e.g. Canterbury, Whitstable, Herne Bay',
     },
     partnerCategories: [
       'Accommodation',
@@ -148,6 +160,10 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       descriptionPlaceholder:
         "e.g. We're a community-led food bank supporting families across the borough, running weekly distribution sessions and a holiday hunger programme for local schools.",
     },
+    mediaRequest: {
+      topicsLabel: 'Focus Areas of Interest',
+      topicsPlaceholder: 'e.g. Food poverty, youth services, winter fundraising appeal',
+    },
     partnerCategories: [
       'Community Group',
       'Health & Wellbeing',
@@ -198,6 +214,10 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       noun: 'organisation',
       descriptionPlaceholder:
         "e.g. We're a further education college offering vocational courses and apprenticeships across construction, health & social care, and digital skills to around 4,000 learners a year.",
+    },
+    mediaRequest: {
+      topicsLabel: 'Coverage Areas of Interest',
+      topicsPlaceholder: 'e.g. Apprenticeships, T-Levels, skills policy',
     },
     partnerCategories: [
       'Further Education College',
@@ -251,6 +271,10 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       noun: 'organisation',
       descriptionPlaceholder:
         "e.g. We're a mid-sized manufacturer supplying precision components to the automotive sector, employing 45 people across our site in the West Midlands.",
+    },
+    mediaRequest: {
+      topicsLabel: 'Sectors of Interest',
+      topicsPlaceholder: 'e.g. Manufacturing, supply chain, sustainability',
     },
     partnerCategories: [
       'Manufacturer',
@@ -307,6 +331,10 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       noun: 'school',
       descriptionPlaceholder:
         'e.g. We\u2019re a two-form-entry primary school with around 420 pupils, known locally for our strong reading programme and forest school sessions.',
+    },
+    mediaRequest: {
+      topicsLabel: 'Subjects / Programmes of Interest',
+      topicsPlaceholder: 'e.g. Exam results, Ofsted outcomes, extracurricular achievements',
     },
     partnerCategories: [
       'Primary School',
