@@ -15,9 +15,10 @@ const VERTICAL_LABELS: Record<string, string> = {
   dmo: 'DMO',
   charity: 'Charity',
   'trade-body': 'Trade Body',
+  education: 'Education',
 };
 
-const VERTICAL_IDS = ['dmo', 'charity', 'trade-body'];
+const VERTICAL_IDS = ['dmo', 'charity', 'trade-body', 'education'];
 
 type VerticalCategories = Record<string, string[]>;
 

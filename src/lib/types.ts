@@ -1,4 +1,4 @@
-export type VerticalId = 'dmo' | 'charity' | 'trade-body' | 'publisher';
+export type VerticalId = 'dmo' | 'charity' | 'trade-body' | 'publisher' | 'education';
 
 export type SocialHandles = {
   instagram?: string;
@@ -216,6 +216,10 @@ export type PartnerSubmission = {
   reviewNotes?: string;
   usedInReleaseIds?: string[];
   partnerSocialHandles?: SocialHandles;
+  /** Per-submission subject consent (e.g. parental/guardian consent for a named or pictured minor), captured when the org's vertical requires it. Null when the vertical has no such requirement. */
+  subjectConsentConfirmed?: boolean | null;
+  /** Snapshot of the consent wording shown to the submitter at time of submission, for audit purposes. */
+  subjectConsentText?: string | null;
 };
 
 export type MediaRequest = {

@@ -24,6 +24,13 @@ export type AiContext = {
 export type ConsentText = {
   contentUsage: string;
   marketing: string;
+  /**
+   * Optional per-submission consent covering the subject of the content itself
+   * (e.g. parental/guardian consent for a named or pictured minor). Shown as an
+   * additional required checkbox on the submission form only when present —
+   * verticals that don't need it (adult-facing partners) simply omit this field.
+   */
+  photoRelease?: string;
 };
 
 export type ProvisionText = {
@@ -227,6 +234,55 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       'Professional Services',
       'Start-up & SME',
       'Enterprise',
+      'Other',
+    ],
+  },
+
+  education: {
+    id: 'education',
+    displayName: 'Education Provider / Multi-Academy Trust',
+    nav: {
+      releases: 'Press Releases',
+      outlets: 'Media Contacts',
+      mediaRequests: 'Media Enquiries',
+      submissions: 'Success Stories',
+      content: 'Web Content',
+      partnerPortalTitle: 'School Portal',
+      partnersSettings: 'Schools',
+    },
+    ai: {
+      orgTypeDescription: 'education provider working with schools and multi-academy trusts',
+      contentDomain: 'pupil achievement, school success stories, and educational outcomes',
+      audienceOptions: ['Parents & Families', 'Local Press', 'Governors & Trustees', 'Education Sector', 'General Public'],
+      expertPersona:
+        'education sector PR specialist and former schools communications lead who understands safeguarding-first storytelling — celebrates pupil and school achievement in warm, accessible language while staying mindful of child safeguarding norms (e.g. avoiding full names alongside identifying photos unless consent is confirmed, using year group rather than exact age, and steering clear of details that could identify a child’s home or routine)',
+      themeExamples:
+        '"Exam Results & Attainment", "Ofsted & Inspection", "Pupil Achievement", "Extracurricular & Sport", "Fundraising & Community", "Staff & Governor News", "School Improvement", "Careers & Aspirations", "Inclusion & SEND", "Events & Open Days"',
+      webContentStyle:
+        'Warm, achievement-focused language that celebrates pupils, staff and schools while remaining safeguarding-appropriate',
+      webContentTypes: ['Success Story', 'Press Release', 'Event', 'Ofsted Update', 'General'],
+      suggestedContentTypeInstruction:
+        'Suggest the most appropriate content type from: "Success Story", "Press Release", "Event", "Ofsted Update", "General"',
+    },
+    consent: {
+      contentUsage:
+        'I confirm this school has the right to submit this content and consents to it being used in press releases, website updates, and other publications produced by the education provider.',
+      marketing:
+        'I agree to receive occasional updates and opportunities, such as campaign briefs and partner news.',
+      photoRelease:
+        'I confirm that written parental/guardian consent has been obtained for every pupil named or pictured in this submission, in line with the school’s safeguarding and data protection policy, and that this consent is held on file at the school.',
+    },
+    provision: {
+      description: 'Creates a new education provider organisation and its first admin account.',
+    },
+    partnerCategories: [
+      'Primary School',
+      'Secondary School',
+      'Sixth Form / FE College',
+      'Special School',
+      'Multi-Academy Trust',
+      'Independent School',
+      'Early Years / Nursery',
       'Other',
     ],
   },
