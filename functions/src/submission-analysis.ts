@@ -51,6 +51,18 @@ const VERTICAL_SCORING_CONTEXT: Record<string, {
 - Completeness: Does it have sufficient context for a trade audience?`,
     contentTypeOptions: '"Industry News", "Member Spotlight", "Policy Update", "Report & Data", "General"',
   },
+  education: {
+    expertPersona:
+      'education sector PR specialist and former schools communications lead who understands safeguarding-first storytelling',
+    themeExamples:
+      '"Exam Results & Attainment", "Ofsted & Inspection", "Pupil Achievement", "Extracurricular & Sport", "Fundraising & Community", "Staff & Governor News", "School Improvement", "Careers & Aspirations", "Inclusion & SEND", "Events & Open Days"',
+    scoringCriteria: `Score on:
+- Editorial relevance: Is this genuinely newsworthy for parents, local press, or the education sector?
+- News value: Is there a clear hook — results, an award, an inspection outcome, a notable achievement?
+- Writing quality: Is it warm, clear, and safeguarding-appropriate (no full names of minors alongside identifying detail, no home/routine information)?
+- Completeness: Does it include enough substance (context, a quote, an outcome) to publish, or is it a thin stub?`,
+    contentTypeOptions: '"Success Story", "Press Release", "Event", "Ofsted Update", "General"',
+  },
 };
 
 const DEFAULT_SCORING_CONTEXT = VERTICAL_SCORING_CONTEXT['dmo'];

@@ -89,6 +89,53 @@ export const createPartnerInvite = functions.https.onCall(async (data, context) 
 });
 
 /**
+ * Cloud Function to look up an invite code before redeeming it.
+ * Read-only, public (no auth) — lets the signup form show the right
+ * organisation name and vertical-specific copy before the partner submits.
+ * Does not increment use count or expose sensitive org data.
+ *
+ * Input: { code: string }
+ */
+export const getPartnerInviteInfo = functions.https.onCall(async (data) => {
+  const { code } = data;
+  if (!code) {
+    throw new functions.https.HttpsError('invalid-argument', 'code is required.');
+  }
+
+  const inviteQuery = await db
+    .collectionGroup('invites')
+    .where('code', '==', code)
+    .where('status', '==', 'active')
+    .limit(1)
+    .get();
+
+  if (inviteQuery.empty) {
+    return { valid: false, reason: 'not-found' as const };
+  }
+
+  const invite = inviteQuery.docs[0].data();
+
+  if (invite.expiresAt && invite.expiresAt.toDate() < new Date()) {
+    return { valid: false, reason: 'expired' as const };
+  }
+  if (invite.maxUses && invite.useCount >= invite.maxUses) {
+    return { valid: false, reason: 'maxed-out' as const };
+  }
+
+  const orgDoc = await db.collection('orgs').doc(invite.orgId).get();
+  if (!orgDoc.exists) {
+    return { valid: false, reason: 'not-found' as const };
+  }
+  const orgData = orgDoc.data()!;
+
+  return {
+    valid: true as const,
+    orgName: orgData.name || null,
+    vertical: (orgData.vertical as string | undefined) || 'dmo',
+  };
+});
+
+/**
  * Cloud Function to redeem a partner invite.
  * Creates a new user account with the Partner role.
  * This function does NOT require authentication (new users calling it).
@@ -242,6 +289,8 @@ export const redeemPartnerInvite = functions.https.onCall(async (data) => {
       dmo: ['Accommodation', 'Attraction', 'Activity & Adventure', 'Food & Drink', 'Events & Festivals', 'Transport', 'Retail', 'Spa & Wellness', 'Arts & Culture', 'Nature & Outdoor', 'Sport', 'Other'],
       charity: ['Community Group', 'Health & Wellbeing', 'Education & Training', 'Social Care', 'Environment & Conservation', 'Arts & Culture', 'Housing & Homelessness', 'International Aid', 'Other'],
       'trade-body': ['Manufacturer', 'Retailer', 'Service Provider', 'Consultant & Advisory', 'Technology', 'Media & Communications', 'Professional Services', 'Start-up & SME', 'Enterprise', 'Other'],
+      publisher: ['Further Education College', 'Independent Training Provider', 'Awarding Organisation', 'Higher Education Institution', 'EdTech & Technology', 'Employer & Industry Body', 'Government & Public Sector', 'Think Tank & Research', 'Professional Association', 'Consultancy & Advisory', 'Other'],
+      education: ['Primary School', 'Secondary School', 'Sixth Form / FE College', 'Special School', 'Multi-Academy Trust', 'Independent School', 'Early Years / Nursery', 'Other'],
     };
     // Read categories from Firestore platform config, falling back to hardcoded defaults
     let categories = defaultCategoryMap[vertical] || defaultCategoryMap['dmo'];

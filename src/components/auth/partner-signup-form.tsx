@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import { useAuth } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { getVerticalConfig, DEFAULT_VERTICAL } from '@/lib/verticals';
 
 type PartnerSignupFormProps = {
   inviteCode: string;
@@ -26,9 +27,39 @@ export default function PartnerSignupForm({ inviteCode }: PartnerSignupFormProps
   const [consentMarketing, setConsentMarketing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [orgName, setOrgName] = useState<string | null>(null);
+  const [verticalConfig, setVerticalConfig] = useState(DEFAULT_VERTICAL);
   const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+
+  // Look up the invite before the partner submits, so the form can show the
+  // right organisation name and vertical-appropriate copy (e.g. a school
+  // shouldn't be asked to "tell us about your business"). Read-only lookup —
+  // does not consume the invite or require auth.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getFunctions, httpsCallable } = await import('firebase/functions');
+        const functions = getFunctions();
+        const lookupInvite = httpsCallable(functions, 'getPartnerInviteInfo');
+        const result: any = await lookupInvite({ code: inviteCode });
+        if (cancelled) return;
+        if (result.data?.valid) {
+          setOrgName(result.data.orgName || null);
+          setVerticalConfig(getVerticalConfig(result.data.vertical));
+        }
+      } catch (err) {
+        // Non-fatal — the form falls back to default (DMO) copy and the real
+        // validation still happens server-side when the invite is redeemed.
+        console.warn('Could not look up invite info, using default copy:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteCode]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,11 +154,11 @@ export default function PartnerSignupForm({ inviteCode }: PartnerSignupFormProps
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="businessDescription">Tell us about your business</Label>
+        <Label htmlFor="businessDescription">Tell us about your {verticalConfig.partnerSignup.noun}</Label>
         <Textarea
           id="businessDescription"
           name="businessDescription"
-          placeholder="e.g. We're a family-run hotel in the heart of Canterbury with 24 rooms, a restaurant, and a spa. We specialise in leisure breaks and have been operating since 1998."
+          placeholder={verticalConfig.partnerSignup.descriptionPlaceholder}
           rows={4}
           value={businessDescription}
           onChange={(e) => setBusinessDescription(e.target.value)}
@@ -147,7 +178,7 @@ export default function PartnerSignupForm({ inviteCode }: PartnerSignupFormProps
             required
           />
           <Label htmlFor="consentContentUsage" className="text-sm font-normal leading-snug cursor-pointer">
-            I agree that content I submit may be used in press releases, website updates, and other publications produced by the DMO. I have read and accept the{' '}
+            {verticalConfig.consent.contentUsage} I have read and accept the{' '}
             <a href="/privacy" target="_blank" className="underline text-primary">Privacy Policy</a>. <span className="text-destructive">*</span>
           </Label>
         </div>
@@ -158,7 +189,7 @@ export default function PartnerSignupForm({ inviteCode }: PartnerSignupFormProps
             onCheckedChange={(v) => setConsentMarketing(v === true)}
           />
           <Label htmlFor="consentMarketing" className="text-sm font-normal leading-snug cursor-pointer">
-            I&apos;m happy to receive occasional updates and opportunities from the DMO, such as campaign briefs and partner news. (Optional)
+            {verticalConfig.consent.marketing} (Optional)
           </Label>
         </div>
       </div>

@@ -37,6 +37,13 @@ export type ProvisionText = {
   description: string;
 };
 
+export type PartnerSignupText = {
+  /** Short noun for an individual partner entity, e.g. 'business', 'school', 'charity'. */
+  noun: string;
+  /** Placeholder example shown in the "tell us about yourself" textarea on partner signup. */
+  descriptionPlaceholder: string;
+};
+
 export type VerticalConfig = {
   id: VerticalId;
   displayName: string;
@@ -44,6 +51,7 @@ export type VerticalConfig = {
   ai: AiContext;
   consent: ConsentText;
   provision: ProvisionText;
+  partnerSignup: PartnerSignupText;
   partnerCategories: string[];
 };
 
@@ -74,12 +82,17 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     },
     consent: {
       contentUsage:
-        'I consent to Visit [Destination] using this content in press releases and digital communications.',
+        'I agree that content I submit may be used in press releases, website updates, and other publications produced by the DMO.',
       marketing:
         'I agree to receive occasional updates and newsletters from the DMO.',
     },
     provision: {
       description: 'Creates a new organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'business',
+      descriptionPlaceholder:
+        "e.g. We're a family-run hotel in the heart of Canterbury with 24 rooms, a restaurant, and a spa. We specialise in leisure breaks and have been operating since 1998.",
     },
     partnerCategories: [
       'Accommodation',
@@ -123,12 +136,17 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     },
     consent: {
       contentUsage:
-        'I consent to this charity using my story in press releases and digital communications.',
+        'I agree that content I submit may be used in press releases, website updates, and other publications produced by this charity.',
       marketing:
         'I agree to receive occasional updates and newsletters from the organisation.',
     },
     provision: {
       description: 'Creates a new organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'organisation',
+      descriptionPlaceholder:
+        "e.g. We're a community-led food bank supporting families across the borough, running weekly distribution sessions and a holiday hunger programme for local schools.",
     },
     partnerCategories: [
       'Community Group',
@@ -169,12 +187,17 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     },
     consent: {
       contentUsage:
-        'I consent to this publication using my submitted content in articles and digital communications.',
+        'I agree that content I submit may be used in articles, website updates, and other publications produced by this publication.',
       marketing:
         'I agree to receive occasional updates and newsletters from the editorial team.',
     },
     provision: {
       description: 'Creates a new publisher organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'organisation',
+      descriptionPlaceholder:
+        "e.g. We're a further education college offering vocational courses and apprenticeships across construction, health & social care, and digital skills to around 4,000 learners a year.",
     },
     partnerCategories: [
       'Further Education College',
@@ -217,12 +240,17 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     },
     consent: {
       contentUsage:
-        'I consent to the trade body using this content in press releases and member communications.',
+        'I agree that content I submit may be used in press releases, website updates, and other publications produced by the trade body.',
       marketing:
         'I agree to receive occasional updates and newsletters from the organisation.',
     },
     provision: {
       description: 'Creates a new organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'organisation',
+      descriptionPlaceholder:
+        "e.g. We're a mid-sized manufacturer supplying precision components to the automotive sector, employing 45 people across our site in the West Midlands.",
     },
     partnerCategories: [
       'Manufacturer',
@@ -274,6 +302,11 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     },
     provision: {
       description: 'Creates a new education provider organisation and its first admin account.',
+    },
+    partnerSignup: {
+      noun: 'school',
+      descriptionPlaceholder:
+        'e.g. We\u2019re a two-form-entry primary school with around 420 pupils, known locally for our strong reading programme and forest school sessions.',
     },
     partnerCategories: [
       'Primary School',
