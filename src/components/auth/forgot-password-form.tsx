@@ -6,8 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Mail, CheckCircle } from 'lucide-react';
-import { useAuth } from '@/firebase';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 
 export default function ForgotPasswordForm() {
@@ -15,7 +14,6 @@ export default function ForgotPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const auth = useAuth();
   const { toast } = useToast();
 
   const handleReset = async (e: React.FormEvent) => {
@@ -24,23 +22,23 @@ export default function ForgotPasswordForm() {
     setError(null);
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      const functionsInstance = getFunctions();
+      const sendReset = httpsCallable(functionsInstance, 'sendPressPilotPasswordReset');
+      await sendReset({ email });
       setSubmitted(true);
     } catch (error: any) {
-      setError(error.message);
+      const message = error.message || 'Something went wrong. Please try again.';
+      setError(message);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description:
-          error.code === 'auth/user-not-found'
-            ? 'No account found with this email address.'
-            : error.message,
+        description: message,
       });
     } finally {
       setLoading(false);
     }
   };
-  
+
   if (submitted) {
     return (
         <Alert variant="default" className="border-green-500/50 text-green-700 dark:border-green-500 [&>svg]:text-green-700">

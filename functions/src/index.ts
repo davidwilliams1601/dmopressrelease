@@ -590,3 +590,6 @@ export * from './approval-notifications';
 
 // Export demo functions
 export * from './demo';
+
+// Export password reset functions
+export * from './password-reset';
