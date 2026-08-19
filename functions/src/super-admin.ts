@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { getTierPriceMonthly } from './tiers';
+import { sendWelcomeEmail } from './welcome-email';
 
 const db = admin.firestore();
 
@@ -181,8 +182,26 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
 
     console.log(`Org provisioned: ${orgSlug} | Admin: ${adminEmail} (${userRecord.uid})`);
 
+    // 5. Send the new admin a welcome email with a set-password link.
+    // Deliberately non-fatal: the org and admin account are already created
+    // above, so an email outage should never roll that back or fail the
+    // whole provisioning call — just surface it in the response.
+    let welcomeEmailSent = false;
+    try {
+      await sendWelcomeEmail({
+        org: { name: orgName, tier: tier || null },
+        toEmail: adminEmail,
+        toName: adminName,
+        isNewOrg: true,
+      });
+      welcomeEmailSent = true;
+    } catch (emailError: any) {
+      console.error(`[provisionNewOrg] Welcome email failed for ${adminEmail}:`, emailError);
+    }
+
     return {
       success: true,
+      welcomeEmailSent,
       orgId: orgSlug,
       adminUserId: userRecord.uid,
       tempPassword,
