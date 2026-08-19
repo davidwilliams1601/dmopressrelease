@@ -19,6 +19,22 @@ export const TIER_LIMITS: Record<TierId, TierLimits> = {
   organisation: { maxPartners: null, maxUsers: null },
 };
 
+/**
+ * Monthly price in GBP, for display/reporting only (e.g. platform-dashboard MRR
+ * estimates). MIRROR of the priceMonthly field in src/lib/tiers.ts — keep in sync.
+ * Bespoke Enterprise deals are invoiced manually; see Organization.contractValueMonthly
+ * for the actual contracted figure, which this table does not attempt to replace.
+ */
+export const TIER_PRICE_MONTHLY: Record<TierId, number> = {
+  starter: 149,
+  professional: 349,
+  organisation: 799,
+};
+
+export function getTierPriceMonthly(tier?: string | null): number {
+  return isTierId(tier) ? TIER_PRICE_MONTHLY[tier] : 0;
+}
+
 export const TIER_FEATURES: Record<TierId, {
   approvalWorkflows: boolean;
   advancedReporting: boolean;

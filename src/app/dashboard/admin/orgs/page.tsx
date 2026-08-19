@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, Send, Mail, RefreshCw } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Building2, Users, Send, Mail, RefreshCw, Network, PoundSterling, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProvisionOrgDialog } from '@/components/admin/provision-org-dialog';
 import { EditOrgLimitsDialog } from '@/components/admin/edit-org-limits-dialog';
@@ -43,6 +44,12 @@ type OrgStat = {
   totalEmailsSent: number;
   lastActivityAt: any;
   parentOrgId: string | null;
+  ancestorOrgIds: string[];
+  canProvisionChildOrgs: boolean;
+  maxChildOrgs: number | null;
+  contractValueMonthly: number | null;
+  escalatedInCount: number;
+  escalatedInUsedCount: number;
 };
 
 type Totals = {
@@ -50,7 +57,32 @@ type Totals = {
   totalPartners: number;
   totalReleasesSent: number;
   totalEmailsSent: number;
+  standaloneMrr: number;
+  networkMrr: number;
+  totalMrr: number;
 };
+
+type NetworkStat = {
+  rootOrgId: string;
+  rootOrgName: string;
+  memberCount: number;
+  directChildCount: number;
+  maxChildOrgs: number | null;
+  maxDepth: number;
+  totalPartners: number;
+  totalSubmissions: number;
+  totalReleasesSent: number;
+  totalEmailsSent: number;
+  totalEscalated: number;
+  totalEscalatedUsed: number;
+  escalationConversionRate: number;
+  tierDerivedMrr: number;
+  contractValueMonthly: number | null;
+  members: { id: string; name: string }[];
+};
+
+const gbp = (n: number) =>
+  n.toLocaleString('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 });
 
 const VERTICAL_LABELS: Record<string, string> = {
   dmo: 'DMO',
@@ -62,6 +94,7 @@ export default function AdminOrgsPage() {
   const { isSuperAdmin, isLoading: isUserLoading } = useUserData();
   const router = useRouter();
   const [orgs, setOrgs] = useState<OrgStat[]>([]);
+  const [networks, setNetworks] = useState<NetworkStat[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -69,10 +102,11 @@ export default function AdminOrgsPage() {
     setIsLoading(true);
     try {
       const functions = getFunctions();
-      const getReport = httpsCallable<void, { orgs: OrgStat[]; totals: Totals }>(functions, 'getSuperAdminReport');
+      const getReport = httpsCallable<void, { orgs: OrgStat[]; totals: Totals; networks: NetworkStat[] }>(functions, 'getSuperAdminReport');
       const result = await getReport();
       setOrgs(result.data.orgs);
       setTotals(result.data.totals);
+      setNetworks(result.data.networks);
     } catch (error) {
       console.error('Failed to load report:', error);
     } finally {
@@ -150,6 +184,13 @@ export default function AdminOrgsPage() {
         </div>
       </div>
 
+      <Tabs defaultValue="orgs">
+        <TabsList>
+          <TabsTrigger value="orgs">Organisations</TabsTrigger>
+          <TabsTrigger value="networks">Networks{networks.length > 0 ? ` (${networks.length})` : ''}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="orgs" className="flex flex-col gap-6 mt-4">
       {/* Platform-wide stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -306,6 +347,8 @@ export default function AdminOrgsPage() {
                           currentMaxPartners={org.maxPartners ?? undefined}
                           currentMaxUsers={org.maxUsers ?? undefined}
                           currentTier={org.tier ?? undefined}
+                          currentContractValueMonthly={org.contractValueMonthly}
+                          isNetworkRoot={org.canProvisionChildOrgs || (!org.parentOrgId && org.ancestorOrgIds.length === 0 && networks.some((n) => n.rootOrgId === org.id))}
                           onUpdated={loadReport}
                         />
                         <SetOrgParentDialog
@@ -332,6 +375,158 @@ export default function AdminOrgsPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="networks" className="flex flex-col gap-6 mt-4">
+          {/* Revenue segmentation */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <PoundSterling className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold font-headline">{totals ? gbp(totals.totalMrr) : '—'}</p>
+                    <p className="text-xs text-muted-foreground">Platform MRR (tier-derived)</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Building2 className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold font-headline">{totals ? gbp(totals.standaloneMrr) : '—'}</p>
+                    <p className="text-xs text-muted-foreground">Standalone-org revenue</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Network className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold font-headline">{totals ? gbp(totals.networkMrr) : '—'}</p>
+                    <p className="text-xs text-muted-foreground">Network-member revenue</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Layers className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold font-headline">{networks.length}</p>
+                    <p className="text-xs text-muted-foreground">Active networks</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Network className="h-5 w-5" />
+                Federated Networks
+              </CardTitle>
+              <CardDescription>
+                {isLoading ? 'Loading...' : `${networks.length} network${networks.length !== 1 ? 's' : ''} — root org plus its member orgs`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : networks.length === 0 ? (
+                <p className="py-8 text-center text-muted-foreground">
+                  No federated networks yet. A network appears here once an org is flagged "can provision child orgs" or has at least one daughter org attached via re-parenting.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Network</TableHead>
+                      <TableHead>Shape</TableHead>
+                      <TableHead className="text-right">Seats</TableHead>
+                      <TableHead className="text-right">Tier-derived MRR</TableHead>
+                      <TableHead className="text-right">Contract value</TableHead>
+                      <TableHead className="text-right">Escalations</TableHead>
+                      <TableHead className="text-right">Conversion</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {networks.map((net) => {
+                      const seatsUsed = net.directChildCount;
+                      const overCap = net.maxChildOrgs != null && seatsUsed > net.maxChildOrgs;
+                      const mrrGap = net.contractValueMonthly != null ? net.contractValueMonthly - net.tierDerivedMrr : null;
+                      return (
+                        <TableRow key={net.rootOrgId}>
+                          <TableCell>
+                            <p className="font-medium">{net.rootOrgName}</p>
+                            <p className="text-xs text-muted-foreground">{net.memberCount} member org{net.memberCount !== 1 ? 's' : ''}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {net.maxDepth >= 2 ? '3+ level' : '2 level'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {net.maxChildOrgs != null ? (
+                              <span className={overCap ? 'text-red-500 font-semibold' : ''}>
+                                {seatsUsed} / {net.maxChildOrgs}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">{seatsUsed} (uncapped)</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">{gbp(net.tierDerivedMrr)}</TableCell>
+                          <TableCell className="text-right">
+                            {net.contractValueMonthly != null ? (
+                              <div className="flex flex-col items-end">
+                                <span>{gbp(net.contractValueMonthly)}</span>
+                                {mrrGap != null && mrrGap !== 0 && (
+                                  <span className={`text-xs ${mrrGap < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                    {mrrGap > 0 ? '+' : ''}{gbp(mrrGap)} vs tier estimate
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Not set</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {net.totalEscalated} sent up
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {net.totalEscalated > 0 ? `${Math.round(net.escalationConversionRate * 100)}%` : '—'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+              <p className="mt-4 text-xs text-muted-foreground">
+                Tier-derived MRR sums each member org's plan price and is an estimate, not an invoice figure. "Contract value" is only shown once set manually via Edit Limits on the root org — set it for network deals where actual Enterprise billing differs from the sum of member tiers. Seat count reflects direct daughter orgs only; "Escalations" and "Conversion" measure how many member submissions were pushed up to a parent and, of those, drafted into an actual release.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
       <VerticalCategoriesCard />
     </div>
   );

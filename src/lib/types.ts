@@ -52,6 +52,8 @@ export type Organization = {
   showEscalationSourceCredit?: boolean;
   /** Structured geography, e.g. "Cornwall" or "South West England" — enables regional trend/benchmarking products. */
   region?: string;
+  /** Manually-entered actual monthly Enterprise contract value in GBP, for network-root orgs whose real invoice differs from the sum of member tier prices. Set only by Press Pilot, via the super-admin "Edit Limits" dialog. Meaningful on network roots (canProvisionChildOrgs/parentOrgId-less orgs with members) — undefined/null elsewhere. */
+  contractValueMonthly?: number | null;
 };
 
 /**

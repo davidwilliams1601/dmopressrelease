@@ -30,6 +30,8 @@ type EditOrgLimitsDialogProps = {
   currentMaxPartners?: number;
   currentMaxUsers?: number;
   currentTier?: string;
+  currentContractValueMonthly?: number | null;
+  isNetworkRoot?: boolean;
   onUpdated: () => void;
 };
 
@@ -39,6 +41,8 @@ export function EditOrgLimitsDialog({
   currentMaxPartners,
   currentMaxUsers,
   currentTier,
+  currentContractValueMonthly,
+  isNetworkRoot,
   onUpdated,
 }: EditOrgLimitsDialogProps) {
   const [open, setOpen] = useState(false);
@@ -50,6 +54,9 @@ export function EditOrgLimitsDialog({
     currentMaxUsers != null ? String(currentMaxUsers) : ''
   );
   const [tier, setTier] = useState(currentTier ?? '');
+  const [contractValueMonthly, setContractValueMonthly] = useState(
+    currentContractValueMonthly != null ? String(currentContractValueMonthly) : ''
+  );
   const { toast } = useToast();
 
   const handleSave = async () => {
@@ -67,7 +74,18 @@ export function EditOrgLimitsDialog({
         toast({ title: 'Invalid value', description: 'User limit must be a positive number.', variant: 'destructive' });
         return;
       }
-      await updateLimits({ orgId, maxPartners: parsed, maxUsers: parsedUsers, tier: tier || null });
+      const parsedContractValue = contractValueMonthly.trim() ? parseFloat(contractValueMonthly) : null;
+      if (parsedContractValue !== null && (isNaN(parsedContractValue) || parsedContractValue < 0)) {
+        toast({ title: 'Invalid value', description: 'Contract value must be a non-negative number.', variant: 'destructive' });
+        return;
+      }
+      await updateLimits({
+        orgId,
+        maxPartners: parsed,
+        maxUsers: parsedUsers,
+        tier: tier || null,
+        contractValueMonthly: parsedContractValue,
+      });
       toast({ title: 'Limits updated', description: `${orgName} limits saved.` });
       onUpdated();
       setOpen(false);
@@ -129,6 +147,23 @@ export function EditOrgLimitsDialog({
               placeholder="Unlimited"
             />
           </div>
+          {isNetworkRoot && (
+            <div className="grid gap-2">
+              <Label htmlFor="contractValueMonthly">Actual Contract Value (£/mo)</Label>
+              <Input
+                id="contractValueMonthly"
+                type="number"
+                min="0"
+                step="0.01"
+                value={contractValueMonthly}
+                onChange={(e) => setContractValueMonthly(e.target.value)}
+                placeholder="Use tier-derived estimate"
+              />
+              <p className="text-xs text-muted-foreground">
+                This is a network deal — set the real Enterprise invoice amount here so the Networks tab can compare it against the sum of member tier prices. Leave blank to fall back to the tier-derived estimate.
+              </p>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
             Clear a limit field to remove it entirely.
           </p>

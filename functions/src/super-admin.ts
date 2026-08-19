@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { getTierPriceMonthly } from './tiers';
 
 const db = admin.firestore();
 
@@ -348,6 +349,18 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         }
       }
 
+      // Federated-tenants escalation counters (submissions pushed INTO this org from
+      // one of its own children, and how many of those got drafted into a release).
+      let escalatedInCount = 0;
+      let escalatedInUsedCount = 0;
+      for (const sub of submissionsSnap.docs) {
+        const s = sub.data();
+        if (s.sourceOrgId) {
+          escalatedInCount++;
+          if (s.status === 'used') escalatedInUsedCount++;
+        }
+      }
+
       return {
         id: orgId,
         name: org.name || orgId,
@@ -364,6 +377,12 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         totalEmailsSent,
         lastActivityAt: lastActivityAt ?? null,
         parentOrgId: org.parentOrgId ?? null,
+        ancestorOrgIds: (org.ancestorOrgIds as string[] | undefined) ?? [],
+        canProvisionChildOrgs: !!org.canProvisionChildOrgs,
+        maxChildOrgs: org.maxChildOrgs ?? null,
+        contractValueMonthly: org.contractValueMonthly ?? null,
+        escalatedInCount,
+        escalatedInUsedCount,
       };
     })
   );
@@ -378,8 +397,121 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
     { orgCount: 0, totalPartners: 0, totalReleasesSent: 0, totalEmailsSent: 0 }
   );
 
-  return { orgs: orgStats, totals };
+  const networks = buildNetworkStats(orgStats);
+
+  // Revenue segmentation: which orgs belong to a network (a root with children, or a
+  // root explicitly flagged canProvisionChildOrgs) vs standalone. Tier price is a
+  // display estimate only (see TIER_PRICE_MONTHLY doc comment) — real invoicing for
+  // bespoke Enterprise deals is manual and tracked via the root org's
+  // contractValueMonthly override, surfaced per-network above rather than folded into
+  // this platform-wide total.
+  const networkMemberIds = new Set<string>();
+  for (const net of networks) {
+    for (const m of net.members) networkMemberIds.add(m.id);
+  }
+  let standaloneMrr = 0;
+  let networkMrr = 0;
+  for (const o of orgStats) {
+    const price = getTierPriceMonthly(o.tier);
+    if (networkMemberIds.has(o.id)) {
+      networkMrr += price;
+    } else {
+      standaloneMrr += price;
+    }
+  }
+
+  return {
+    orgs: orgStats,
+    totals: { ...totals, standaloneMrr, networkMrr, totalMrr: standaloneMrr + networkMrr },
+    networks,
+  };
 });
+
+type OrgStatForNetwork = {
+  id: string;
+  name: string;
+  tier: string | null;
+  parentOrgId: string | null;
+  ancestorOrgIds: string[];
+  canProvisionChildOrgs: boolean;
+  maxChildOrgs: number | null;
+  contractValueMonthly: number | null;
+  partnerCount: number;
+  submissionCount: number;
+  releaseSentCount: number;
+  totalEmailsSent: number;
+  escalatedInCount: number;
+  escalatedInUsedCount: number;
+};
+
+/**
+ * Group the flat org list into federated networks (a root org plus everything
+ * beneath it) and compute the aggregate stats the platform admin "Networks" view
+ * needs — member/seat counts, aggregate usage, MRR, and escalation health.
+ *
+ * A group only counts as a reportable "network" if it actually has more than one
+ * org in it, or its root has been flagged canProvisionChildOrgs (so a
+ * newly-signed network deal with zero daughters provisioned yet still shows up,
+ * e.g. "0 of 10 seats used"). Plain standalone orgs are excluded — they're already
+ * covered by the flat org list.
+ */
+function buildNetworkStats(orgStats: OrgStatForNetwork[]) {
+  const byId = new Map(orgStats.map((o) => [o.id, o]));
+  const groups = new Map<string, OrgStatForNetwork[]>();
+
+  for (const o of orgStats) {
+    const rootId = o.ancestorOrgIds.length > 0 ? o.ancestorOrgIds[0] : o.id;
+    if (!groups.has(rootId)) groups.set(rootId, []);
+    groups.get(rootId)!.push(o);
+  }
+
+  const networks = [];
+  for (const [rootId, members] of groups.entries()) {
+    const root = byId.get(rootId);
+    if (!root) continue; // defensive — root should always exist in the same org set
+    if (members.length <= 1 && !root.canProvisionChildOrgs) continue; // not a network
+
+    const rootAncestorLen = root.ancestorOrgIds.length;
+    const directChildCount = members.filter((m) => m.parentOrgId === rootId).length;
+    const maxDepth = members.reduce((max, m) => Math.max(max, m.ancestorOrgIds.length - rootAncestorLen), 0);
+
+    const agg = members.reduce(
+      (acc, m) => ({
+        totalPartners: acc.totalPartners + m.partnerCount,
+        totalSubmissions: acc.totalSubmissions + m.submissionCount,
+        totalReleasesSent: acc.totalReleasesSent + m.releaseSentCount,
+        totalEmailsSent: acc.totalEmailsSent + m.totalEmailsSent,
+        totalEscalated: acc.totalEscalated + m.escalatedInCount,
+        totalEscalatedUsed: acc.totalEscalatedUsed + m.escalatedInUsedCount,
+        tierDerivedMrr: acc.tierDerivedMrr + getTierPriceMonthly(m.tier),
+      }),
+      {
+        totalPartners: 0,
+        totalSubmissions: 0,
+        totalReleasesSent: 0,
+        totalEmailsSent: 0,
+        totalEscalated: 0,
+        totalEscalatedUsed: 0,
+        tierDerivedMrr: 0,
+      }
+    );
+
+    networks.push({
+      rootOrgId: rootId,
+      rootOrgName: root.name,
+      memberCount: members.length,
+      directChildCount,
+      maxChildOrgs: root.maxChildOrgs,
+      maxDepth, // 1 = root + one level of children (Auris Tech shape); 2+ = Visit England shape
+      ...agg,
+      escalationConversionRate: agg.totalEscalated > 0 ? agg.totalEscalatedUsed / agg.totalEscalated : 0,
+      contractValueMonthly: root.contractValueMonthly,
+      members: members.map((m) => ({ id: m.id, name: m.name })),
+    });
+  }
+
+  return networks.sort((a, b) => b.tierDerivedMrr - a.tierDerivedMrr);
+}
 
 /**
  * Permanently delete an organisation and all associated data. Super-admin only.
@@ -501,7 +633,7 @@ export const updateVerticalCategories = functions.https.onCall(async (data, cont
 export const updateOrgLimits = functions.https.onCall(async (data, context) => {
   requireSuperAdmin(context);
 
-  const { orgId, maxPartners, maxUsers, tier } = data;
+  const { orgId, maxPartners, maxUsers, tier, contractValueMonthly } = data;
 
   if (!orgId) {
     throw new functions.https.HttpsError('invalid-argument', 'Missing required field: orgId');
@@ -541,9 +673,22 @@ export const updateOrgLimits = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'tier must be starter, professional, organisation, or null.');
   }
 
+  // Optional manually-entered contract value, for network-root orgs where the actual
+  // Enterprise invoice doesn't match the sum of member tier prices. Left untouched if
+  // the caller doesn't send the field at all (older client) — explicit null clears it.
+  if (contractValueMonthly !== undefined) {
+    if (contractValueMonthly === null) {
+      update.contractValueMonthly = admin.firestore.FieldValue.delete();
+    } else if (typeof contractValueMonthly === 'number' && contractValueMonthly >= 0) {
+      update.contractValueMonthly = contractValueMonthly;
+    } else {
+      throw new functions.https.HttpsError('invalid-argument', 'contractValueMonthly must be a non-negative number or null.');
+    }
+  }
+
   await orgRef.update(update);
 
-  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'}`);
+  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'} | contractValueMonthly=${contractValueMonthly ?? 'unchanged/none'}`);
 
   return { success: true };
 });
