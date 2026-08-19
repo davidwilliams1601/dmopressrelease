@@ -8,7 +8,7 @@ import {
   STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET,
 } from './stripe';
-import { TIER_LIMITS, isTierId, DEFAULT_TIER, type TierId } from './tiers';
+import { TIER_LIMITS, isSelfServeTierId, DEFAULT_TIER, type SelfServeTierId } from './tiers';
 
 const APP_URL = 'https://app.press-pilot.com';
 
@@ -63,7 +63,18 @@ export const createOrgWithTrial = functions
     const name: string = (data?.name || '').trim();
     const email: string = (data?.email || '').trim();
     const password: string = data?.password || '';
-    const plan: TierId = isTierId(data?.plan) ? data.plan : DEFAULT_TIER;
+
+    // 'enterprise' is never self-serve — it has no Stripe price and is only ever set
+    // by Press Pilot via updateOrgLimits on a manually-provisioned network-root org.
+    // Reject it explicitly here rather than letting it fall through to a confusing
+    // "missing Stripe price env var" error from priceIdForTier.
+    if (data?.plan !== undefined && !isSelfServeTierId(data?.plan)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Invalid plan. Choose starter, professional, or organisation.'
+      );
+    }
+    const plan: SelfServeTierId = isSelfServeTierId(data?.plan) ? data.plan : (DEFAULT_TIER as SelfServeTierId);
 
     if (!orgName || !name || !email || !password) {
       throw new functions.https.HttpsError(

@@ -668,10 +668,13 @@ export const updateOrgLimits = functions.https.onCall(async (data, context) => {
 
   if (tier === null || tier === undefined || tier === '') {
     update.tier = admin.firestore.FieldValue.delete();
-  } else if (['starter', 'professional', 'organisation'].includes(tier)) {
+  } else if (['starter', 'professional', 'organisation', 'enterprise'].includes(tier)) {
+    // 'enterprise' included here — this is the only path that ever sets it, for bespoke
+    // manually-invoiced network-root deals (e.g. Auris Tech). Never offered via self-serve
+    // signup (functions/src/billing.ts rejects it) or as a childOrgDefaultTier below.
     update.tier = tier;
   } else {
-    throw new functions.https.HttpsError('invalid-argument', 'tier must be starter, professional, organisation, or null.');
+    throw new functions.https.HttpsError('invalid-argument', 'tier must be starter, professional, organisation, enterprise, or null.');
   }
 
   // Optional manually-entered contract value, for network-root orgs where the actual
@@ -705,6 +708,9 @@ export const updateOrgLimits = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'maxChildOrgs must be a positive number or null.');
   }
 
+  // Deliberately excludes 'enterprise', unlike the main tier field above: a self-provisioned
+  // daughter org is never itself a bespoke manually-invoiced deal, so it can only default to
+  // one of the three self-serve tiers.
   if (childOrgDefaultTier === null || childOrgDefaultTier === undefined || childOrgDefaultTier === '') {
     if (childOrgDefaultTier === null || childOrgDefaultTier === '') update.childOrgDefaultTier = admin.firestore.FieldValue.delete();
   } else if (['starter', 'professional', 'organisation'].includes(childOrgDefaultTier)) {

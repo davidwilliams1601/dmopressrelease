@@ -13,7 +13,17 @@ import { getAttribution, type AttributionLevel } from '@/lib/brand-utils';
  * the tier defaults (used for bespoke Enterprise deals).
  */
 
-export type TierId = 'starter' | 'professional' | 'organisation';
+/** Tiers purchasable through the self-serve Stripe checkout flow. */
+export type SelfServeTierId = 'starter' | 'professional' | 'organisation';
+
+/**
+ * 'enterprise' is a bespoke, manually-invoiced deal shape (federated-tenants
+ * network roots like Auris Tech) — never sold through self-serve signup. Its
+ * limits/price below are nominal defaults; the real numbers always live
+ * directly on the org doc (maxPartners/maxUsers, Organization.contractValueMonthly),
+ * which override tier defaults per getEntitlements' "explicit values win" rule.
+ */
+export type TierId = SelfServeTierId | 'enterprise';
 
 export type FeatureKey =
   | 'approvalWorkflows'
@@ -73,6 +83,21 @@ export const TIERS: Record<TierId, TierConfig> = {
       whitelabel: true,
     },
   },
+  enterprise: {
+    id: 'enterprise',
+    name: 'Enterprise',
+    // Not a rate-card price — invoiced manually per deal. Not shown on the
+    // self-serve pricing grid (TIER_ORDER on the billing page excludes it).
+    priceMonthly: 0,
+    maxPartners: null,
+    maxUsers: null,
+    features: {
+      approvalWorkflows: true,
+      advancedReporting: true,
+      customContentTypes: true,
+      whitelabel: true,
+    },
+  },
 };
 
 export const DEFAULT_TIER: TierId = 'starter';
@@ -82,9 +107,15 @@ export function getTierConfig(tier?: string | null): TierConfig {
   return TIERS[DEFAULT_TIER];
 }
 
+/** Tiers a self-serve signup flow may offer/accept. Never includes 'enterprise'. */
+export function isSelfServeTierId(value: unknown): value is SelfServeTierId {
+  return value === 'starter' || value === 'professional' || value === 'organisation';
+}
+
 /** Attribution level for a tier — reuses the existing brand-utils mapping. */
 export function getTierAttribution(tier?: string | null): AttributionLevel {
-  return getAttribution(tier);
+  // Enterprise gets the same full whitelabel/no-attribution treatment as Organisation.
+  return getAttribution(tier === 'enterprise' ? 'organisation' : tier);
 }
 
 /** The next tier up, for "upgrade to unlock" prompts. null if already top. */

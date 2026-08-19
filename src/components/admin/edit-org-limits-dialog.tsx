@@ -148,6 +148,7 @@ export function EditOrgLimitsDialog({
                 <SelectItem value="starter">Starter</SelectItem>
                 <SelectItem value="professional">Professional</SelectItem>
                 <SelectItem value="organisation">Organisation</SelectItem>
+                <SelectItem value="enterprise">Enterprise</SelectItem>
               </SelectContent>
             </Select>
           </div>

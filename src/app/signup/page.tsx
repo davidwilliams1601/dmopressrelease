@@ -8,15 +8,18 @@ import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
-import { getTierConfig } from '@/lib/tiers';
+import { getTierConfig, isSelfServeTierId } from '@/lib/tiers';
 
 export default function SignupPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // ?plan= drives the tier; invalid/missing falls back to Starter.
-  const tier = getTierConfig(searchParams.get('plan'));
+  // ?plan= drives the tier; invalid/missing falls back to Starter. 'enterprise' is never
+  // self-serve (no Stripe price, backend rejects it) so a stray ?plan=enterprise link also
+  // falls back to Starter here rather than showing a plan that would fail on submit.
+  const requestedPlan = searchParams.get('plan');
+  const tier = getTierConfig(isSelfServeTierId(requestedPlan) ? requestedPlan : undefined);
 
   useEffect(() => {
     if (!isUserLoading && user) {

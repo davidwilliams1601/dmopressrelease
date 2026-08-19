@@ -58,7 +58,7 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
   const [vertical, setVertical] = useState<VerticalId>('dmo');
   const [maxPartners, setMaxPartners] = useState('');
   const [maxUsers, setMaxUsers] = useState('');
-  const [tier, setTier] = useState<'starter' | 'professional' | 'organisation' | ''>('');
+  const [tier, setTier] = useState<'starter' | 'professional' | 'organisation' | 'enterprise' | ''>('');
   const [seedDemo, setSeedDemo] = useState(false);
   const [parentOrgId, setParentOrgId] = useState('');
   const [region, setRegion] = useState('');
@@ -295,8 +295,12 @@ export function ProvisionOrgDialog({ onOrgProvisioned }: ProvisionOrgDialogProps
                       <SelectItem value="starter">Starter</SelectItem>
                       <SelectItem value="professional">Professional</SelectItem>
                       <SelectItem value="organisation">Organisation</SelectItem>
+                      <SelectItem value="enterprise">Enterprise (manually invoiced)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Enterprise is for bespoke, manually-invoiced network deals (e.g. Auris Tech) — not sold via self-serve checkout. Set the real contract value later via Edit Limits.
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">

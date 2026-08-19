@@ -32,7 +32,7 @@ export type Organization = {
   maxPartners?: number;
   maxSubmissionsPerPartner?: number;
   maxUsers?: number;
-  tier?: 'starter' | 'professional' | 'organisation';
+  tier?: 'starter' | 'professional' | 'organisation' | 'enterprise';
   approvalWorkflowEnabled?: boolean;
   contentTypes?: Array<{ name: string; description?: string }>;
   branding?: OrgBranding;
