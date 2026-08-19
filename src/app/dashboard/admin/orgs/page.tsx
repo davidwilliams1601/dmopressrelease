@@ -26,6 +26,7 @@ import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
 import { SeedDemoDialog } from '@/components/admin/seed-demo-dialog';
 import { ResetPasswordDialog } from '@/components/admin/reset-password-dialog';
 import { VerticalCategoriesCard } from '@/components/admin/vertical-categories-card';
+import { ThemeTaxonomyCard } from '@/components/admin/theme-taxonomy-card';
 import { getRegionLabel } from '@/lib/regions';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -539,6 +540,7 @@ export default function AdminOrgsPage() {
       </Tabs>
 
       <VerticalCategoriesCard />
+      <ThemeTaxonomyCard />
     </div>
   );
 }

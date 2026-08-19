@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { callWithRetry } from './ai-helpers';
 import { GEMINI_MODEL } from './ai-config';
+import { resolveThemeTaxonomy } from './super-admin';
 
 // Vertical-specific scoring context injected into the analysis prompt.
 // Keeps the prompt lean while making scoring criteria meaningful per vertical.
@@ -97,10 +98,11 @@ export const analyzeSubmissionThemes = functions
     // Look up org to get vertical (so scoring criteria match the organisation type)
     // and any org-specific editorial priorities the team has set in Settings.
     let verticalCtx = DEFAULT_SCORING_CONTEXT;
+    let vertical: string | undefined;
     let editorialPriorities = '';
     try {
       const orgSnap = await admin.firestore().collection('orgs').doc(orgId).get();
-      const vertical = orgSnap.data()?.vertical as string | undefined;
+      vertical = orgSnap.data()?.vertical as string | undefined;
       if (vertical && VERTICAL_SCORING_CONTEXT[vertical]) {
         verticalCtx = VERTICAL_SCORING_CONTEXT[vertical];
       }
@@ -109,9 +111,24 @@ export const analyzeSubmissionThemes = functions
       console.warn(`Could not fetch org config for ${orgId}, using default:`, err);
     }
 
+    // Curated theme taxonomy (federated-tenants step 8 pilot). Empty for every vertical
+    // except education-with-a-configured-taxonomy — in that case we constrain the model
+    // to only pick from this fixed list instead of generating free text, so cross-org
+    // theme trends are comparable. Everything else keeps today's free-text behaviour.
+    let themeTaxonomy: string[] = [];
+    try {
+      themeTaxonomy = await resolveThemeTaxonomy(vertical);
+    } catch (err) {
+      console.warn(`Could not resolve theme taxonomy for vertical ${vertical}, defaulting to free-text themes:`, err);
+    }
+
     const prioritiesBlock = editorialPriorities
       ? `\n\nORGANISATION EDITORIAL PRIORITIES (weight these heavily when scoring):\n${editorialPriorities}`
       : '';
+
+    const themesInstruction = themeTaxonomy.length > 0
+      ? `THEMES: Choose 1 to 3 themes ONLY from this exact list — do not invent new themes or rephrase them: ${themeTaxonomy.map((t) => `"${t}"`).join(', ')}. If nothing else fits well, use "Other".`
+      : `THEMES: Identify 2-5 relevant themes from examples such as ${verticalCtx.themeExamples}. Be specific to the content.`;
 
     try {
       const { GoogleGenerativeAI } = await import('@google/generative-ai');
@@ -136,7 +153,7 @@ Respond in valid JSON with this exact structure:
   "contentType": "News Story"
 }
 
-THEMES: Identify 2-5 relevant themes from examples such as ${verticalCtx.themeExamples}. Be specific to the content.
+${themesInstruction}
 
 EDITORIAL SCORE: Rate 1-10 as a whole number.
 ${verticalCtx.scoringCriteria}
@@ -187,6 +204,17 @@ CONTENT TYPE: Choose the single best fit from: ${verticalCtx.contentTypeOptions}
 
       // Clamp score to 1-10 in case the model drifts
       const safeScore = Math.min(10, Math.max(1, Math.round(Number(parsed.editorialScore) || 5)));
+
+      // Safety net for a curated taxonomy: raw-Gemini JSON output has no schema
+      // enforcement (unlike the Genkit "Re-analyze" flow's z.enum), so filter out any
+      // theme the model invented anyway. Case-insensitive match against the allowed list.
+      if (themeTaxonomy.length > 0 && Array.isArray(parsed.themes)) {
+        const allowedLower = new Map(themeTaxonomy.map((t) => [t.toLowerCase(), t]));
+        const filtered = parsed.themes
+          .map((t) => allowedLower.get(String(t).trim().toLowerCase()))
+          .filter((t): t is string => !!t);
+        parsed.themes = filtered.length > 0 ? filtered : (allowedLower.has('other') ? ['Other'] : parsed.themes);
+      }
 
       await snap.ref.update({
         aiThemes: parsed.themes,

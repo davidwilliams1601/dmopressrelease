@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { Building2, Users, Send, ArrowUpRight, RefreshCw, Network as NetworkIcon } from 'lucide-react';
+import { Building2, Users, Send, ArrowUpRight, RefreshCw, Network as NetworkIcon, Sparkles, TrendingUp, TrendingDown } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { CreateChildOrgDialog } from '@/components/network/create-child-org-dialog';
 
@@ -53,6 +53,42 @@ type RollupResult = {
   totals: RollupTotals;
 };
 
+type ThemeTrendRow = {
+  theme: string;
+  submissionsCurrent: number;
+  submissionsPrior: number;
+  volumeChangePct: number | null;
+  escalatedCount: number;
+  escalationRate: number;
+  releaseCount: number;
+  totalSends: number;
+  totalOpens: number;
+  totalClicks: number;
+  openRate: number;
+  openRateVsNetworkMean: number | null;
+};
+
+type ThemeTrendsResult = {
+  org: { id: string; name: string; slug: string };
+  windowDays: number;
+  networkMeanOpenRate: number;
+  themes: ThemeTrendRow[];
+};
+
+function themeDigestLine(row: ThemeTrendRow): string {
+  const parts: string[] = [];
+  if (row.volumeChangePct !== null) {
+    const direction = row.volumeChangePct >= 0 ? 'up' : 'down';
+    parts.push(`${row.theme} submissions ${direction} ${Math.abs(row.volumeChangePct)}% this month`);
+  } else {
+    parts.push(`${row.theme} submissions are new this month (${row.submissionsCurrent})`);
+  }
+  if (row.openRateVsNetworkMean !== null && row.totalSends > 0) {
+    parts.push(`average open rate ${row.openRateVsNetworkMean}x the network mean`);
+  }
+  return parts.join('; ');
+}
+
 function formatActivity(ts: any) {
   if (!ts) return 'No activity';
   try {
@@ -70,8 +106,14 @@ export default function NetworkRollupPage() {
   const [rollup, setRollup] = useState<RollupResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [themeTrends, setThemeTrends] = useState<ThemeTrendsResult | null>(null);
+  const [isLoadingTrends, setIsLoadingTrends] = useState(false);
+  const [trendsError, setTrendsError] = useState<string | null>(null);
 
   const canSeeNetwork = !!organization && (organization.canProvisionChildOrgs || !!organization.parentOrgId);
+  // Free-within-Enterprise pilot digest (federated-tenants step 8) — not tied to
+  // canProvisionChildOrgs/parentOrgId, since it's purely a tier entitlement.
+  const canSeeThemeTrends = organization?.tier === 'enterprise';
   const directChildCount = rollup ? rollup.nodes.filter((n) => n.depth === 1).length : 0;
   const canCreateMemberOrgs =
     !!organization?.canProvisionChildOrgs && !!organization?.maxChildOrgs && role === 'Admin';
@@ -93,6 +135,26 @@ export default function NetworkRollupPage() {
     }
   }, [orgId]);
 
+  const loadThemeTrends = useCallback(async () => {
+    if (!orgId) return;
+    setIsLoadingTrends(true);
+    setTrendsError(null);
+    try {
+      const functions = getFunctions();
+      const getThemeTrends = httpsCallable<{ scope: { type: 'org-subtree'; orgId: string } }, ThemeTrendsResult>(
+        functions,
+        'getThemeTrends'
+      );
+      const result = await getThemeTrends({ scope: { type: 'org-subtree', orgId } });
+      setThemeTrends(result.data);
+    } catch (err: any) {
+      console.error('Failed to load theme trends:', err);
+      setTrendsError(err?.message || 'Failed to load theme trends.');
+    } finally {
+      setIsLoadingTrends(false);
+    }
+  }, [orgId]);
+
   useEffect(() => {
     if (!isUserLoading && !isOrgLoading && organization && !canSeeNetwork) {
       router.replace('/dashboard');
@@ -102,6 +164,10 @@ export default function NetworkRollupPage() {
   useEffect(() => {
     if (!isUserLoading && !isOrgLoading && canSeeNetwork) loadRollup();
   }, [isUserLoading, isOrgLoading, canSeeNetwork, loadRollup]);
+
+  useEffect(() => {
+    if (!isUserLoading && !isOrgLoading && canSeeNetwork && canSeeThemeTrends) loadThemeTrends();
+  }, [isUserLoading, isOrgLoading, canSeeNetwork, canSeeThemeTrends, loadThemeTrends]);
 
   if (isUserLoading || isOrgLoading) {
     return (
@@ -285,6 +351,85 @@ export default function NetworkRollupPage() {
               </Table>
             </CardContent>
           </Card>
+
+          {canSeeThemeTrends && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5" />
+                  Theme trends
+                </CardTitle>
+                <CardDescription>
+                  Submission volume, escalation, and release engagement by theme across{' '}
+                  {organization?.name}&apos;s network, over the last {themeTrends?.windowDays ?? 30} days vs the{' '}
+                  {themeTrends?.windowDays ?? 30} days before that. Free with Enterprise — a pilot on real network
+                  data before this generalises further.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {trendsError && (
+                  <p className="text-sm text-destructive">{trendsError}</p>
+                )}
+                {isLoadingTrends && !themeTrends ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-full" />
+                  </div>
+                ) : themeTrends && themeTrends.themes.length > 0 ? (
+                  <>
+                    <ul className="space-y-2">
+                      {themeTrends.themes.slice(0, 5).map((row) => (
+                        <li key={row.theme} className="flex items-start gap-2 text-sm">
+                          {row.volumeChangePct !== null && row.volumeChangePct < 0 ? (
+                            <TrendingDown className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                          ) : (
+                            <TrendingUp className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                          )}
+                          <span>{themeDigestLine(row)}.</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Theme</TableHead>
+                          <TableHead className="text-right">Submissions (30d)</TableHead>
+                          <TableHead className="text-right">vs prior 30d</TableHead>
+                          <TableHead className="text-right">Escalation rate</TableHead>
+                          <TableHead className="text-right">Open rate</TableHead>
+                          <TableHead className="text-right">vs network mean</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {themeTrends.themes.map((row) => (
+                          <TableRow key={row.theme}>
+                            <TableCell className="font-medium">{row.theme}</TableCell>
+                            <TableCell className="text-right">{row.submissionsCurrent}</TableCell>
+                            <TableCell className="text-right">
+                              {row.volumeChangePct === null ? 'New' : `${row.volumeChangePct > 0 ? '+' : ''}${row.volumeChangePct}%`}
+                            </TableCell>
+                            <TableCell className="text-right">{Math.round(row.escalationRate * 100)}%</TableCell>
+                            <TableCell className="text-right">
+                              {row.totalSends > 0 ? `${Math.round(row.openRate * 100)}%` : '—'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.openRateVsNetworkMean !== null && row.totalSends > 0 ? `${row.openRateVsNetworkMean}x` : '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Not enough themed submissions in this network yet to show trends.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </>
       ) : null}
     </div>

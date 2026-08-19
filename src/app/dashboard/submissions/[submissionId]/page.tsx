@@ -23,6 +23,7 @@ import { ArrowLeft, RefreshCw, Loader2, Instagram, Twitter, Facebook, Linkedin, 
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { analyzeSubmissionThemes } from '@/ai/flows/analyze-submission-themes';
+import { getThemeTaxonomyForVertical } from '@/ai/flows/get-theme-taxonomy';
 import { getVerticalConfig } from '@/lib/verticals';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import type { Organization, PartnerSubmission, Tag } from '@/lib/types';
@@ -119,6 +120,10 @@ export default function SubmissionDetailPage() {
 
     try {
       const verticalConfig = getVerticalConfig(org?.vertical);
+      // Manual re-analysis respects the same curated taxonomy (if configured for this
+      // org's vertical) as the automatic analyzeSubmissionThemes trigger, so results stay
+      // consistent whichever path produced them.
+      const themeTaxonomy = await getThemeTaxonomyForVertical(org?.vertical);
       const result = await analyzeSubmissionThemes({
         title: submission.title,
         bodyCopy: submission.bodyCopy,
@@ -128,6 +133,7 @@ export default function SubmissionDetailPage() {
           .map((t) => `"${t}"`)
           .join(', '),
         editorialPriorities: org?.editorialPriorities,
+        themeTaxonomy: themeTaxonomy.length > 0 ? themeTaxonomy : undefined,
       });
 
       if (result.success) {

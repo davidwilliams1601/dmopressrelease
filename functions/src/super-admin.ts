@@ -626,6 +626,104 @@ export const updateVerticalCategories = functions.https.onCall(async (data, cont
 });
 
 /**
+ * Curated per-vertical theme taxonomies used to constrain AI theme classification
+ * (see functions/src/submission-analysis.ts and src/ai/flows/analyze-submission-themes.ts).
+ * An empty list means "unconstrained" — that vertical keeps today's free-text `aiThemes`
+ * behaviour unchanged. Populated for `education` as the federated-tenants step 8 pilot
+ * (Auris Tech's network); other verticals stay empty until there's a reason to curate them.
+ */
+const DEFAULT_THEME_TAXONOMY: Record<string, string[]> = {
+  dmo: [],
+  charity: [],
+  'trade-body': [],
+  education: [
+    'Reading & Literacy Engagement',
+    'Academic Achievement & Awards',
+    'Careers, Skills & Future Readiness',
+    'Wellbeing & Mental Health',
+    'Inclusion, SEN & Accessibility',
+    'Community & Local Partnership',
+    'Arts, Culture & Creativity',
+    'Sport & Physical Activity',
+    'Fundraising & Charity',
+    'Digital & EdTech Innovation',
+    'Environmental & Sustainability',
+    'Other',
+  ],
+};
+
+/**
+ * Get the current curated theme taxonomy for all verticals. Super-admin only.
+ * Returns Firestore overrides merged with hardcoded defaults — same shape and
+ * doc (/platform/config) as getVerticalCategories.
+ */
+export const getVerticalThemeTaxonomy = functions.https.onCall(async (_data, context) => {
+  requireSuperAdmin(context);
+
+  const doc = await db.collection('platform').doc('config').get();
+  const stored = doc.exists ? (doc.data()?.verticals || {}) : {};
+
+  const result: Record<string, string[]> = {};
+  for (const verticalId of Object.keys(DEFAULT_THEME_TAXONOMY)) {
+    result[verticalId] = stored[verticalId]?.themeTaxonomy ?? DEFAULT_THEME_TAXONOMY[verticalId];
+  }
+
+  return { verticals: result };
+});
+
+/**
+ * Update the curated theme taxonomy for a single vertical. Super-admin only.
+ * Writes to /platform/config in Firestore, mirroring updateVerticalCategories exactly.
+ *
+ * Input: { verticalId: string, themes: string[] }
+ * An empty `themes` array is allowed and intentional — it reverts that vertical to
+ * unconstrained free-text theme generation.
+ */
+export const updateVerticalThemeTaxonomy = functions.https.onCall(async (data, context) => {
+  requireSuperAdmin(context);
+
+  const { verticalId, themes } = data;
+
+  if (!verticalId || !Object.keys(DEFAULT_THEME_TAXONOMY).includes(verticalId)) {
+    throw new functions.https.HttpsError('invalid-argument', 'verticalId must be one of: dmo, charity, trade-body, education.');
+  }
+  if (!Array.isArray(themes)) {
+    throw new functions.https.HttpsError('invalid-argument', 'themes must be an array of strings (may be empty).');
+  }
+  const clean = Array.from(new Set(themes.map((t: any) => String(t).trim()).filter(Boolean)));
+  if (clean.length > 50) {
+    throw new functions.https.HttpsError('invalid-argument', 'themes cannot contain more than 50 entries.');
+  }
+
+  await db.collection('platform').doc('config').set(
+    { verticals: { [verticalId]: { themeTaxonomy: clean } } },
+    { merge: true }
+  );
+
+  console.log(
+    `[updateVerticalThemeTaxonomy] ${verticalId} updated by ${context.auth!.uid}: ${clean.join(', ') || '(cleared — unconstrained)'}`
+  );
+  return { success: true, themes: clean };
+});
+
+/**
+ * Resolve the effective theme taxonomy for one vertical — Firestore override if set,
+ * otherwise the hardcoded default. Shared by submission-analysis.ts so the trigger
+ * doesn't duplicate this merge logic. Not exported as a callable.
+ */
+export async function resolveThemeTaxonomy(vertical: string | undefined): Promise<string[]> {
+  if (!vertical || !(vertical in DEFAULT_THEME_TAXONOMY)) return [];
+  try {
+    const doc = await db.collection('platform').doc('config').get();
+    const stored = doc.exists ? doc.data()?.verticals?.[vertical]?.themeTaxonomy : undefined;
+    if (Array.isArray(stored)) return stored;
+  } catch (err) {
+    console.warn(`[resolveThemeTaxonomy] Firestore read failed for vertical ${vertical}, using default:`, err);
+  }
+  return DEFAULT_THEME_TAXONOMY[vertical] ?? [];
+}
+
+/**
  * Update partner/submission limits for an organisation. Super-admin only.
  *
  * Input:
