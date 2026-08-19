@@ -1,10 +1,23 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import sgMail from '@sendgrid/mail';
 import { callWithRetry } from './ai-helpers';
 import { GEMINI_MODEL } from './ai-config';
+import { sendWithRetry } from './sendgrid-retry';
+import { escapeHtml } from './html-utils';
+import { emailHeader, emailFooter, emailButton, emailCallout, getEmailColors } from './email-branding';
 
 const db = admin.firestore();
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+
+function getSendGridKey(): string | null {
+  return functions.config().sendgrid?.key || process.env.SENDGRID_API_KEY || null;
+}
+
+function getFromEmail(): string | null {
+  return functions.config().sendgrid?.from_email || process.env.SENDGRID_FROM_EMAIL || null;
+}
 
 /**
  * Cloud Function to create a partner invite link.
@@ -133,6 +146,139 @@ export const getPartnerInviteInfo = functions.https.onCall(async (data) => {
     orgName: orgData.name || null,
     vertical: (orgData.vertical as string | undefined) || 'dmo',
   };
+});
+
+/**
+ * Cloud Function to send (or resend) a partner invite by email directly from the system,
+ * with an optional personal note from the org admin.
+ * Only organization admins can send invite emails.
+ *
+ * Input: { orgId, inviteId, partnerEmail, partnerName?, note? }
+ */
+export const sendPartnerInviteEmail = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'User must be authenticated to send partner invites.'
+    );
+  }
+
+  const { orgId, inviteId, partnerEmail, partnerName, note } = data;
+
+  if (!orgId || !inviteId || !partnerEmail?.trim()) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'orgId, inviteId, and partnerEmail are required.'
+    );
+  }
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(partnerEmail.trim())) {
+    throw new functions.https.HttpsError('invalid-argument', 'Please provide a valid email address.');
+  }
+
+  // Verify the caller is an admin of the organization
+  const callerUserDoc = await db
+    .collection('orgs')
+    .doc(orgId)
+    .collection('users')
+    .doc(context.auth.uid)
+    .get();
+
+  if (!callerUserDoc.exists || callerUserDoc.data()?.role !== 'Admin') {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Only organization admins can send partner invites.'
+    );
+  }
+
+  const inviteRef = db.collection('orgs').doc(orgId).collection('invites').doc(inviteId);
+  const inviteDoc = await inviteRef.get();
+  if (!inviteDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Invite not found.');
+  }
+  const invite = inviteDoc.data()!;
+
+  const key = getSendGridKey();
+  const fromEmail = getFromEmail();
+  if (!key || !fromEmail) {
+    throw new functions.https.HttpsError('failed-precondition', 'Email is not configured for this organisation.');
+  }
+  sgMail.setApiKey(key);
+
+  const orgDoc = await db.collection('orgs').doc(orgId).get();
+  if (!orgDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Organisation not found.');
+  }
+  const orgData = orgDoc.data()!;
+  const orgName: string = orgData.name || 'Your organisation';
+  const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
+  const replyToEmail: string | undefined = orgData.pressContact?.email;
+
+  const inviteLink = `${appUrl}/partner-signup?code=${invite.code}`;
+  const trimmedNote = typeof note === 'string' ? note.trim() : '';
+  const safePartnerName = escapeHtml((partnerName || invite.label || '').trim());
+  const greetingName = safePartnerName || 'there';
+  const safeOrgName = escapeHtml(orgName);
+
+  const noteHtml = trimmedNote
+    ? emailCallout(
+        brandedOrg,
+        `<p style="margin:0;font-size:14px;"><strong>A note from ${safeOrgName}:</strong></p>
+         <p style="margin:8px 0 0;font-size:14px;">${escapeHtml(trimmedNote).replace(/\n/g, '<br>')}</p>`
+      )
+    : '';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+    <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;">
+      ${emailHeader(brandedOrg, "You're invited")}
+      <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:32px;border-radius:0 0 8px 8px;">
+        <p style="margin-top:0;">Hi ${greetingName},</p>
+        <p>${safeOrgName} has invited you to become a partner on Press Pilot, so you can submit stories and updates directly for press coverage.</p>
+        ${noteHtml}
+        ${emailButton(brandedOrg, inviteLink, 'Create your account')}
+        <p style="font-size:13px;color:#6b7280;">Or copy and paste this link into your browser:<br>
+          <a href="${inviteLink}" style="color:${getEmailColors(brandedOrg).primary};word-break:break-all;">${inviteLink}</a>
+        </p>
+      </div>
+      ${emailFooter(brandedOrg, { showManageLink: false })}
+    </body>
+    </html>
+  `;
+
+  const text = `Hi ${safePartnerName || 'there'},\n\n${orgName} has invited you to become a partner on Press Pilot, so you can submit stories and updates directly for press coverage.\n${trimmedNote ? `\nA note from ${orgName}: ${trimmedNote}\n` : ''}\nCreate your account: ${inviteLink}\n\n${orgName}`;
+
+  try {
+    await sendWithRetry({
+      to: partnerEmail.trim(),
+      from: { email: fromEmail, name: orgName },
+      ...(replyToEmail ? { replyTo: { email: replyToEmail, name: orgName } } : {}),
+      subject: `You're invited to join ${orgName} on Press Pilot`,
+      html,
+      text,
+      customArgs: { orgId, inviteId },
+      trackingSettings: {
+        clickTracking: { enable: true },
+        openTracking: { enable: true },
+      },
+    } as any);
+  } catch (error: any) {
+    console.error(`[sendPartnerInviteEmail] Failed to send to ${partnerEmail} after retries:`, error);
+    throw new functions.https.HttpsError('internal', 'Failed to send the invite email. Please try again.');
+  }
+
+  await inviteRef.update({
+    sentTo: partnerEmail.trim(),
+    sentAt: admin.firestore.FieldValue.serverTimestamp(),
+    sentBy: context.auth.uid,
+    sentNote: trimmedNote || null,
+    sendCount: admin.firestore.FieldValue.increment(1),
+  });
+
+  return { success: true };
 });
 
 /**

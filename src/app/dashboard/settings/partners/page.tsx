@@ -19,6 +19,7 @@ import { GenerateInviteDialog } from '@/components/settings/generate-invite-dial
 import { SendQuarterlyReportDialog } from '@/components/settings/send-quarterly-report-dialog';
 import { SendPartnerEmailDialog } from '@/components/settings/send-partner-email-dialog';
 import { SendImpactReportButton } from '@/components/settings/send-impact-report-button';
+import { SendInviteEmailDialog } from '@/components/settings/send-invite-email-dialog';
 import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import { Link as LinkIcon, Users, Mail, Copy, Send, MailOpen, MousePointerClick } from 'lucide-react';
 import { format } from 'date-fns';
@@ -142,8 +143,9 @@ export default function PartnersPage() {
                   <TableHead>Code</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Uses</TableHead>
+                  <TableHead>Sent</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Link</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -166,21 +168,45 @@ export default function PartnersPage() {
                       {invite.useCount}{invite.maxUses ? ` / ${invite.maxUses}` : ''}
                     </TableCell>
                     <TableCell>
+                      {invite.sentTo ? (
+                        <span className="text-xs text-muted-foreground">
+                          {invite.sentTo}
+                          {invite.sendCount && invite.sendCount > 1 ? ` (×${invite.sendCount})` : ''}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not sent</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       {invite.createdAt ? format(toDate(invite.createdAt), 'dd MMM yyyy') : '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          const link = `${getAppBaseUrl()}/partner-signup?code=${invite.code}`;
-                          navigator.clipboard.writeText(link);
-                          toast({ title: 'Copied!', description: 'Invite link copied to clipboard.' });
-                        }}
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copy link
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        {orgId && (
+                          <SendInviteEmailDialog
+                            orgId={orgId}
+                            invite={invite}
+                            trigger={
+                              <Button variant="ghost" size="sm">
+                                <Mail className="h-4 w-4" />
+                                {invite.sentTo ? 'Resend' : 'Send'}
+                              </Button>
+                            }
+                          />
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const link = `${getAppBaseUrl()}/partner-signup?code=${invite.code}`;
+                            navigator.clipboard.writeText(link);
+                            toast({ title: 'Copied!', description: 'Invite link copied to clipboard.' });
+                          }}
+                        >
+                          <Copy className="h-4 w-4" />
+                          Copy link
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
