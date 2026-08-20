@@ -1,7 +1,18 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
 
 const db = admin.firestore();
+
+/**
+ * Firestore document IDs can't safely hold an arbitrary caller-supplied
+ * idempotency key (length limits, disallowed characters like `/`). Hashing
+ * gives a deterministic, safe document ID so the existence check and the
+ * write can happen in the SAME transaction below.
+ */
+function idempotencyDocId(key: string): string {
+  return crypto.createHash('sha256').update(key).digest('hex');
+}
 
 /**
  * Checks that the caller has the superAdmin custom claim.
@@ -44,6 +55,13 @@ async function writeAuditLog(entry: {
  * Idempotent on `idempotencyKey`: if a transaction with that key already exists for
  * this org, returns the existing entry instead of creating a duplicate (protects
  * against double-clicks / retried callable requests).
+ *
+ * QA fix (2026-08-20): the idempotency check used to run as a plain query BEFORE
+ * `db.runTransaction`, so two concurrent calls with the same key could both observe
+ * "no existing row" and each commit a new ledger entry — a real double-debit/
+ * double-refund race under retries. The check now happens INSIDE the same
+ * transaction as the write, keyed by a deterministic hash of `idempotencyKey`, so
+ * the existence check and the write are atomic with each other.
  */
 type LedgerEntryType = 'purchase' | 'grant' | 'adjustment' | 'refund' | 'reversal' | 'usage';
 
@@ -63,14 +81,15 @@ export async function appendLedgerEntry(params: {
   const orgRef = db.collection('orgs').doc(orgId);
   const ledgerRef = orgRef.collection('creditTransactions');
   const walletRef = orgRef.collection('creditWallet').doc('summary');
-
-  const existing = await ledgerRef.where('idempotencyKey', '==', idempotencyKey).limit(1).get();
-  if (!existing.empty) {
-    const doc = existing.docs[0];
-    return { id: doc.id, balanceAfter: doc.data().balanceAfter, created: false };
-  }
+  const txRef = ledgerRef.doc(idempotencyDocId(idempotencyKey));
 
   return db.runTransaction(async (txn) => {
+    const existingDoc = await txn.get(txRef);
+    if (existingDoc.exists) {
+      const data = existingDoc.data()!;
+      return { id: txRef.id, balanceAfter: data.balanceAfter, created: false };
+    }
+
     const walletDoc = await txn.get(walletRef);
     const currentBalance = walletDoc.exists ? walletDoc.data()?.balance || 0 : 0;
     const balanceAfter = currentBalance + params.quantity;
@@ -82,7 +101,6 @@ export async function appendLedgerEntry(params: {
       );
     }
 
-    const txRef = ledgerRef.doc();
     txn.set(txRef, {
       orgId,
       type: params.type,
@@ -357,6 +375,187 @@ export async function debitSmartDistributionCredit(params: {
     }
     throw err;
   }
+}
+
+// ----------------------------------------------------------------------------
+// QA fix (2026-08-20): credit RESERVATION for network-contact sends.
+//
+// Previously `executeSendJob` called `sendEmail()` then `debitSmartDistributionCredit()`
+// afterwards. If the org's balance was exhausted by a concurrent send between those
+// two calls, the debit returned null but the email had ALREADY been sent — a network
+// contact could be emailed without ever consuming a prepaid credit, breaking the
+// locked "network sends always consume a credit" rule.
+//
+// The fix reserves a credit BEFORE sending (never sends if none is available), then
+// finalizes the reservation into a real ledger entry only after the send succeeds, or
+// releases the hold if the send fails. `reservedCredits` on the wallet tracks credits
+// currently held for in-flight sends; available balance is `balance - reservedCredits`.
+// ----------------------------------------------------------------------------
+
+/**
+ * Reserves one Smart Distribution credit for a network-sourced send BEFORE the
+ * delivery attempt, so the send can be skipped entirely — never dispatched — when no
+ * credit is available, instead of sending first and finding out afterwards.
+ *
+ * Idempotent per (campaignId, networkContactId): a retried dispatch for the same
+ * recipient in the same send job returns the same outcome rather than reserving (or
+ * being denied) a second time.
+ */
+export async function reserveSmartDistributionCredit(params: {
+  orgId: string;
+  campaignId: string;
+  networkContactId: string;
+}): Promise<{ reservationId: string; reserved: boolean }> {
+  const { orgId, campaignId, networkContactId } = params;
+  const orgRef = db.collection('orgs').doc(orgId);
+  const walletRef = orgRef.collection('creditWallet').doc('summary');
+  const reservationId = idempotencyDocId(`reserve_${campaignId}_${networkContactId}`);
+  const reservationRef = orgRef.collection('creditReservations').doc(reservationId);
+
+  return db.runTransaction(async (txn) => {
+    const reservationDoc = await txn.get(reservationRef);
+    if (reservationDoc.exists) {
+      const status = reservationDoc.data()?.status;
+      return { reservationId, reserved: status === 'reserved' || status === 'finalized' };
+    }
+
+    const walletDoc = await txn.get(walletRef);
+    const balance = walletDoc.exists ? walletDoc.data()?.balance || 0 : 0;
+    const reservedCredits = walletDoc.exists ? walletDoc.data()?.reservedCredits || 0 : 0;
+    const available = balance - reservedCredits;
+
+    if (available < 1) {
+      txn.set(reservationRef, {
+        orgId,
+        campaignId,
+        networkContactId,
+        status: 'denied',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { reservationId, reserved: false };
+    }
+
+    txn.set(reservationRef, {
+      orgId,
+      campaignId,
+      networkContactId,
+      status: 'reserved',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    txn.set(
+      walletRef,
+      {
+        reservedCredits: reservedCredits + 1,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return { reservationId, reserved: true };
+  });
+}
+
+/**
+ * Converts a held reservation into a permanent ledger 'usage' entry once the send has
+ * actually been accepted for delivery. Debits the ledger FIRST, then releases the
+ * hold — this ordering (rather than the reverse) never creates a window where the
+ * same credit briefly looks available to a second concurrent reservation. Idempotent:
+ * a reservation that's already finalized returns its original result rather than
+ * charging twice.
+ */
+export async function finalizeSmartDistributionCreditReservation(params: {
+  orgId: string;
+  campaignId: string;
+  networkContactId: string;
+  reservationId: string;
+}): Promise<{ id: string; balanceAfter: number } | null> {
+  const { orgId, campaignId, networkContactId, reservationId } = params;
+  const orgRef = db.collection('orgs').doc(orgId);
+  const reservationRef = orgRef.collection('creditReservations').doc(reservationId);
+
+  const reservationSnap = await reservationRef.get();
+  const reservation = reservationSnap.data();
+
+  if (!reservationSnap.exists || reservation?.status !== 'reserved') {
+    if (reservation?.status === 'finalized' && reservation.creditTransactionId) {
+      const txDoc = await orgRef.collection('creditTransactions').doc(reservation.creditTransactionId).get();
+      return txDoc.exists ? { id: txDoc.id, balanceAfter: txDoc.data()!.balanceAfter } : null;
+    }
+    return null;
+  }
+
+  const debit = await debitSmartDistributionCredit({ orgId, campaignId, networkContactId });
+  if (!debit) {
+    // Should not happen — the reservation already confirmed availability — but never
+    // leave a reservation stuck in 'reserved' if it does.
+    await releaseSmartDistributionCreditReservation({ orgId, reservationId });
+    return null;
+  }
+
+  const walletRef = orgRef.collection('creditWallet').doc('summary');
+  await db.runTransaction(async (txn) => {
+    const walletDoc = await txn.get(walletRef);
+    const reservedCredits = walletDoc.exists ? walletDoc.data()?.reservedCredits || 0 : 0;
+    txn.set(
+      walletRef,
+      {
+        reservedCredits: Math.max(0, reservedCredits - 1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    txn.set(
+      reservationRef,
+      {
+        status: 'finalized',
+        creditTransactionId: debit.id,
+        finalizedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
+
+  return debit;
+}
+
+/**
+ * Releases a held reservation without ever charging it — used when the send itself
+ * fails (so the recipient was never actually emailed) or a finalize attempt could not
+ * complete. Idempotent no-op if the reservation is already resolved.
+ */
+export async function releaseSmartDistributionCreditReservation(params: {
+  orgId: string;
+  reservationId: string;
+}): Promise<void> {
+  const { orgId, reservationId } = params;
+  const orgRef = db.collection('orgs').doc(orgId);
+  const reservationRef = orgRef.collection('creditReservations').doc(reservationId);
+  const walletRef = orgRef.collection('creditWallet').doc('summary');
+
+  await db.runTransaction(async (txn) => {
+    const reservationDoc = await txn.get(reservationRef);
+    if (!reservationDoc.exists || reservationDoc.data()?.status !== 'reserved') {
+      return;
+    }
+    const walletDoc = await txn.get(walletRef);
+    const reservedCredits = walletDoc.exists ? walletDoc.data()?.reservedCredits || 0 : 0;
+    txn.set(
+      walletRef,
+      {
+        reservedCredits: Math.max(0, reservedCredits - 1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    txn.set(
+      reservationRef,
+      {
+        status: 'released',
+        releasedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
 }
 
 /**
