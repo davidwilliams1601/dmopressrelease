@@ -23,7 +23,7 @@ const {
   assertSucceeds,
   assertFails,
 } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, addDoc } = require('firebase/firestore');
+const { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, collectionGroup, query, where, addDoc } = require('firebase/firestore');
 
 const PROJECT_ID = 'smart-distribution-rules-test';
 
@@ -369,6 +369,57 @@ describe('/orgs/{orgId}/sendJobs/{sendJobId}/recipients/{recipientId} — read-o
   test('no client can write', async () => {
     await assertFails(
       updateDoc(doc(teamCtx().firestore(), 'orgs', ORG_A, 'sendJobs', 'job-1', 'recipients', 'rec-1'), { deliveryStatus: 'delivered' })
+    );
+  });
+});
+
+describe('/{path=**}/recipients/{recipientId} — collection-group query used by the outlet-list import wizard duplicate check', () => {
+  beforeEach(async () => {
+    await seedOrgMembers();
+    await seed(async (db) => {
+      // One recipient in an outletList subcollection and one in a sendJobs subcollection,
+      // both for ORG_A — a real collectionGroup('recipients') query must see both, since
+      // src/app/dashboard/outlets/[listId]/page.tsx relies on this to catch duplicates
+      // across every list an org owns, not just the currently open one.
+      await setDoc(doc(db, 'orgs', ORG_A, 'outletLists', 'list-1', 'recipients', 'rec-outlet-1'), {
+        orgId: ORG_A,
+        outletListId: 'list-1',
+        email: 'outlet-contact@example.com',
+      });
+      await setDoc(doc(db, 'orgs', ORG_A, 'sendJobs', 'job-1', 'recipients', 'rec-send-1'), {
+        orgId: ORG_A,
+        sendJobId: 'job-1',
+        deliveryStatus: 'pending',
+      });
+      // A same-shaped recipient under a different org must never leak into ORG_A's query.
+      await setDoc(doc(db, 'orgs', ORG_B, 'outletLists', 'list-2', 'recipients', 'rec-outlet-2'), {
+        orgId: ORG_B,
+        outletListId: 'list-2',
+        email: 'other-org-contact@example.com',
+      });
+    });
+  });
+
+  test('a team member of the owning org can list across both recipients subcollections via a collection-group query', async () => {
+    const q = query(collectionGroup(teamCtx().firestore(), 'recipients'), where('orgId', '==', ORG_A));
+    const snap = await assertSucceeds(getDocs(q));
+    expect(snap.docs.map((d) => d.id).sort()).toEqual(['rec-outlet-1', 'rec-send-1']);
+  });
+
+  test('a team member of a DIFFERENT org querying by their own orgId cannot see ORG_A rows — no cross-org leakage', async () => {
+    const q = query(collectionGroup(otherOrgTeamCtx().firestore(), 'recipients'), where('orgId', '==', ORG_B));
+    const snap = await assertSucceeds(getDocs(q));
+    expect(snap.docs.map((d) => d.id)).toEqual(['rec-outlet-2']);
+  });
+
+  test('a team member cannot run the collection-group query filtered to an org they do not belong to', async () => {
+    const q = query(collectionGroup(teamCtx().firestore(), 'recipients'), where('orgId', '==', ORG_B));
+    await assertFails(getDocs(q));
+  });
+
+  test('sendJobs recipients remain read-only from the client — this new rule adds no write access', async () => {
+    await assertFails(
+      updateDoc(doc(teamCtx().firestore(), 'orgs', ORG_A, 'sendJobs', 'job-1', 'recipients', 'rec-send-1'), { deliveryStatus: 'delivered' })
     );
   });
 });
