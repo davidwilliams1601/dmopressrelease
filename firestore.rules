@@ -299,6 +299,19 @@ service cloud.firestore {
     }
 
     /**
+     * @description QA fix (2026-08-20): internal credit HOLD for a network-contact
+     *              send that is in flight between reservation and delivery outcome
+     *              (see functions/src/credits.ts reserve/finalize/release). Purely an
+     *              internal bookkeeping record — never rendered to any client, so it
+     *              is not exposed for reads even to team members.
+     * @path /orgs/{orgId}/creditReservations/{reservationId}
+     * @principle Cloud Function / Admin SDK only. No client read or write.
+     */
+    match /orgs/{orgId}/creditReservations/{reservationId} {
+      allow read, write: if false;
+    }
+
+    /**
      * @description Rules for Send Job documents within an organization.
      * @path /orgs/{orgId}/sendJobs/{sendJobId}
      * @principle Team members only. Partners cannot access send jobs.

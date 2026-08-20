@@ -7,7 +7,11 @@ import { resolveOrgColors } from './brand-utils';
 import { emailFooter } from './email-branding';
 import { getStorage } from 'firebase-admin/storage';
 import { resolveSmartDistributionRecipientsForSend } from './send-distribution';
-import { debitSmartDistributionCredit } from './credits';
+import {
+  reserveSmartDistributionCredit,
+  finalizeSmartDistributionCreditReservation,
+  releaseSmartDistributionCreditReservation,
+} from './credits';
 
 admin.initializeApp();
 
@@ -267,7 +271,33 @@ async function executeSendJob(
     await Promise.all(
       batch.map(async (entry) => {
         const recipientDocRef = recipientsCollection.doc(entry.sendJobRecipientId);
+        const isNetworkContact =
+          entry.source === 'smart_distribution_recommendation' && !!entry.networkContactId;
+        // QA fix (2026-08-20): reserve the credit BEFORE sending, not after. Previously
+        // the code sent first and debited afterwards, so a losing balance race meant a
+        // network contact could be emailed for free (see credits.ts reservation system
+        // for the full rationale).
+        let reservation: { reservationId: string; reserved: boolean } | null = null;
+
         try {
+          if (isNetworkContact) {
+            reservation = await reserveSmartDistributionCredit({
+              orgId,
+              campaignId: jobId,
+              networkContactId: entry.networkContactId!,
+            });
+            if (!reservation.reserved) {
+              // No credit available for this recipient — skip the send entirely rather
+              // than emailing a network contact for free.
+              await recipientDocRef.update({
+                deliveryStatus: 'suppressed',
+                skipReason: 'insufficient_balance',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+              return;
+            }
+          }
+
           await sendEmail(
             { name: entry.name, email: entry.email, outlet: entry.outlet },
             release,
@@ -277,11 +307,12 @@ async function executeSendJob(
           );
           sentCount++;
 
-          if (entry.source === 'smart_distribution_recommendation' && entry.networkContactId) {
-            const debit = await debitSmartDistributionCredit({
+          if (isNetworkContact && reservation) {
+            const debit = await finalizeSmartDistributionCreditReservation({
               orgId,
               campaignId: jobId,
-              networkContactId: entry.networkContactId,
+              networkContactId: entry.networkContactId!,
+              reservationId: reservation.reservationId,
             });
             if (debit) {
               smartDistributionCreditsUsed++;
@@ -291,11 +322,11 @@ async function executeSendJob(
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               });
             } else {
-              // Delivered but the org's balance couldn't cover it at debit time (rare
-              // race with a concurrent send job) — never charge, but the send did happen.
+              // Should not happen — the reservation already confirmed availability — but
+              // never leave a delivered recipient silently uncharged without a flag.
               await recipientDocRef.update({
                 deliveryStatus: 'delivered',
-                skipReason: 'insufficient_balance_uncharged',
+                skipReason: 'reservation_finalize_failed',
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               });
             }
@@ -308,7 +339,20 @@ async function executeSendJob(
         } catch (error) {
           console.error(`Failed to send to ${entry.email} (after retries):`, error);
           failedCount++;
-          failedRecipients.push(entry.email);
+          if (isNetworkContact) {
+            // QA fix (2026-08-20): never record a network contact's raw email address on
+            // the team-readable send-job document — keep the anonymity guarantee intact
+            // even on a failed dispatch. Customer-owned contacts are already visible to
+            // their own org, so their address is fine to keep here for triage.
+            if (reservation?.reserved) {
+              await releaseSmartDistributionCreditReservation({
+                orgId,
+                reservationId: reservation.reservationId,
+              });
+            }
+          } else {
+            failedRecipients.push(entry.email);
+          }
           await recipientDocRef.update({
             deliveryStatus: 'failed',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),

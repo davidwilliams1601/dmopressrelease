@@ -9,19 +9,33 @@ const NUM_SHARDS = 10;
 
 /**
  * Verify SendGrid webhook signature using ECDSA P-256.
- * Returns true when valid, or when no key is configured (dev/testing mode).
+ *
+ * QA fix (2026-08-20): this used to return `true` (accept unverified) whenever no
+ * key was configured, with only a console.warn — meaning any unauthenticated caller
+ * could POST fabricated bounce/dropped events and trigger a real automatic credit
+ * refund. This endpoint mutates a financial ledger, so it now fails CLOSED: missing
+ * key or missing signature headers both reject the request outright. The
+ * `SENDGRID_WEBHOOK_VERIFICATION_KEY` secret (or `functions.config().sendgrid.
+ * webhook_verification_key`) MUST be configured before this webhook is enabled in
+ * any environment, or every event — including legitimate delivery/bounce updates —
+ * will now be rejected instead of silently trusted.
  */
 function verifySendGridSignature(
   payload: string,
-  signature: string,
-  timestamp: string
+  signature: string | undefined,
+  timestamp: string | undefined
 ): boolean {
   const verificationKey = functions.config().sendgrid?.webhook_verification_key ||
                          process.env.SENDGRID_WEBHOOK_VERIFICATION_KEY;
 
   if (!verificationKey) {
-    console.warn('SendGrid webhook verification key not configured. Accepting webhook without verification.');
-    return true;
+    console.error('SendGrid webhook verification key not configured — rejecting webhook (fail closed).');
+    return false;
+  }
+
+  if (!signature || !timestamp) {
+    console.error('SendGrid webhook request missing signature/timestamp headers — rejecting.');
+    return false;
   }
 
   try {
@@ -67,6 +81,37 @@ function extractMetadataFromEvent(event: any): {
 
   console.warn('Could not extract orgId/releaseId or partnerEmailId from event:', event.event);
   return {};
+}
+
+/**
+ * QA fix (2026-08-20): whether a SendJobRecipient row is a network-sourced Smart
+ * Distribution contact (`source === 'smart_distribution_recommendation'` with a
+ * `networkContactId`) rather than a customer-owned outlet contact. Used to decide
+ * whether the raw email address may be written into a team-readable document.
+ * Fails safe: any read error is treated as network-sourced (the more restrictive
+ * outcome) rather than risking a leak.
+ */
+async function isNetworkSourcedRecipient(
+  orgId: string,
+  sendJobId: string,
+  sendJobRecipientId: string
+): Promise<boolean> {
+  try {
+    const recipientSnap = await db
+      .collection('orgs').doc(orgId)
+      .collection('sendJobs').doc(sendJobId)
+      .collection('recipients').doc(sendJobRecipientId)
+      .get();
+
+    if (!recipientSnap.exists) {
+      return true;
+    }
+    const data = recipientSnap.data()!;
+    return data.source === 'smart_distribution_recommendation' && !!data.networkContactId;
+  } catch (error) {
+    console.error(`[webhook] Failed to check recipient source for ${sendJobRecipientId}, failing safe:`, error);
+    return true;
+  }
 }
 
 /**
@@ -182,9 +227,13 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
     return;
   }
 
-  const signature = req.headers['x-twilio-email-event-webhook-signature'] as string;
-  const timestamp = req.headers['x-twilio-email-event-webhook-timestamp'] as string;
-  const rawBody = JSON.stringify(req.body);
+  const signature = req.headers['x-twilio-email-event-webhook-signature'] as string | undefined;
+  const timestamp = req.headers['x-twilio-email-event-webhook-timestamp'] as string | undefined;
+  // QA fix (2026-08-20): verify against the exact bytes SendGrid signed (Firebase
+  // Functions attaches the raw request body as `req.rawBody`), not a re-serialized
+  // `JSON.stringify(req.body)` — which can differ in key ordering/whitespace from
+  // what was actually signed and cause valid signatures to fail verification.
+  const rawBody = req.rawBody instanceof Buffer ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
 
   if (!verifySendGridSignature(rawBody, signature, timestamp)) {
     console.error('Invalid webhook signature');
@@ -229,6 +278,15 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
         await handleSmartDistributionRecipientEvent(orgId, sendJobId, sendJobRecipientId, event);
       }
 
+      // QA fix (2026-08-20): a network-sourced Smart Distribution contact's raw email
+      // must never land in a team-readable doc (the generic `events` collection below
+      // is readable by any team member per firestore.rules). Fails safe — treat as
+      // network-sourced (omit the email) on any lookup error — since the alternative
+      // is silently leaking an anonymised contact's address.
+      const networkSourced = sendJobId && sendJobRecipientId
+        ? await isNetworkSourcedRecipient(orgId, sendJobId, sendJobRecipientId)
+        : false;
+
       let eventType: string;
       switch (event.event) {
         case 'delivered': eventType = 'delivered'; break;
@@ -268,7 +326,7 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
           id: eventRef.id,
           orgId,
           partnerEmailId,
-          recipientEmail: event.email,
+          ...(networkSourced ? {} : { recipientEmail: event.email }),
           eventType,
           timestamp: eventTimestamp,
           metadata,
@@ -293,7 +351,7 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
           id: eventRef.id,
           orgId,
           releaseId,
-          recipientEmail: event.email,
+          ...(networkSourced ? {} : { recipientEmail: event.email }),
           eventType,
           timestamp: eventTimestamp,
           metadata,
