@@ -42,13 +42,17 @@ import {
   normaliseHeader,
   parseBooleanCell,
   splitListCell,
+  normaliseOutletTypeLabel,
 } from '@/lib/media-taxonomy';
 import type { ImportMappingProfile } from '@/lib/types';
 
 type ImportWizardDialogProps = {
   orgId: string;
   listId: string;
-  /** Emails already present in this outlet list (any case), used for duplicate detection. */
+  /** Emails already present anywhere in this org's outlet lists (any case), used for
+   *  duplicate detection. QA fix (Medium): must be org-wide, not just this list —
+   *  callers should pass a set built from every outlet list the org owns, not only
+   *  the one currently open (see src/app/dashboard/outlets/[listId]/page.tsx). */
   existingEmails: string[];
 };
 
@@ -285,7 +289,7 @@ export function ImportWizardDialog({ orgId, listId, existingEmails }: ImportWiza
           if (record.values.editorialFocus) data.editorialFocus = splitListCell(record.values.editorialFocus);
           if (record.values.geography) data.geography = splitListCell(record.values.geography);
           if (record.values.topics) data.topics = splitListCell(record.values.topics);
-          if (record.values.outletType) data.outletType = record.values.outletType;
+          if (record.values.outletType) data.outletType = normaliseOutletTypeLabel(record.values.outletType);
           if (record.values.relationshipStatus) data.relationshipStatus = record.values.relationshipStatus;
           if (record.values.lastContactedAt) data.lastContactedAt = record.values.lastContactedAt;
           if (record.values.doNotContact) data.doNotContact = parseBooleanCell(record.values.doNotContact);

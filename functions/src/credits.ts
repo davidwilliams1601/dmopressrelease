@@ -28,7 +28,16 @@ function requireSuperAdmin(context: functions.https.CallableContext) {
   }
 }
 
-/** Writes a superadmin accountability-trail entry. Never fails the calling function. */
+/**
+ * Writes a superadmin accountability-trail entry. Never fails the calling function.
+ * QA fix (M11): stored at /auditLogs/{actorUid}/entries/{logId} rather than a flat
+ * /auditLogs/{logId} collection — firestore.rules can then scope read access to
+ * `request.auth.uid == actorUid` using only the path, matching the doc comment's
+ * "superadmins may read their own trail" intent. A flat collection has no way to
+ * restrict a `list` query to one actor's entries in rules (there is no resource.data
+ * to inspect for a collection-level list rule), so the old rule granted every
+ * superadmin read access to every other superadmin's trail.
+ */
 async function writeAuditLog(entry: {
   action: string;
   actorUid: string;
@@ -37,7 +46,7 @@ async function writeAuditLog(entry: {
   metadata?: Record<string, unknown>;
 }) {
   try {
-    await db.collection('auditLogs').add({
+    await db.collection('auditLogs').doc(entry.actorUid).collection('entries').add({
       ...entry,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -83,6 +92,20 @@ export async function appendLedgerEntry(params: {
   const walletRef = orgRef.collection('creditWallet').doc('summary');
   const txRef = ledgerRef.doc(idempotencyDocId(idempotencyKey));
 
+  // QA fix (Medium): balanceAfter used to be computed from creditWallet/summary's
+  // cached `balance` field. That cache is written by this same function inside the
+  // same transaction, so it is *usually* consistent — but the ledger (creditTransactions)
+  // is documented as the actual source of truth (firestore.rules explicitly calls the
+  // wallet doc "a read-optimised cache derived from creditTransactions, never the
+  // source of truth"). Computing new balances FROM that cache inverts the intended
+  // direction of truth: any drift ever introduced into the cache (a bad migration, a
+  // manual Admin SDK edit, a bug in some future code path that touches the wallet doc)
+  // would get silently baked into every subsequent balanceAfter forever, with nothing
+  // to detect it. Deriving currentBalance from the latest actual ledger entry instead
+  // means the ledger is always self-consistent by construction, and the wallet doc
+  // below remains purely a derived read-cache, as documented.
+  const latestLedgerQuery = ledgerRef.orderBy('createdAt', 'desc').limit(1);
+
   return db.runTransaction(async (txn) => {
     const existingDoc = await txn.get(txRef);
     if (existingDoc.exists) {
@@ -90,8 +113,8 @@ export async function appendLedgerEntry(params: {
       return { id: txRef.id, balanceAfter: data.balanceAfter, created: false };
     }
 
-    const walletDoc = await txn.get(walletRef);
-    const currentBalance = walletDoc.exists ? walletDoc.data()?.balance || 0 : 0;
+    const latestLedgerSnap = await txn.get(latestLedgerQuery);
+    const currentBalance = latestLedgerSnap.empty ? 0 : latestLedgerSnap.docs[0].data().balanceAfter || 0;
     const balanceAfter = currentBalance + params.quantity;
 
     if (balanceAfter < 0) {
@@ -311,6 +334,22 @@ export const reverseTransaction = functions.https.onCall(async (data, context) =
     throw new functions.https.HttpsError('failed-precondition', 'Cannot reverse a reversal.');
   }
 
+  // QA fix (Medium): reverseTransaction previously relied entirely on the
+  // caller-supplied `idempotencyKey` to prevent double-reversal, via
+  // appendLedgerEntry's existing idempotency check. That only protects against a
+  // retry of the exact SAME call (same key). It does nothing to stop the same
+  // transactionId from being reversed twice via two calls that carry two DIFFERENT
+  // idempotency keys — e.g. a client-generated retry key, or two superadmins (or two
+  // browser tabs) independently reversing the same transaction moments apart, each
+  // producing its own new offsetting entry and double-crediting/double-debiting the
+  // wallet. The actual dedup key must be intrinsic to WHAT is being reversed, not to
+  // the call that requested it — so the ledger idempotency check is now keyed
+  // deterministically off `transactionId` itself. This guarantees at most one
+  // reversal entry can ever exist for a given original transaction, atomically
+  // enforced by the same existence-check-inside-the-transaction that
+  // appendLedgerEntry already performs. The caller-supplied idempotencyKey is still
+  // required (client retry contract) and is preserved in the audit log for
+  // traceability, but no longer determines the ledger dedup outcome.
   const result = await appendLedgerEntry({
     orgId,
     type: 'reversal',
@@ -319,7 +358,7 @@ export const reverseTransaction = functions.https.onCall(async (data, context) =
     reasonNote,
     reversesTransactionId: transactionId,
     createdBy: context.auth!.uid,
-    idempotencyKey,
+    idempotencyKey: `reversal:${transactionId}`,
   });
 
   await writeAuditLog({
@@ -327,7 +366,7 @@ export const reverseTransaction = functions.https.onCall(async (data, context) =
     actorUid: context.auth!.uid,
     orgId,
     targetId: result.id,
-    metadata: { reversesTransactionId: transactionId, reasonNote },
+    metadata: { reversesTransactionId: transactionId, reasonNote, callerIdempotencyKey: idempotencyKey },
   });
   return result;
 });

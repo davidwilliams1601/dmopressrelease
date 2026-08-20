@@ -1,7 +1,27 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
+import { normaliseOutletTypeLabel } from './media-taxonomy';
 
 const db = admin.firestore();
+
+/**
+ * QA fix (Medium): deterministic Firestore document ID for a network contact, derived
+ * from its normalised (lowercased) email. Previously every mediaNetworkContacts doc
+ * got a random auto-generated ID and dedup was decided entirely by a plain, one-time
+ * `existingEmails` query taken BEFORE the import loop — so two import batches (or two
+ * concurrent requests for the same batch) racing on the same new email would each see
+ * "not a duplicate" and each create its own document, producing real duplicates that
+ * the intra-batch `seenInThisBatch` set can't catch across separate calls. Hashing the
+ * email into the document ID turns "is this email already in the network" into an
+ * actual uniqueness constraint enforced by Firestore itself: `create()` on an ID that
+ * already exists always fails with ALREADY_EXISTS, regardless of how the two writers
+ * interleaved, so the loser of the race is reliably detected below instead of silently
+ * creating a duplicate row.
+ */
+function networkContactDocId(email: string): string {
+  return crypto.createHash('sha256').update(email.toLowerCase()).digest('hex');
+}
 
 /**
  * Checks that the caller has the superAdmin custom claim.
@@ -17,7 +37,13 @@ function requireSuperAdmin(context: functions.https.CallableContext) {
   }
 }
 
-/** Writes a superadmin accountability-trail entry. Never fails the calling function. */
+/**
+ * Writes a superadmin accountability-trail entry. Never fails the calling function.
+ * QA fix (M11): stored at /auditLogs/{actorUid}/entries/{logId} — kept in sync with the
+ * same path change in functions/src/credits.ts's writeAuditLog; see that comment for
+ * the reasoning (firestore.rules can only scope a `list` query to one actor via the
+ * document path, not via resource.data).
+ */
 async function writeAuditLog(entry: {
   action: string;
   actorUid: string;
@@ -26,7 +52,7 @@ async function writeAuditLog(entry: {
   metadata?: Record<string, unknown>;
 }) {
   try {
-    await db.collection('auditLogs').add({
+    await db.collection('auditLogs').doc(entry.actorUid).collection('entries').add({
       ...entry,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -114,9 +140,21 @@ export const importMediaNetworkBatch = functions.https.onCall(async (data, conte
 
   const writer = db.bulkWriter();
   writer.onWriteError((err) => {
+    // QA fix (Medium): an ALREADY_EXISTS failure on a create() is the expected,
+    // correct outcome of the concurrency-safe dedup mechanism below (see
+    // networkContactDocId) — it means another concurrent import already won the race
+    // for this exact email. Retrying can never turn that into a success, so don't
+    // waste bulkWriter's retry budget on it; let it reject immediately so the
+    // per-row promise below can reclassify it as a duplicate.
+    if (err.code === 6 /* ALREADY_EXISTS */) return false;
     console.error('[importMediaNetworkBatch] bulkWriter error:', err);
     return err.failedAttempts < 3;
   });
+
+  // QA fix (Medium): collect each row's write outcome so a losing concurrent-dedup
+  // race (ALREADY_EXISTS) can be reclassified as a duplicate before the batch summary
+  // counts are finalized, instead of being silently dropped/miscounted.
+  const rowOutcomes: Promise<{ email: string; ok: boolean }>[] = [];
 
   for (const row of rows) {
     const name = (row.name || '').trim();
@@ -138,7 +176,10 @@ export const importMediaNetworkBatch = functions.https.onCall(async (data, conte
     seenInThisBatch.add(email);
     readyCount++;
 
-    const contactRef = db.collection('mediaNetworkContacts').doc();
+    // QA fix (Medium): deterministic ID (see networkContactDocId) instead of a random
+    // auto-generated one — this is what makes create() below a real, race-safe
+    // uniqueness check across concurrent import calls.
+    const contactRef = db.collection('mediaNetworkContacts').doc(networkContactDocId(email));
     const recentCoverage = row.recentCoverageTitle
       ? [
           {
@@ -150,38 +191,63 @@ export const importMediaNetworkBatch = functions.https.onCall(async (data, conte
         ]
       : [];
 
-    writer.create(contactRef, {
-      identity: {
-        name,
-        email,
-        ...(row.role ? { role: row.role } : {}),
-        ...(row.profileUrl ? { profileUrl: row.profileUrl } : {}),
-      },
-      outlet: {
-        name: outletName,
-        type: row.outletType || '',
-        ...(row.location ? { location: row.location } : {}),
-        ...(row.audienceScope ? { audienceScope: row.audienceScope } : {}),
-      },
-      editorialFocus: row.editorialFocus || [],
-      geographies: row.geographies || [],
-      topics: row.topics || [],
-      recentCoverage,
-      provenance: {
-        sourceType,
-        ...(sourceReference ? { sourceReference } : {}),
-        collectedAt: admin.firestore.FieldValue.serverTimestamp(),
-        rightsReviewStatus: 'pending',
-        importBatchId: batchRef.id,
-      },
-      contactHealth: {
-        verificationStatus: 'unverified',
-        bounceCount: 0,
-        suppressionStatus: 'none',
-      },
-      networkStatus: 'review',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    const writePromise = writer
+      .create(contactRef, {
+        identity: {
+          name,
+          email,
+          ...(row.role ? { role: row.role } : {}),
+          ...(row.profileUrl ? { profileUrl: row.profileUrl } : {}),
+        },
+        outlet: {
+          name: outletName,
+          // QA fix (Medium): normalise the raw imported label (e.g. "Trade publication")
+          // to the controlled kebab-case value ("trade") this field is documented to
+          // store, as defence in depth behind the same fix in the two client wizards.
+          type: row.outletType ? normaliseOutletTypeLabel(row.outletType) : '',
+          ...(row.location ? { location: row.location } : {}),
+          ...(row.audienceScope ? { audienceScope: row.audienceScope } : {}),
+        },
+        editorialFocus: row.editorialFocus || [],
+        geographies: row.geographies || [],
+        topics: row.topics || [],
+        recentCoverage,
+        provenance: {
+          sourceType,
+          ...(sourceReference ? { sourceReference } : {}),
+          collectedAt: admin.firestore.FieldValue.serverTimestamp(),
+          rightsReviewStatus: 'pending',
+          importBatchId: batchRef.id,
+        },
+        contactHealth: {
+          verificationStatus: 'unverified',
+          bounceCount: 0,
+          suppressionStatus: 'none',
+        },
+        networkStatus: 'review',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      .then(() => ({ email, ok: true }))
+      .catch((err) => {
+        // QA fix (Low): log the deterministic (one-way-hashed) doc ID rather than the
+        // raw network-contact email — this warning previously put a raw network-contact
+        // address into ordinary Cloud Function logs, outside the documented
+        // superadmin-only audit trail for that anonymised data.
+        console.warn(`[importMediaNetworkBatch] concurrent duplicate for contact ${contactRef.id}, skipping:`, err?.message || err);
+        return { email, ok: false };
+      });
+    rowOutcomes.push(writePromise);
+  }
+
+  // QA fix (Medium): flush and resolve every row's create() before finalizing counts,
+  // so a concurrent-import race (ALREADY_EXISTS) is reflected in the batch summary
+  // written below rather than in the optimistic pre-write counts.
+  await writer.flush();
+  for (const outcome of await Promise.all(rowOutcomes)) {
+    if (!outcome.ok) {
+      readyCount--;
+      duplicateCount++;
+    }
   }
 
   writer.create(batchRef, {
@@ -307,9 +373,19 @@ export const updateMediaNetworkContactStatus = functions.https.onCall(async (dat
 });
 
 /**
- * Publishes a batch: flips every contact still at networkStatus 'review' within that
- * batch to 'active' (contacts a superadmin already individually suppressed/archived
- * during review are left as-is). Marks the batch itself 'published'. Superadmin only.
+ * Publishes a batch: marks the batch itself 'published' once every contact in it has
+ * an explicit decision (networkStatus !== 'review'). Superadmin only.
+ *
+ * QA fix (H5): previously this bulk-flipped every remaining 'review' contact straight
+ * to 'active' with no confirmation, so any contact a superadmin hadn't gotten around
+ * to individually approving/rejecting was silently auto-approved on Publish — for a
+ * media-network import that means an un-vetted contact (raw identity, unconfirmed
+ * consent/rights) could enter the network and become recommendable without anyone
+ * actually deciding it belonged there. Publish now hard-blocks (server-side, so this
+ * can't be bypassed by calling the callable directly) while any contact in the batch
+ * is still undecided; the superadmin must explicitly Approve or Reject every row via
+ * updateMediaNetworkContactStatus first. There is nothing left to bulk-activate at
+ * publish time — every 'active' row already got there via an explicit decision.
  *
  * This is the only path that makes a network contact recommendable — see Phase 3's
  * matching function, which will only ever draw from networkStatus == 'active'.
@@ -328,27 +404,29 @@ export const publishMediaNetworkBatch = functions.https.onCall(async (data, cont
     throw new functions.https.HttpsError('not-found', 'Batch not found.');
   }
 
-  const snapshot = await db
+  const reviewSnapshot = await db
     .collection('mediaNetworkContacts')
     .where('provenance.importBatchId', '==', batchId)
     .where('networkStatus', '==', 'review')
     .get();
 
-  const writer = db.bulkWriter();
-  writer.onWriteError((err) => err.failedAttempts < 3);
+  if (!reviewSnapshot.empty) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      `${reviewSnapshot.size} contact${reviewSnapshot.size !== 1 ? 's' : ''} in this batch still ` +
+        `${reviewSnapshot.size !== 1 ? 'have' : 'has'} no decision. Approve or reject every contact before publishing.`
+    );
+  }
 
-  snapshot.forEach((doc) => {
-    writer.update(doc.ref, {
-      networkStatus: 'active',
-      'provenance.rightsReviewStatus': 'approved',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  });
-  writer.update(batchRef, { status: 'published' });
+  const activeSnapshot = await db
+    .collection('mediaNetworkContacts')
+    .where('provenance.importBatchId', '==', batchId)
+    .where('networkStatus', '==', 'active')
+    .get();
 
-  await writer.close();
+  await batchRef.update({ status: 'published' });
 
-  console.log(`[publishMediaNetworkBatch] ${context.auth!.uid} published batch ${batchId}: ${snapshot.size} contacts activated.`);
+  console.log(`[publishMediaNetworkBatch] ${context.auth!.uid} published batch ${batchId}: ${activeSnapshot.size} active contacts.`);
 
-  return { success: true, publishedCount: snapshot.size };
+  return { success: true, publishedCount: activeSnapshot.size };
 });

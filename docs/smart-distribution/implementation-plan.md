@@ -11,8 +11,9 @@ against the acceptance criteria below before merging to `main`.
 - CSV/XLSX import wizard: header auto-mapping, alias table, manual override, validation
   preview, confirm-to-import step, downloadable template, saved mapping profile per org.
 - Duplicate detection, invalid-email detection, suppression/do-not-contact fields.
-- `platform/mediaTaxonomy` doc + admin UI to manage editorial focus / geography / outlet type /
-  topics terms (extends the existing `theme-taxonomy-card.tsx` pattern).
+- `platform/config` doc, `mediaTaxonomy` field (QA fix: doc previously said `platform/mediaTaxonomy`,
+  a naming drift vs. the actual implementation) + admin UI to manage editorial focus / geography /
+  outlet type / topics terms (extends the existing `theme-taxonomy-card.tsx` pattern).
 
 **Acceptance criteria**
 - A CSV with non-standard headers (e.g. "Beat", "Region") maps to `editorialFocus` and

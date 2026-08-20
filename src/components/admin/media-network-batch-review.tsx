@@ -43,6 +43,13 @@ export function MediaNetworkBatchReview({
 }) {
   const [contacts, setContacts] = useState<MediaNetworkContact[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // QA fix (M9): a failed getMediaNetworkBatchContacts call previously left `contacts`
+  // at its initial empty array, which is indistinguishable from "this batch genuinely
+  // has zero contacts" — reviewCount then read 0, the "every contact has a decision"
+  // copy showed, and Publish batch became enabled even though nothing had actually been
+  // reviewed. loadError tracks the failure explicitly so we never fall through to that
+  // misleading zero-state.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const { toast } = useToast();
@@ -50,6 +57,8 @@ export function MediaNetworkBatchReview({
   useEffect(() => {
     if (!open || !batch) return;
     setIsLoading(true);
+    setLoadError(null);
+    setContacts([]);
     const functions = getFunctions();
     const getContacts = httpsCallable<{ batchId: string }, { contacts: MediaNetworkContact[] }>(
       functions,
@@ -59,6 +68,7 @@ export function MediaNetworkBatchReview({
       .then((res) => setContacts(res.data.contacts))
       .catch((err) => {
         console.error('Failed to load batch contacts:', err);
+        setLoadError(err.message || 'Failed to load contacts for this batch.');
         toast({ title: 'Failed to load contacts', description: err.message, variant: 'destructive' });
       })
       .finally(() => setIsLoading(false));
@@ -97,6 +107,9 @@ export function MediaNetworkBatchReview({
     }
   };
 
+  // QA fix (H5): reviewCount now gates Publish entirely (see disabled prop below) instead
+  // of just being informational text — the server callable enforces the same rule, so this
+  // is a UX convenience, not the actual safeguard.
   const reviewCount = contacts.filter((c) => c.networkStatus === 'review').length;
 
   return (
@@ -120,6 +133,14 @@ export function MediaNetworkBatchReview({
           <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading contacts…
           </div>
+        ) : loadError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Couldn&apos;t load this batch&apos;s contacts ({loadError}). Publishing is disabled until
+              they load successfully — retry by reopening this batch.
+            </AlertDescription>
+          </Alert>
         ) : (
           <div className="rounded-md border max-h-[50vh] overflow-y-auto">
             <Table>
@@ -182,16 +203,30 @@ export function MediaNetworkBatchReview({
         )}
 
         <div className="flex items-center justify-between pt-2">
-          <p className="text-sm text-muted-foreground">
-            {reviewCount > 0
-              ? `${reviewCount} contact${reviewCount !== 1 ? 's' : ''} still awaiting a decision — publishing will activate them as-is.`
+          <p className={`text-sm ${reviewCount > 0 || loadError ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+            {loadError
+              ? 'Contacts failed to load — decisions can\'t be confirmed, so publishing is disabled.'
+              : reviewCount > 0
+              ? `${reviewCount} contact${reviewCount !== 1 ? 's' : ''} still awaiting a decision — approve or reject every contact to publish.`
               : 'Every contact in this batch has a decision.'}
           </p>
-          <Button onClick={handlePublish} disabled={isPublishing || batch?.status === 'published'}>
+          <Button
+            onClick={handlePublish}
+            disabled={isPublishing || isLoading || !!loadError || batch?.status === 'published' || reviewCount > 0}
+            title={
+              loadError
+                ? 'Contacts failed to load — reopen this batch and retry before publishing.'
+                : reviewCount > 0
+                ? 'Decide every contact in this batch before publishing.'
+                : undefined
+            }
+          >
             {isPublishing ? (
               <><Loader2 className="h-4 w-4 animate-spin" /> Publishing…</>
             ) : batch?.status === 'published' ? (
               'Already published'
+            ) : reviewCount > 0 ? (
+              <><ShieldAlert className="h-4 w-4" /> {reviewCount} undecided</>
             ) : (
               <><AlertCircle className="h-4 w-4" /> Publish batch</>
             )}

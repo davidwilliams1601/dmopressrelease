@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { useUserData } from '@/hooks/use-user-data';
-import { doc, collection, query, orderBy } from 'firebase/firestore';
+import { doc, collection, collectionGroup, query, orderBy, where } from 'firebase/firestore';
 import type { OutletList, Recipient } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -38,6 +38,28 @@ export default function OutletListDetailPage() {
   );
 
   const recipients = recipientsQuery.data || [];
+
+  // QA fix (Medium): the import wizard's duplicate check must cover every outlet
+  // list this org owns, not just the one currently open — otherwise the same
+  // contact can be silently re-imported into a second list for the same org.
+  // `recipients` subcollections live under each outletList doc, so a
+  // collectionGroup query filtered by orgId (every recipient doc stores its own
+  // orgId, enforced immutable by firestore.rules) reaches every list at once
+  // without needing a flat org-level mirror collection. NOTE: the collection ID
+  // "recipients" is also used by the unrelated orgs/{orgId}/sendJobs/{id}/recipients
+  // subcollection (SendJobRecipient docs), which a plain collectionGroup query would
+  // also match. Those rows never carry an outletListId field (they carry sendJobId
+  // instead), so filtering on outletListId being present cleanly excludes them
+  // without needing a composite index or touching firestore.rules/indexes.
+  const orgRecipientsQuery = useCollection<Recipient>(
+    useMemoFirebase(() => {
+      if (!orgId) return null;
+      return query(collectionGroup(firestore, 'recipients'), where('orgId', '==', orgId));
+    }, [firestore, orgId])
+  );
+
+  const orgExistingEmails =
+    orgRecipientsQuery.data?.filter((r) => typeof r.outletListId === 'string') ?? recipients;
 
   if (isUserDataLoading || listDoc.isLoading || recipientsQuery.isLoading) {
     return (
@@ -93,7 +115,7 @@ export default function OutletListDetailPage() {
             <ImportWizardDialog
               orgId={orgId}
               listId={listId}
-              existingEmails={recipients.map((r) => r.email).filter(Boolean)}
+              existingEmails={orgExistingEmails.map((r) => r.email).filter(Boolean)}
             />
             <NewRecipientDialog orgId={orgId} listId={listId} />
           </div>

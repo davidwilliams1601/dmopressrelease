@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { stageNetworkContactRef } from './network-contact-refs';
 
 const db = admin.firestore();
 
@@ -335,7 +336,18 @@ export const generateRecommendations = functions.https.onCall(async (data, conte
   }
 
   // --- Press Pilot media network ---
-  const networkSnap = await db.collection('mediaNetworkContacts').where('networkStatus', '==', 'active').get();
+  // QA fix (H8): previously suspension was only enforced by disabling the checkbox in
+  // the send dialog UI — nothing stopped this callable itself from still generating
+  // (and letting a customer select) network-sourced recommendations for a suspended
+  // org. Per spec, suspension only stops network recommendations/sends; the org's own
+  // customer_contact candidates above are generated and scored completely unaffected —
+  // simply skip this whole network section when suspended rather than reject the call.
+  const walletSnap = await db.collection('orgs').doc(orgId).collection('creditWallet').doc('summary').get();
+  const isSuspended = walletSnap.exists && walletSnap.data()?.smartDistributionSuspended === true;
+
+  const networkSnap = isSuspended
+    ? { docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] }
+    : await db.collection('mediaNetworkContacts').where('networkStatus', '==', 'active').get();
   for (const doc of networkSnap.docs) {
     const contact = doc.data();
     const elig = eligibilityForNetworkContact(contact);
@@ -370,10 +382,24 @@ export const generateRecommendations = functions.https.onCall(async (data, conte
     .where('decision', '==', 'pending')
     .get();
 
-  const batch = db.batch();
-  for (const doc of existingSnap.docs) {
-    batch.delete(doc.ref);
+  // QA fix (Medium): the previous code deleted every existing pending snapshot and
+  // wrote every new one inside a single shared db.batch(). Firestore batches cap out
+  // at 500 operations; a story with more than ~450 existing pending rows (each one
+  // delete op) combined with the new writes below (each up to 2 ops, thanks to the
+  // H1 stageNetworkContactRef companion write) would exceed that limit and throw,
+  // failing the whole regeneration. Deletes are now chunked into their own batches
+  // (well under the 500-op ceiling) and committed independently of the new-write
+  // batch, so an arbitrarily large existing snapshot set can never blow the limit.
+  const DELETE_BATCH_SIZE = 400;
+  for (let i = 0; i < existingSnap.docs.length; i += DELETE_BATCH_SIZE) {
+    const deleteBatch = db.batch();
+    for (const doc of existingSnap.docs.slice(i, i + DELETE_BATCH_SIZE)) {
+      deleteBatch.delete(doc.ref);
+    }
+    await deleteBatch.commit();
   }
+
+  const batch = db.batch();
 
   const snapshotsCollection = db.collection('orgs').doc(orgId).collection('recommendationSnapshots');
   const now = admin.firestore.FieldValue.serverTimestamp();
@@ -393,7 +419,13 @@ export const generateRecommendations = functions.https.onCall(async (data, conte
       storyId,
       source: candidate.source,
       ...(candidate.recipientRef ? { recipientRef: candidate.recipientRef } : {}),
-      ...(candidate.networkContactId ? { networkContactId: candidate.networkContactId } : {}),
+      // QA fix (H1): store only an opaque reference to the network contact, never
+      // the real mediaNetworkContacts document ID, on this client-readable doc.
+      // stageNetworkContactRef allocates the ref's ID synchronously and stages its
+      // write onto this same `batch`, so both writes commit atomically together.
+      ...(candidate.networkContactId
+        ? { networkContactRef: stageNetworkContactRef(batch, orgId, candidate.networkContactId) }
+        : {}),
       anonymisedLabel: candidate.anonymisedLabel,
       ...(candidate.displayName ? { displayName: candidate.displayName } : {}),
       outletCategory: candidate.outletCategory,

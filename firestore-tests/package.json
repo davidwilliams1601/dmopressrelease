@@ -1,0 +1,13 @@
+{
+  "name": "firestore-rules-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Firestore Security Rules unit test suite for the Smart Distribution collections reviewed in the 2026-08-20 QA pass (M12). Run via `npm run test:rules` from the repo root, which wraps this in `firebase emulators:exec --only firestore`.",
+  "scripts": {
+    "test": "jest --runInBand"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "jest": "^29.7.0"
+  }
+}

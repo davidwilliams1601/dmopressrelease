@@ -26,6 +26,7 @@ import {
   finalizeSmartDistributionCreditReservation,
   releaseSmartDistributionCreditReservation,
 } from './credits';
+import { resolveNetworkContactRef } from './network-contact-refs';
 
 // Export webhook handlers
 export * from './webhooks';
@@ -83,7 +84,9 @@ type MergedSendEntry = {
   sendJobRecipientId: string;
   source: 'customer_contact' | 'smart_distribution_recommendation';
   recipientRef?: string;
-  networkContactId?: string;
+  // QA fix (H1): opaque reference only — see network-contact-refs.ts. Never the real
+  // mediaNetworkContacts document ID.
+  networkContactRef?: string;
   recommendationSnapshotId?: string;
   name?: string;
   email: string;
@@ -174,7 +177,7 @@ async function executeSendJob(
   const suppressedEntries: Array<{
     source: 'customer_contact' | 'smart_distribution_recommendation';
     recipientRef?: string;
-    networkContactId?: string;
+    networkContactRef?: string;
     recommendationSnapshotId: string;
     skipReason: string;
   }> = [];
@@ -192,7 +195,7 @@ async function executeSendJob(
         sendJobRecipientId: '',
         source: entry.source,
         recipientRef: entry.recipientRef,
-        networkContactId: entry.networkContactId,
+        networkContactRef: entry.networkContactRef,
         recommendationSnapshotId: entry.snapshotId,
         name: entry.name,
         email: entry.email || '',
@@ -204,7 +207,7 @@ async function executeSendJob(
       suppressedEntries.push({
         source: entry.source,
         recipientRef: entry.recipientRef,
-        networkContactId: entry.networkContactId,
+        networkContactRef: entry.networkContactRef,
         recommendationSnapshotId: entry.snapshotId,
         skipReason: entry.rejectedReason,
       });
@@ -242,7 +245,10 @@ async function executeSendJob(
       sendJobId: jobId,
       source: entry.source,
       ...(entry.recipientRef ? { recipientRef: entry.recipientRef } : {}),
-      ...(entry.networkContactId ? { networkContactId: entry.networkContactId } : {}),
+      // QA fix (H1): recipients rows only ever store the opaque reference here — the
+      // real ID is resolved server-side, on demand, from networkContactRef via
+      // resolveNetworkContactRef, never written onto this client-readable row.
+      ...(entry.networkContactRef ? { networkContactRef: entry.networkContactRef } : {}),
       ...(entry.recommendationSnapshotId ? { recommendationSnapshotId: entry.recommendationSnapshotId } : {}),
       deliveryStatus: 'pending',
       createdAt: now,
@@ -257,7 +263,7 @@ async function executeSendJob(
       sendJobId: jobId,
       source: entry.source,
       ...(entry.recipientRef ? { recipientRef: entry.recipientRef } : {}),
-      ...(entry.networkContactId ? { networkContactId: entry.networkContactId } : {}),
+      ...(entry.networkContactRef ? { networkContactRef: entry.networkContactRef } : {}),
       recommendationSnapshotId: entry.recommendationSnapshotId,
       deliveryStatus: 'suppressed',
       skipReason: entry.skipReason,
@@ -284,7 +290,7 @@ async function executeSendJob(
       batch.map(async (entry) => {
         const recipientDocRef = recipientsCollection.doc(entry.sendJobRecipientId);
         const isNetworkContact =
-          entry.source === 'smart_distribution_recommendation' && !!entry.networkContactId;
+          entry.source === 'smart_distribution_recommendation' && !!entry.networkContactRef;
         // QA fix (2026-08-20): reserve the credit BEFORE sending, not after. Previously
         // the code sent first and debited afterwards, so a losing balance race meant a
         // network contact could be emailed for free (see credits.ts reservation system
@@ -292,11 +298,31 @@ async function executeSendJob(
         let reservation: { reservationId: string; reserved: boolean } | null = null;
 
         try {
+          // QA fix (H1): resolve the opaque networkContactRef back to the real,
+          // stable mediaNetworkContacts ID exactly here — credits.ts legitimately
+          // needs the real, stable ID for its idempotency keys (creditReservations is
+          // already server-only per the earlier C4 fix, so storing the real ID there
+          // is unchanged/fine). The real ID never leaves this scope onto any
+          // client-readable field.
+          const realNetworkContactId = isNetworkContact
+            ? await resolveNetworkContactRef(orgId, entry.networkContactRef)
+            : undefined;
+          if (isNetworkContact && !realNetworkContactId) {
+            // Reference somehow didn't resolve (should not happen) — treat like any
+            // other send-time eligibility failure rather than risk an unbilled or
+            // mis-keyed credit reservation.
+            await recipientDocRef.update({
+              deliveryStatus: 'suppressed',
+              skipReason: 'network_contact_ref_unresolved',
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            return;
+          }
           if (isNetworkContact) {
             reservation = await reserveSmartDistributionCredit({
               orgId,
               campaignId: jobId,
-              networkContactId: entry.networkContactId!,
+              networkContactId: realNetworkContactId!,
             });
             if (!reservation.reserved) {
               // No credit available for this recipient — skip the send entirely rather
@@ -310,12 +336,22 @@ async function executeSendJob(
             }
           }
 
+          // QA fix (Low): for a network-sourced recipient, log a non-identifying
+          // label (the sendJobRecipientId) instead of the real email everywhere a
+          // send is logged, so raw network-contact addresses stop appearing in
+          // ordinary Cloud Function logs on successful sends, failures, and retries.
+          // Customer-owned contacts keep their real email in logs, since it's already
+          // visible to their own org.
+          const recipientLogLabel = isNetworkContact
+            ? `networkContact:${entry.sendJobRecipientId}`
+            : entry.email;
           await sendEmail(
             { name: entry.name, email: entry.email, outlet: entry.outlet },
             release,
             orgId,
             org,
-            { sendJobId: jobId, sendJobRecipientId: entry.sendJobRecipientId }
+            { sendJobId: jobId, sendJobRecipientId: entry.sendJobRecipientId },
+            recipientLogLabel
           );
           sentCount++;
 
@@ -323,7 +359,7 @@ async function executeSendJob(
             const debit = await finalizeSmartDistributionCreditReservation({
               orgId,
               campaignId: jobId,
-              networkContactId: entry.networkContactId!,
+              networkContactId: realNetworkContactId!,
               reservationId: reservation.reservationId,
             });
             if (debit) {
@@ -349,7 +385,13 @@ async function executeSendJob(
             });
           }
         } catch (error) {
-          console.error(`Failed to send to ${entry.email} (after retries):`, error);
+          // QA fix (Low): use the same non-identifying label here as in sendEmail —
+          // this catch previously always logged the raw entry.email regardless of
+          // isNetworkContact.
+          const failureLogLabel = isNetworkContact
+            ? `networkContact:${entry.sendJobRecipientId}`
+            : entry.email;
+          console.error(`Failed to send to ${failureLogLabel} (after retries):`, error);
           failedCount++;
           if (isNetworkContact) {
             // QA fix (2026-08-20): never record a network contact's raw email address on
@@ -479,6 +521,27 @@ export const processSendJob = functions
       return;
     }
 
+    // QA fix (H6): atomically claim this job before dispatching, mirroring the
+    // compare-and-set transaction processScheduledSendJobs already uses below.
+    // Without this, any retry/redelivery of the same .onCreate trigger invocation
+    // (Cloud Functions gives no exactly-once guarantee) would re-run executeSendJob
+    // and double-send every recipient with no protection.
+    try {
+      const claimed = await db.runTransaction(async (txn) => {
+        const freshDoc = await txn.get(snap.ref);
+        if (freshDoc.data()?.status !== 'pending') {
+          console.log(`Job ${jobId} already claimed or not pending, skipping`);
+          return false;
+        }
+        txn.update(snap.ref, { status: 'processing' });
+        return true;
+      });
+      if (!claimed) return;
+    } catch (err) {
+      console.warn(`Failed to claim job ${jobId}, skipping:`, err);
+      return;
+    }
+
     try {
       await executeSendJob(orgId, jobId, snap.ref, sendJob);
     } catch (error: any) {
@@ -577,24 +640,44 @@ export const cancelScheduledSend = functions.https.onCall(async (data, context) 
     .collection('sendJobs')
     .doc(sendJobId);
 
-  const jobDoc = await jobRef.get();
-  if (!jobDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Send job not found.');
+  // QA fix (Medium): cancellation race. This previously read the job's status with a
+  // plain (non-transactional) .get() and then wrote 'cancelled' with a plain .update(),
+  // with no atomicity between the two. processScheduledSendJobs (and processSendJob's
+  // H6 claim) runs its own compare-and-set transaction that flips 'scheduled' -> 
+  // 'processing' right before dispatching. If that transaction commits in the window
+  // between this function's read and its write, the plain update here would stomp
+  // 'processing' back to 'cancelled' — the UI shows "cancelled" and zero credits were
+  // meant to be spent, but the scheduler has already claimed the job and executeSendJob
+  // is (or is about to start) actively dispatching and charging credits underneath it.
+  // Wrapping the read-check-write in the same kind of transaction the scheduler uses
+  // makes this a real compare-and-set: whichever side's transaction commits first wins
+  // the 'scheduled' status atomically, and the loser sees a status that is no longer
+  // 'scheduled' and fails cleanly instead of overwriting an in-flight dispatch.
+  let jobData: FirebaseFirestore.DocumentData;
+  try {
+    jobData = await db.runTransaction(async (txn) => {
+      const freshDoc = await txn.get(jobRef);
+      if (!freshDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Send job not found.');
+      }
+      const data = freshDoc.data()!;
+      if (data.status !== 'scheduled') {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          `Cannot cancel a send job with status "${data.status}". Only scheduled jobs can be cancelled ` +
+            '(it may have already started dispatching).'
+        );
+      }
+      txn.update(jobRef, {
+        status: 'cancelled',
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return data;
+    });
+  } catch (err) {
+    if (err instanceof functions.https.HttpsError) throw err;
+    throw new functions.https.HttpsError('internal', 'Failed to cancel send job.');
   }
-
-  const jobData = jobDoc.data()!;
-  if (jobData.status !== 'scheduled') {
-    throw new functions.https.HttpsError(
-      'failed-precondition',
-      `Cannot cancel a send job with status "${jobData.status}". Only scheduled jobs can be cancelled.`
-    );
-  }
-
-  // Cancel the send job
-  await jobRef.update({
-    status: 'cancelled',
-    cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
 
   // Revert release status to Ready if it was set to Scheduled
   const releaseRef = db
@@ -613,17 +696,168 @@ export const cancelScheduledSend = functions.https.onCall(async (data, context) 
 });
 
 /**
+ * QA fix (H2): validating callable Cloud Function for creating a Send Job.
+ *
+ * Previously the client wrote sendJobs documents directly (firestore.rules allowed
+ * any team member to create/update/delete them) and processSendJob only checked
+ * that the referenced release existed — nothing verified the release was approved,
+ * validated the shape of the request, or confirmed the caller had actually seen and
+ * accepted the Smart Distribution recipient count/credit cost before a billable job
+ * was created. This callable is now the *only* supported way to create a sendJob;
+ * firestore.rules denies direct client writes to the collection (see rule below).
+ *
+ * Mirrors the exact fields the client previously wrote directly in
+ * send-release-dialog.tsx, but every value is re-validated/recomputed server-side
+ * rather than trusted from the client payload.
+ */
+export const createSendJob = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in to send a release.');
+  }
+
+  const { orgId, releaseId, outletListIds, sendMode, scheduledAt, includeSmartDistributionRecommendations, confirmedSmartDistributionSelection } = data || {};
+
+  // --- Shape validation ---
+  if (!orgId || typeof orgId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'orgId is required.');
+  }
+  if (!releaseId || typeof releaseId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'releaseId is required.');
+  }
+  if (!Array.isArray(outletListIds) || outletListIds.length === 0 || outletListIds.some((id: any) => typeof id !== 'string' || !id)) {
+    throw new functions.https.HttpsError('invalid-argument', 'outletListIds must be a non-empty array of outlet list IDs.');
+  }
+  if (sendMode !== 'now' && sendMode !== 'scheduled') {
+    throw new functions.https.HttpsError('invalid-argument', "sendMode must be 'now' or 'scheduled'.");
+  }
+  let scheduledDate: Date | null = null;
+  if (sendMode === 'scheduled') {
+    if (!scheduledAt || typeof scheduledAt !== 'number') {
+      throw new functions.https.HttpsError('invalid-argument', 'scheduledAt (epoch millis) is required for a scheduled send.');
+    }
+    scheduledDate = new Date(scheduledAt);
+    if (scheduledDate.getTime() < Date.now() + 5 * 60 * 1000) {
+      throw new functions.https.HttpsError('failed-precondition', 'Scheduled time must be at least 5 minutes in the future.');
+    }
+  }
+
+  // --- Authorization: caller must belong to this org ---
+  const userDoc = await db.collection('orgs').doc(orgId).collection('users').doc(context.auth.uid).get();
+  if (!userDoc.exists) {
+    throw new functions.https.HttpsError('permission-denied', 'You do not belong to this organization.');
+  }
+
+  // --- Release must exist and belong to this org ---
+  const releaseRef = db.collection('orgs').doc(orgId).collection('releases').doc(releaseId);
+  const releaseDoc = await releaseRef.get();
+  if (!releaseDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Release not found.');
+  }
+  const release = releaseDoc.data()!;
+
+  // --- Outlet lists must exist and belong to this org (ownership/shape check) ---
+  const listDocs = await Promise.all(
+    outletListIds.map((id: string) => db.collection('orgs').doc(orgId).collection('outletLists').doc(id).get())
+  );
+  const missingListIds = listDocs.filter((d) => !d.exists).map((d) => d.id);
+  if (missingListIds.length > 0) {
+    throw new functions.https.HttpsError('invalid-argument', `Outlet list(s) not found: ${missingListIds.join(', ')}`);
+  }
+
+  const wantsSmartDistribution = includeSmartDistributionRecommendations === true;
+
+  // --- Smart Distribution gating: release must be approved, and the caller must have
+  //     explicitly confirmed the recipient count/credit cost (see H3 fix in the send
+  //     dialog) — this cannot be inferred from the checkbox state alone, since a
+  //     malicious or buggy client could otherwise send that flag without the user ever
+  //     seeing the confirmation step. ---
+  if (wantsSmartDistribution) {
+    if (release.approvalStatus !== 'approved') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'This release must be approved before Press Pilot network recipients can be included.'
+      );
+    }
+    if (confirmedSmartDistributionSelection !== true) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Press Pilot network recipients must be explicitly confirmed before sending.'
+      );
+    }
+  }
+
+  // --- Count recipients server-side; never trust a client-supplied total ---
+  let totalRecipients = 0;
+  for (const listId of outletListIds) {
+    const recipientsSnap = await db
+      .collection('orgs')
+      .doc(orgId)
+      .collection('outletLists')
+      .doc(listId)
+      .collection('recipients')
+      .get();
+    totalRecipients += recipientsSnap.size;
+  }
+  if (totalRecipients === 0) {
+    throw new functions.https.HttpsError('failed-precondition', 'The selected lists have no recipients.');
+  }
+
+  const status = sendMode === 'scheduled' ? 'scheduled' : 'pending';
+  const jobData: Record<string, any> = {
+    orgId,
+    releaseId,
+    outletListIds,
+    status,
+    totalRecipients,
+    sentCount: 0,
+    failedCount: 0,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdBy: context.auth.uid,
+    includeSmartDistributionRecommendations: wantsSmartDistribution,
+  };
+  if (sendMode === 'scheduled') {
+    jobData.scheduledAt = admin.firestore.Timestamp.fromDate(scheduledDate!);
+  }
+
+  const jobRef = await db.collection('orgs').doc(orgId).collection('sendJobs').add(jobData);
+
+  if (sendMode === 'scheduled') {
+    await releaseRef.update({ status: 'Scheduled', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  } else {
+    await releaseRef.update({
+      status: 'Sent',
+      sends: (release.sends || 0) + totalRecipients,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  console.log(`Send job ${jobRef.id} created by ${context.auth.uid} for release ${releaseId} (${totalRecipients} recipients, mode=${sendMode})`);
+
+  return { success: true, sendJobId: jobRef.id, totalRecipients };
+});
+
+/**
  * Send email to a recipient using SendGrid
+ *
+ * QA fix (Low): accepts an optional `logLabel` used in place of the recipient's real
+ * email in this function's own log lines and in sendWithRetry's retry/exhaustion
+ * logs. Callers dispatching to a Press Pilot network contact should pass a
+ * non-identifying label (e.g. a sendJobRecipientId) so that contact's raw email
+ * never appears in ordinary Cloud Function logs outside the superadmin audit trail;
+ * callers sending to a customer-owned contact can omit it, since that address is
+ * already visible to its own org.
  */
 async function sendEmail(
   recipient: any,
   release: any,
   orgId: string,
   org: any,
-  sendJobContext?: { sendJobId: string; sendJobRecipientId: string }
+  sendJobContext?: { sendJobId: string; sendJobRecipientId: string },
+  logLabel?: string
 ) {
+  const displayTarget = logLabel || recipient.email;
   if (!sendgridApiKey) {
-    console.log(`[MOCK] Would send email to ${recipient.email}`);
+    console.log(`[MOCK] Would send email to ${displayTarget}`);
     console.log(`Subject: ${release.headline}`);
     return;
   }
@@ -665,8 +899,8 @@ async function sendEmail(
     },
   };
 
-  await sendWithRetry(msg);
-  console.log(`Email sent successfully to ${recipient.email}`);
+  await sendWithRetry(msg, 3, logLabel);
+  console.log(`Email sent successfully to ${displayTarget}`);
 }
 
 /**

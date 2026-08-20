@@ -9,7 +9,8 @@
     "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:rules": "npx --yes firebase-tools emulators:exec --only firestore --project smart-distribution-rules-test \"npm --prefix firestore-tests test\""
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

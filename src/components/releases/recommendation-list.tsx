@@ -186,7 +186,23 @@ export function RecommendationList({ release, orgId }: RecommendationListProps) 
           </div>
         )}
 
-        {!snapshotsQuery.isLoading && rows.length > 0 && (
+        {/* QA fix (M9): useCollection previously left snapshotsQuery.error unread here —
+            a failed read (e.g. a transient/network error, which use-collection.tsx handles
+            locally rather than crashing the page) fell straight through to the
+            rows.length === 0 branch below and rendered the same friendly "No recommendations
+            yet" empty state as a genuinely-empty, successfully-loaded result, hiding the
+            failure entirely. */}
+        {!snapshotsQuery.isLoading && snapshotsQuery.error && (
+          <Alert variant="destructive">
+            <AlertTitle>Couldn&apos;t load recommendations</AlertTitle>
+            <AlertDescription>
+              {snapshotsQuery.error.message || 'Something went wrong loading recommendations for this story.'}{' '}
+              Try refreshing the page.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!snapshotsQuery.isLoading && !snapshotsQuery.error && rows.length > 0 && (
           <>
             <Alert>
               <Coins className="h-4 w-4" />
@@ -256,7 +272,7 @@ export function RecommendationList({ release, orgId }: RecommendationListProps) 
           </>
         )}
 
-        {!snapshotsQuery.isLoading && rows.length === 0 && hasFocusTags && (
+        {!snapshotsQuery.isLoading && !snapshotsQuery.error && rows.length === 0 && hasFocusTags && (
           <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-10 text-center text-muted-foreground">
             <Users className="h-6 w-6" />
             <p className="text-sm">No recommendations yet — generate them to see matched contacts.</p>

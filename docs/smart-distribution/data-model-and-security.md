@@ -193,7 +193,13 @@ match /orgs/{orgId}/creditWallet/{docId} {
 
 /**
  * @description Controlled taxonomy for editorial focus, geography, outlet type and topics.
- * @path /platform/mediaTaxonomy
+ * @path /platform/config (field: mediaTaxonomy) — QA fix (Medium): doc previously said
+ *       /platform/mediaTaxonomy, which never matched the actual implementation in
+ *       functions/src/media-taxonomy.ts (getMediaTaxonomy/updateMediaTaxonomy read/write
+ *       /platform/config's mediaTaxonomy field, mirroring the vertical/theme taxonomy's
+ *       own /platform/config.verticals). Not a security bug — the rule below already
+ *       covered the real path via the platform/{docId} wildcard — just a doc/spec
+ *       correction so this description matches the code.
  * @principle Same access pattern as the existing platform/{docId} vertical/theme taxonomy —
  *            readable by any signed-in user (needed for import mapping suggestions and
  *            recommendation-card labels), writable only via Cloud Function / admin console.

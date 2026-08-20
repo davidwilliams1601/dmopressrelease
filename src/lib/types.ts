@@ -571,9 +571,12 @@ export type RecommendationSnapshot = {
   source: 'customer_contact' | 'network_contact';
   /** Set only when source === 'customer_contact'. Path: orgs/{orgId}/outletLists/{listId}/recipients/{id}. */
   recipientRef?: string;
-  /** Set only when source === 'network_contact'. Opaque mediaNetworkContacts/{id} — safe to
-   *  store because mediaNetworkContacts stays superadmin-read-only regardless of this reference. */
-  networkContactId?: string;
+  /** Set only when source === 'network_contact'. QA fix (H1): this is now an opaque
+   *  reference into the server-only orgs/{orgId}/networkContactRefs collection
+   *  (functions/src/network-contact-refs.ts) — NOT the real mediaNetworkContacts/{id}.
+   *  This doc is team-member readable, so the raw ID must never be stored here;
+   *  only Cloud Functions resolve this reference back to the real ID when needed. */
+  networkContactRef?: string;
   /** e.g. "Regional lifestyle journalist — South West England". Always set for network_contact rows. */
   anonymisedLabel: string;
   /** Real name — set only for source === 'customer_contact' (the org already owns this contact). */
@@ -629,10 +632,14 @@ export type SendJobRecipient = {
   source: 'customer_contact' | 'smart_distribution_recommendation';
   /** Set when source === 'customer_contact'. Path: orgs/{orgId}/outletLists/{listId}/recipients/{id}. */
   recipientRef?: string;
-  /** Set only when source === 'smart_distribution_recommendation'. Server-side only —
-   *  never exposed to a non-superadmin client read; the UI never needs it because the
-   *  identity itself is never shown to the org. */
-  networkContactId?: string;
+  /** Set only when source === 'smart_distribution_recommendation'. QA fix (H1): this
+   *  field previously held the real mediaNetworkContacts document ID and the comment
+   *  here incorrectly claimed it was "never exposed to a non-superadmin client read" —
+   *  in fact this row IS team-member readable (see firestore.rules), so that was a raw
+   *  anonymity leak. It now holds only an opaque reference into the server-only
+   *  orgs/{orgId}/networkContactRefs collection (functions/src/network-contact-refs.ts);
+   *  the UI never needs the real ID because the identity itself is never shown to the org. */
+  networkContactRef?: string;
   /** Set whenever this row's inclusion is attributable to a recommendation the
    *  customer explicitly included (both source types can have one). Absent for a
    *  "plain" outlet-list recipient with no matching recommendation. */

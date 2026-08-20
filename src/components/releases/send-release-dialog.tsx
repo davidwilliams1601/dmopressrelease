@@ -16,8 +16,8 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Send, Loader2, Lock, Clock, CalendarClock, Sparkles, AlertTriangle } from 'lucide-react';
 import { useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, doc, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, doc, getDocs } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import type { Release, OutletList, RecommendationSnapshot, CreditWalletSummary } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,7 +53,14 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
   // --- Smart Distribution additions (Phase 4) ---
   // Included recommendations for this story — same {storyId ASC, decision ASC}
   // composite index already created in Phase 3, no new index needed.
-  const [includeSmartDistribution, setIncludeSmartDistribution] = useState(true);
+  // QA fix (H3): defaults to OFF (was previously defaulted ON) and is reset to OFF
+  // every time the dialog opens (see onOpenChange below) — a customer must actively
+  // opt in on each send rather than relying on a preselected, billable default.
+  const [includeSmartDistribution, setIncludeSmartDistribution] = useState(false);
+  // QA fix (H3): when the send would include billable Press Pilot network contacts,
+  // the primary button first swaps to an explicit confirmation naming the exact
+  // recipient count and credit cost, rather than sending immediately.
+  const [confirmingSmartDistribution, setConfirmingSmartDistribution] = useState(false);
   const includedRecommendationsQuery = useCollection<RecommendationSnapshot>(
     useMemoFirebase(() => {
       if (!orgId || !release?.id) return null;
@@ -150,60 +157,49 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
         return;
       }
 
-      const sendJobsRef = collection(firestore, 'orgs', orgId, 'sendJobs');
-      const releaseRef = doc(firestore, 'orgs', orgId, 'releases', release.id);
+      // QA fix (H2 + H4): the sendJob document is no longer written directly from the
+      // client (firestore.rules now denies it — see H2 fix comment there). The
+      // createSendJob callable re-validates everything server-side (release approval,
+      // outlet-list ownership, recipient counts, confirmed Smart Distribution selection)
+      // and only marks the release Scheduled/Sent once the sendJob document itself is
+      // confirmed written — a thrown error here is caught below and never silently
+      // reports success, closing the H4 gap.
+      const functionsInstance = getFunctions();
+      const createSendJob = httpsCallable<any, { success: boolean; sendJobId: string; totalRecipients: number }>(
+        functionsInstance,
+        'createSendJob'
+      );
 
       if (sendMode === 'scheduled') {
         const scheduledDateTime = getScheduledDateTime()!;
 
-        // Create scheduled send job
-        await addDocumentNonBlocking(sendJobsRef, {
+        const result = await createSendJob({
           orgId,
           releaseId: release.id,
           outletListIds: selectedLists,
-          status: 'scheduled',
-          totalRecipients,
-          sentCount: 0,
-          failedCount: 0,
-          createdAt: serverTimestamp(),
-          scheduledAt: Timestamp.fromDate(scheduledDateTime),
+          sendMode: 'scheduled',
+          scheduledAt: scheduledDateTime.getTime(),
           includeSmartDistributionRecommendations: includeSmartDistribution,
-        });
-
-        // Update release status to Scheduled (don't increment sends yet)
-        await updateDocumentNonBlocking(releaseRef, {
-          status: 'Scheduled',
-          updatedAt: serverTimestamp(),
+          confirmedSmartDistributionSelection: smartDistributionConfirmationNeeded,
         });
 
         toast({
           title: 'Release scheduled',
-          description: `Release scheduled for ${format(scheduledDateTime, 'dd MMM yyyy, HH:mm')}.`,
+          description: `Release scheduled for ${format(scheduledDateTime, 'dd MMM yyyy, HH:mm')}. ${result.data.totalRecipients} recipient${result.data.totalRecipients !== 1 ? 's' : ''}.`,
         });
       } else {
-        // Create send job (immediate)
-        await addDocumentNonBlocking(sendJobsRef, {
+        const result = await createSendJob({
           orgId,
           releaseId: release.id,
           outletListIds: selectedLists,
-          status: 'pending',
-          totalRecipients,
-          sentCount: 0,
-          failedCount: 0,
-          createdAt: serverTimestamp(),
+          sendMode: 'now',
           includeSmartDistributionRecommendations: includeSmartDistribution,
-        });
-
-        // Update release status and send count
-        await updateDocumentNonBlocking(releaseRef, {
-          status: 'Sent',
-          sends: (release.sends || 0) + totalRecipients,
-          updatedAt: serverTimestamp(),
+          confirmedSmartDistributionSelection: smartDistributionConfirmationNeeded,
         });
 
         toast({
           title: 'Release queued for sending',
-          description: `Your press release will be sent to ${totalRecipients} recipients.`,
+          description: `Your press release will be sent to ${result.data.totalRecipients} recipients.`,
         });
       }
 
@@ -212,6 +208,8 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
       setSendMode('now');
       setScheduledDate('');
       setScheduledTime('09:00');
+      setIncludeSmartDistribution(false);
+      setConfirmingSmartDistribution(false);
     } catch (error) {
       console.error('Error sending release:', error);
       toast({
@@ -240,8 +238,32 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
     );
   }
 
+  // QA fix (H3): explicit final confirmation naming recipient counts and credit
+  // cost before a billable Smart Distribution send is actually created.
+  const smartDistributionConfirmationNeeded = includeSmartDistribution && smartDistributionNetworkCount > 0;
+
+  const handlePrimaryButtonClick = () => {
+    if (smartDistributionConfirmationNeeded && !confirmingSmartDistribution) {
+      setConfirmingSmartDistribution(true);
+      return;
+    }
+    handleSend();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          // QA fix (H3): always start unchecked and out of the confirm step,
+          // regardless of what was left over from a previous time this dialog
+          // was opened for this same release.
+          setIncludeSmartDistribution(false);
+          setConfirmingSmartDistribution(false);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button>
           <Send />
@@ -250,12 +272,52 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Send Press Release</DialogTitle>
+          <DialogTitle>
+            {confirmingSmartDistribution ? 'Confirm Press Pilot network send' : 'Send Press Release'}
+          </DialogTitle>
           <DialogDescription>
-            Select outlet lists to send &quot;{release.headline}&quot; to.
+            {confirmingSmartDistribution
+              ? 'Review the recipients and credit cost below before sending.'
+              : <>Select outlet lists to send &quot;{release.headline}&quot; to.</>}
           </DialogDescription>
         </DialogHeader>
 
+        {confirmingSmartDistribution ? (
+          <div className="grid gap-4 py-4">
+            <Card className="border-primary">
+              <CardContent className="pt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Your outlet contacts</p>
+                  <p className="font-semibold">{totalRecipients} (free)</p>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Press Pilot network contacts</p>
+                  <p className="font-semibold">{smartDistributionNetworkCount}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Credits this send will use</p>
+                  <p className="font-semibold">{smartDistributionCreditCost}</p>
+                </div>
+              </CardContent>
+            </Card>
+            {insufficientBalance && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Low credit balance</AlertTitle>
+                <AlertDescription>
+                  Your balance is {walletBalance} credit{walletBalance !== 1 ? 's' : ''}, but this send could use up
+                  to {smartDistributionCreditCost}. Contacts beyond your balance won&apos;t be sent.
+                </AlertDescription>
+              </Alert>
+            )}
+            <p className="text-sm text-muted-foreground">
+              Confirming will send to {totalRecipients + smartDistributionNetworkCount} recipient
+              {totalRecipients + smartDistributionNetworkCount !== 1 ? 's' : ''} in total and use{' '}
+              {smartDistributionCreditCost} credit{smartDistributionCreditCost !== 1 ? 's' : ''}.
+            </p>
+          </div>
+        ) : (
         <div className="grid gap-6 py-4">
           {/* Email Preview */}
           <Card>
@@ -466,17 +528,24 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
             </Card>
           )}
         </div>
+        )}
 
         <DialogFooter>
           <Button
             type="button"
             variant="outline"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              if (confirmingSmartDistribution) {
+                setConfirmingSmartDistribution(false);
+              } else {
+                setOpen(false);
+              }
+            }}
           >
-            Cancel
+            {confirmingSmartDistribution ? 'Back' : 'Cancel'}
           </Button>
           <Button
-            onClick={handleSend}
+            onClick={handlePrimaryButtonClick}
             disabled={
               isSending ||
               selectedLists.length === 0 ||
@@ -487,6 +556,11 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
               <>
                 <Loader2 className="animate-spin" />
                 {sendMode === 'scheduled' ? 'Scheduling...' : 'Sending...'}
+              </>
+            ) : confirmingSmartDistribution ? (
+              <>
+                <Send />
+                Confirm &amp; Send
               </>
             ) : sendMode === 'scheduled' ? (
               <>

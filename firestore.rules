@@ -265,12 +265,19 @@ service cloud.firestore {
     /**
      * @description Superadmin accountability trail for raw network-identity reads and
      *              credit-ledger mutations.
-     * @path /auditLogs/{logId}
-     * @principle Platform-level, not org-scoped. Superadmins may read their own trail;
-     *            written only by Cloud Functions (media-network.ts, credits.ts).
+     * @path /auditLogs/{actorUid}/entries/{logId}
+     * @principle Platform-level, not org-scoped. Superadmins may read only their OWN
+     *            trail; written only by Cloud Functions (media-network.ts, credits.ts).
+     *            QA fix (M11): this was previously a flat /auditLogs/{logId} collection
+     *            with `allow read: if isSuperAdmin()`, which let ANY superadmin list/read
+     *            EVERY superadmin's entries — contradicting this same comment's "read
+     *            their own trail" intent, since a collection-level `list` rule has no
+     *            resource.data to check per returned document. Nesting entries under the
+     *            acting superadmin's uid lets the rule scope both `get` and `list` purely
+     *            from the path, via the `actorUid` wildcard below.
      */
-    match /auditLogs/{logId} {
-      allow read: if isSuperAdmin();
+    match /auditLogs/{actorUid}/entries/{logId} {
+      allow read: if isSuperAdmin() && request.auth.uid == actorUid;
       allow write: if false;
     }
 
@@ -312,15 +319,38 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for Send Job documents within an organization.
+     * @description QA fix (H1): server-private mapping from an opaque per-org
+     *              reference ID to the real, stable mediaNetworkContacts document ID
+     *              (see functions/src/network-contact-refs.ts). Client-readable docs
+     *              (recommendationSnapshots, sendJobs/{id}/recipients) now store only
+     *              the opaque reference here, never the real ID, so this collection
+     *              must never be client-readable either — exposing it would defeat
+     *              the whole point of the indirection.
+     * @path /orgs/{orgId}/networkContactRefs/{refId}
+     * @principle Cloud Function / Admin SDK only. No client read or write.
+     */
+    match /orgs/{orgId}/networkContactRefs/{refId} {
+      allow read, write: if false;
+    }
+
+    /**
+     * @description QA fix (H2): Rules for Send Job documents within an organization.
+     *              Direct client create/update/delete is now denied — a sendJob is a
+     *              billable, dispatch-triggering document (processSendJob's .onCreate
+     *              trigger fires the moment one exists) and previously any team member
+     *              could create/edit one directly with no validation of release
+     *              approval state, outlet-list ownership, or confirmed Smart
+     *              Distribution selection. The `createSendJob` callable
+     *              (functions/src/index.ts) now performs all of that validation
+     *              server-side and is the only supported way to create one;
+     *              `cancelScheduledSend` (also a callable) is the only supported way
+     *              to cancel one. Both use the Admin SDK, which bypasses these rules.
      * @path /orgs/{orgId}/sendJobs/{sendJobId}
-     * @principle Team members only. Partners cannot access send jobs.
+     * @principle Team members only, read-only from the client.
      */
     match /orgs/{orgId}/sendJobs/{sendJobId} {
       allow read: if isTeamMember(orgId);
-      allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
-      allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
-      allow delete: if isTeamMember(orgId) && resource != null;
+      allow create, update, delete: if false;
     }
 
     /**

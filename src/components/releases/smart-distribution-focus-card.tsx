@@ -11,11 +11,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Target, Save, Loader2 } from 'lucide-react';
-import { useFirestore, updateDocumentNonBlocking } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { DEFAULT_MEDIA_TAXONOMY } from '@/lib/media-taxonomy';
-import type { Release } from '@/lib/types';
+import { DEFAULT_MEDIA_TAXONOMY, type MediaTaxonomyCategory } from '@/lib/media-taxonomy';
+import type { Release, MediaTaxonomy } from '@/lib/types';
 
 type SmartDistributionFocusCardProps = {
   release: Release;
@@ -34,9 +34,12 @@ const CATEGORY_CONFIG: { key: FocusCategory; label: string; taxonomyKey: 'editor
  * Lets a team member tag a release with the controlled Smart Distribution taxonomy
  * (editorial focus, geography, topics) so `generateRecommendations` has something to
  * match against. Tags are picked from the same curated lists used for Recipient/
- * MediaNetworkContact tagging (src/lib/media-taxonomy.ts DEFAULT_MEDIA_TAXONOMY) —
- * a fixed toggle-badge picker, same visual language as MediaTaxonomyCard, rather than
- * free text, so matching stays on controlled vocabulary.
+ * MediaNetworkContact tagging — a fixed toggle-badge picker, same visual language as
+ * MediaTaxonomyCard, rather than free text, so matching stays on controlled vocabulary.
+ * QA fix (Medium): the list itself is now the superadmin-managed taxonomy read from
+ * /platform/config (mediaTaxonomy field), falling back to DEFAULT_MEDIA_TAXONOMY only
+ * for categories with no stored override — previously this always showed the
+ * hardcoded defaults and ignored any admin edits.
  */
 export function SmartDistributionFocusCard({ release, orgId }: SmartDistributionFocusCardProps) {
   const firestore = useFirestore();
@@ -48,6 +51,28 @@ export function SmartDistributionFocusCard({ release, orgId }: SmartDistribution
   });
   const [isSaving, setIsSaving] = useState(false);
 
+  // QA fix (Medium): this picker previously only ever showed the hardcoded
+  // DEFAULT_MEDIA_TAXONOMY, ignoring any superadmin edits made via the taxonomy admin
+  // console (functions/src/media-taxonomy.ts's getMediaTaxonomy/updateMediaTaxonomy,
+  // stored at /platform/config field `mediaTaxonomy`). Reading the doc straight via
+  // useDoc (not the superadmin-gated getMediaTaxonomy callable — this component is used
+  // by ordinary team members) mirrors that same merge-over-defaults logic client-side;
+  // firestore.rules already allows any signed-in user to read /platform/{docId}.
+  const platformConfigDoc = useDoc<{ mediaTaxonomy?: Partial<MediaTaxonomy> }>(
+    useMemoFirebase(() => doc(firestore, 'platform', 'config'), [firestore])
+  );
+
+  const taxonomy: Record<MediaTaxonomyCategory, string[]> = { ...DEFAULT_MEDIA_TAXONOMY };
+  const storedTaxonomy = platformConfigDoc.data?.mediaTaxonomy;
+  if (storedTaxonomy) {
+    (Object.keys(DEFAULT_MEDIA_TAXONOMY) as MediaTaxonomyCategory[]).forEach((category) => {
+      const override = storedTaxonomy[category];
+      if (Array.isArray(override) && override.length > 0) {
+        taxonomy[category] = override;
+      }
+    });
+  }
+
   const toggle = (key: FocusCategory, value: string) => {
     setSelection((prev) => {
       const current = prev[key];
@@ -56,11 +81,18 @@ export function SmartDistributionFocusCard({ release, orgId }: SmartDistribution
     });
   };
 
+  // QA fix (M10): this previously called the fire-and-forget updateDocumentNonBlocking
+  // (which returns void, not the write promise) and showed the success toast
+  // immediately afterwards — so "Smart Distribution focus saved" appeared even if the
+  // write hadn't been attempted yet, let alone confirmed, and the surrounding try/catch
+  // could never actually catch a write failure. Awaiting a real updateDoc call here
+  // means the toast (success or error) only fires once Firestore has confirmed the
+  // write, matching the blocking-save convention used elsewhere in this codebase.
   const handleSave = async () => {
     setIsSaving(true);
     try {
       const releaseRef = doc(firestore, 'orgs', orgId, 'releases', release.id);
-      updateDocumentNonBlocking(releaseRef, {
+      await updateDoc(releaseRef, {
         smartDistribution: selection,
         updatedAt: serverTimestamp(),
       });
@@ -92,7 +124,7 @@ export function SmartDistributionFocusCard({ release, orgId }: SmartDistribution
           <div key={key} className="space-y-2">
             <p className="text-sm font-medium">{label}</p>
             <div className="flex flex-wrap gap-2">
-              {DEFAULT_MEDIA_TAXONOMY[taxonomyKey].map((value) => {
+              {taxonomy[taxonomyKey].map((value) => {
                 const isSelected = selection[key].includes(value);
                 return (
                   <Badge

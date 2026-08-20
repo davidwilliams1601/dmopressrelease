@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { resolveNetworkContactRef } from './network-contact-refs';
 
 const db = admin.firestore();
 
@@ -55,7 +56,12 @@ export type ResolvedRecipient = {
   snapshotId: string;
   source: 'customer_contact' | 'smart_distribution_recommendation';
   recipientRef?: string;
-  networkContactId?: string;
+  // QA fix (H1): only the opaque per-org reference ID travels through this return
+  // value (and from there onto client-readable docs) — never the real, stable
+  // mediaNetworkContacts document ID. Callers that need the real ID for their own
+  // internal, server-only bookkeeping (e.g. credits.ts idempotency keys) must
+  // resolve it themselves via resolveNetworkContactRef.
+  networkContactRef?: string;
   name?: string;
   email?: string;
   outlet?: string;
@@ -85,6 +91,18 @@ export async function resolveSmartDistributionRecipientsForSend(
     .where('storyId', '==', releaseId)
     .where('decision', '==', 'included')
     .get();
+
+  // QA fix (H8): previously Smart Distribution suspension was only enforced by
+  // disabling the checkbox in the UI (send-release-dialog.tsx) — nothing on the
+  // server re-checked it, so a suspended org's team member could still dispatch
+  // network-sourced sends (and consume credits) via a direct callable invocation.
+  // This is the single choke point every send re-resolves through at dispatch time
+  // regardless of client input, so it's the right place to make the block
+  // authoritative. Per spec, suspension only stops *network* recommendations/sends
+  // — the org's own customer-owned contacts are unaffected — so this doesn't reject
+  // the whole resolve, only every network_contact-sourced snapshot below.
+  const walletSnap = await db.collection('orgs').doc(orgId).collection('creditWallet').doc('summary').get();
+  const isSuspended = walletSnap.exists && walletSnap.data()?.smartDistributionSuspended === true;
 
   const eligible: ResolvedRecipient[] = [];
   const rejected: RejectedRecipient[] = [];
@@ -143,13 +161,28 @@ export async function resolveSmartDistributionRecipientsForSend(
       });
       excludeRecipientIds.add(identity);
     } else if (snap.source === 'network_contact') {
-      if (!snap.networkContactId) {
-        rejected.push({ ...base, source: 'smart_distribution_recommendation', rejectedReason: 'missing_network_contact_id' });
+      // QA fix (H8): suspension blocks every network-sourced recipient at send time,
+      // independent of anything the client claims about suspension state.
+      if (isSuspended) {
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactRef: snap.networkContactRef, rejectedReason: 'smart_distribution_suspended' });
         continue;
       }
-      const contactDoc = await db.collection('mediaNetworkContacts').doc(snap.networkContactId).get();
+      // QA fix (H1): recommendationSnapshots now stores only the opaque
+      // networkContactRef, never the real networkContactId. Resolve it server-side,
+      // for this function's own internal lookup only — the real ID is never put back
+      // onto `base`/`eligible`/`rejected`, only the opaque ref is.
+      if (!snap.networkContactRef) {
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', rejectedReason: 'missing_network_contact_ref' });
+        continue;
+      }
+      const realNetworkContactId = await resolveNetworkContactRef(orgId, snap.networkContactRef);
+      if (!realNetworkContactId) {
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactRef: snap.networkContactRef, rejectedReason: 'contact_deleted' });
+        continue;
+      }
+      const contactDoc = await db.collection('mediaNetworkContacts').doc(realNetworkContactId).get();
       if (!contactDoc.exists) {
-        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactId: snap.networkContactId, rejectedReason: 'contact_deleted' });
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactRef: snap.networkContactRef, rejectedReason: 'contact_deleted' });
         continue;
       }
       const contact = contactDoc.data()!;
@@ -157,33 +190,33 @@ export async function resolveSmartDistributionRecipientsForSend(
       const health = contact.contactHealth || {};
 
       if (contact.networkStatus !== 'active') {
-        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactId: snap.networkContactId, rejectedReason: 'inactive' });
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactRef: snap.networkContactRef, rejectedReason: 'inactive' });
         continue;
       }
       if (health.suppressionStatus && health.suppressionStatus !== 'none') {
-        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactId: snap.networkContactId, rejectedReason: 'suppressed' });
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactRef: snap.networkContactRef, rejectedReason: 'suppressed' });
         continue;
       }
       if (health.verificationStatus === 'invalid') {
-        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactId: snap.networkContactId, rejectedReason: 'invalid_email' });
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactRef: snap.networkContactRef, rejectedReason: 'invalid_email' });
         continue;
       }
       if (!isValidEmail(contact.identity?.email)) {
-        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactId: snap.networkContactId, rejectedReason: 'invalid_email' });
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactRef: snap.networkContactRef, rejectedReason: 'invalid_email' });
         continue;
       }
       if (isFrequencyCapped(health.lastContactedAt)) {
-        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactId: snap.networkContactId, rejectedReason: 'recently_contacted' });
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactRef: snap.networkContactRef, rejectedReason: 'recently_contacted' });
         continue;
       }
       if (excludeRecipientIds.has(identity) || orgIdentities.has(identity)) {
-        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactId: snap.networkContactId, rejectedReason: 'duplicate' });
+        rejected.push({ ...base, source: 'smart_distribution_recommendation', networkContactRef: snap.networkContactRef, rejectedReason: 'duplicate' });
         continue;
       }
       eligible.push({
         ...base,
         source: 'smart_distribution_recommendation',
-        networkContactId: snap.networkContactId,
+        networkContactRef: snap.networkContactRef,
         name: contact.identity?.name,
         email: contact.identity?.email,
       });
