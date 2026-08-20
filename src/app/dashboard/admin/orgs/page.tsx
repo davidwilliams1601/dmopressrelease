@@ -27,6 +27,7 @@ import { SeedDemoDialog } from '@/components/admin/seed-demo-dialog';
 import { ResetPasswordDialog } from '@/components/admin/reset-password-dialog';
 import { VerticalCategoriesCard } from '@/components/admin/vertical-categories-card';
 import { ThemeTaxonomyCard } from '@/components/admin/theme-taxonomy-card';
+import { MediaTaxonomyCard } from '@/components/admin/media-taxonomy-card';
 import { getRegionLabel } from '@/lib/regions';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -541,6 +542,7 @@ export default function AdminOrgsPage() {
 
       <VerticalCategoriesCard />
       <ThemeTaxonomyCard />
+      <MediaTaxonomyCard />
     </div>
   );
 }
