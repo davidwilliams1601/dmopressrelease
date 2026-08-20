@@ -253,6 +253,20 @@ export type SendJob = {
   completedAt?: Date | any;
   error?: string;
   scheduledAt?: Date | any;
+
+  // --- Smart Distribution additions (Phase 4; all optional, additive) ---
+  /** Set by the client at creation: whether this send should also include the
+   *  release's currently-`included` recommendationSnapshots. Absent/false on jobs
+   *  created before Phase 4 or when the sender explicitly opted out for this send. */
+  includeSmartDistributionRecommendations?: boolean;
+  /** Server-computed once dispatch runs: how many Smart Distribution-sourced
+   *  recipients (customer_contact or network_contact) were actually merged into this
+   *  send, after the final eligibility/dedupe recheck. Convenience read for the UI so
+   *  it doesn't need to read the whole `recipients` subcollection just to show a count. */
+  smartDistributionRecipientCount?: number;
+  /** Server-computed: Smart Distribution credits actually debited for this send
+   *  (one per accepted network-contact delivery). */
+  smartDistributionCreditsUsed?: number;
 };
 
 export type PartnerEmail = {
@@ -469,9 +483,12 @@ export type MediaNetworkImportBatch = {
 /**
  * One immutable, append-only entry in an organisation's Smart Distribution credit
  * ledger. Balances are always derived from this collection — never edited in place.
- * `reversesTransactionId` is an additive field (not in the original spec doc) used
- * only by `type: 'reversal'` entries to link back to the transaction being reversed,
- * so the original stays untouched in history while the reversal is traceable.
+ * `reversesTransactionId` is an additive field (not in the original spec doc) used by
+ * `type: 'reversal'` entries to link back to the transaction being reversed, so the
+ * original stays untouched in history while the reversal is traceable. Phase 4 reuses
+ * this same field on `type: 'refund'` entries created by an automatic hard-bounce /
+ * delivery-failure refund, to link precisely back to the specific `usage` transaction
+ * being refunded (in addition to sharing the same `campaignId`).
  */
 export type CreditTransaction = {
   id: string;
@@ -572,6 +589,64 @@ export type RecommendationSnapshot = {
   decision: 'pending' | 'included' | 'not_relevant';
   decidedAt?: Date | any;
   decidedBy?: string; // uid
+  createdAt: Date | any;
+  updatedAt?: Date | any;
+};
+
+// ============================================================================
+// Smart Distribution — Phase 4: controlled distribution & credit debit
+// See docs/smart-distribution/data-model-and-security.md §4 and
+// docs/smart-distribution/implementation-plan.md lines 79-93.
+// ============================================================================
+
+/**
+ * Per-recipient delivery + credit-cost record for a send job, extending the existing
+ * `sendJobs` collection. Written only by Cloud Functions (the dispatch loop in
+ * `executeSendJob` creates the row before attempting delivery; the SendGrid webhook
+ * updates `deliveryStatus` and, for a hard bounce / delivery failure on a
+ * `smart_distribution_recommendation` row, triggers the auto-refund). One row exists
+ * for every recipient of a send job — both plain outlet-list recipients and any
+ * `recommendationSnapshot` merged in because its decision was `included` — so the
+ * collection is a complete per-send audit trail, not a Smart-Distribution-only one.
+ *
+ * `source` distinguishes cost, not identity type: `'customer_contact'` covers any
+ * recipient that is the org's own contact (whether drawn directly from a selected
+ * outlet list, or from an included recommendation whose `RecommendationSnapshot.source
+ * === 'customer_contact'`) and always costs 0 credits. `'smart_distribution_recommendation'`
+ * covers only an included recommendation whose `RecommendationSnapshot.source ===
+ * 'network_contact'` and is the only case that ever debits a credit.
+ *
+ * `refundTransactionId` is additive (not in the original spec doc, same convention as
+ * `CreditTransaction.reversesTransactionId`) — set once an automatic refund has been
+ * issued for this row, so the UI/webhook can tell at a glance a refund already happened
+ * and never issue a second one for the same row (the ledger's own idempotency key is
+ * the actual safety net; this field is just a fast, denormalised read).
+ */
+export type SendJobRecipient = {
+  id: string;
+  orgId: string;
+  sendJobId: string;
+  source: 'customer_contact' | 'smart_distribution_recommendation';
+  /** Set when source === 'customer_contact'. Path: orgs/{orgId}/outletLists/{listId}/recipients/{id}. */
+  recipientRef?: string;
+  /** Set only when source === 'smart_distribution_recommendation'. Server-side only —
+   *  never exposed to a non-superadmin client read; the UI never needs it because the
+   *  identity itself is never shown to the org. */
+  networkContactId?: string;
+  /** Set whenever this row's inclusion is attributable to a recommendation the
+   *  customer explicitly included (both source types can have one). Absent for a
+   *  "plain" outlet-list recipient with no matching recommendation. */
+  recommendationSnapshotId?: string;
+  /** Set once a credit has been debited (source === 'smart_distribution_recommendation'
+   *  only, and only after Press Pilot's delivery layer accepted the message). */
+  creditTransactionId?: string;
+  /** Set once an automatic refund has been issued for this row (see field doc above). */
+  refundTransactionId?: string;
+  deliveryStatus: 'pending' | 'delivered' | 'bounced_hard' | 'bounced_soft' | 'suppressed' | 'failed';
+  /** Set when deliveryStatus is 'suppressed' or 'failed' before an actual send attempt
+   *  (e.g. failed the final pre-send eligibility/dedupe recheck, or the org's credit
+   *  balance was insufficient at the moment this recipient's turn came up). */
+  skipReason?: string;
   createdAt: Date | any;
   updatedAt?: Date | any;
 };

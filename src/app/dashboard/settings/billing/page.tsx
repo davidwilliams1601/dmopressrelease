@@ -21,6 +21,7 @@ import { useOrgBilling } from '@/hooks/use-org-billing';
 import { useBillingPortal } from '@/hooks/use-billing-portal';
 import { TIERS, type TierId } from '@/lib/tiers';
 import { toDate } from '@/lib/utils';
+import { SmartDistributionWalletCard } from '@/components/settings/smart-distribution-wallet-card';
 
 const TIER_ORDER: TierId[] = ['starter', 'professional', 'organisation'];
 
@@ -167,6 +168,8 @@ export default function BillingPage() {
           );
         })}
       </div>
+
+      {orgId && <SmartDistributionWalletCard orgId={orgId} />}
 
       <Card>
         <CardHeader>

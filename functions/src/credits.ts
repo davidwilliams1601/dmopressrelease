@@ -45,9 +45,9 @@ async function writeAuditLog(entry: {
  * this org, returns the existing entry instead of creating a duplicate (protects
  * against double-clicks / retried callable requests).
  */
-type LedgerEntryType = 'purchase' | 'grant' | 'adjustment' | 'refund' | 'reversal';
+type LedgerEntryType = 'purchase' | 'grant' | 'adjustment' | 'refund' | 'reversal' | 'usage';
 
-async function appendLedgerEntry(params: {
+export async function appendLedgerEntry(params: {
   orgId: string;
   type: LedgerEntryType;
   quantity: number;
@@ -313,6 +313,95 @@ export const reverseTransaction = functions.https.onCall(async (data, context) =
   });
   return result;
 });
+
+// ============================================================================
+// Smart Distribution — Phase 4: system-triggered debit/refund helpers
+// See docs/smart-distribution/import-wizard-and-credits.md §4 (consumption sequence
+// and refund rules). These are plain exported functions, NOT `functions.https.onCall`
+// — they're called from send-distribution.ts / webhooks.ts inside the same Cloud
+// Functions deployment, never directly by a client, so they add no new public
+// callable surface. `createdBy: 'system'` distinguishes automated ledger entries from
+// superadmin-initiated ones in the ledger history.
+// ============================================================================
+
+/**
+ * Debits exactly one Smart Distribution credit for a single network-sourced send,
+ * at the point Press Pilot's delivery layer has accepted the message for that
+ * recipient (per the consumption sequence — never earlier). `campaignId` is the
+ * sendJobId. Idempotent per (campaignId, networkContactId) so a retried dispatch
+ * attempt for the same recipient in the same send job can never double-charge.
+ *
+ * Returns `null` instead of throwing when the org's balance is insufficient, so the
+ * caller can skip sending to this recipient without charging — matching "if a
+ * contact ... fails validation before send, no credit is charged".
+ */
+export async function debitSmartDistributionCredit(params: {
+  orgId: string;
+  campaignId: string;
+  networkContactId: string;
+}): Promise<{ id: string; balanceAfter: number } | null> {
+  try {
+    return await appendLedgerEntry({
+      orgId: params.orgId,
+      type: 'usage',
+      quantity: -1,
+      reasonCode: 'network_contact_send',
+      campaignId: params.campaignId,
+      createdBy: 'system',
+      idempotencyKey: `usage_${params.campaignId}_${params.networkContactId}`,
+    });
+  } catch (err: any) {
+    if (err instanceof functions.https.HttpsError && err.code === 'failed-precondition') {
+      // Insufficient balance — treat as "can't afford this recipient", not a hard failure.
+      return null;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Automatically refunds one credit for a hard bounce or Press Pilot-side delivery
+ * failure on a previously-debited network-sourced send (`import-wizard-and-credits.md`
+ * §4 refund rules). `campaignId` is passed through unchanged from the original usage
+ * transaction, so the refund "references the original usage transaction's
+ * campaignId" by construction; `originalTransactionId` is additionally stored via
+ * `reversesTransactionId` for a precise one-to-one audit link (broader use of that
+ * field than just `type: 'reversal'` — see the doc comment on
+ * `CreditTransaction.reversesTransactionId`). Idempotent per `sendJobRecipientId` so
+ * duplicate webhook deliveries can never double-refund.
+ */
+export async function refundSmartDistributionCredit(params: {
+  orgId: string;
+  campaignId: string;
+  originalTransactionId: string;
+  sendJobRecipientId: string;
+  reasonCode: 'hard_bounce_auto_refund' | 'delivery_failure_auto_refund';
+}): Promise<{ id: string; balanceAfter: number }> {
+  const result = await appendLedgerEntry({
+    orgId: params.orgId,
+    type: 'refund',
+    quantity: 1,
+    reasonCode: params.reasonCode,
+    campaignId: params.campaignId,
+    reversesTransactionId: params.originalTransactionId,
+    createdBy: 'system',
+    idempotencyKey: `refund_${params.sendJobRecipientId}`,
+  });
+
+  await writeAuditLog({
+    action: 'credit_refund',
+    actorUid: 'system',
+    orgId: params.orgId,
+    targetId: result.id,
+    metadata: {
+      trigger: params.reasonCode,
+      sendJobRecipientId: params.sendJobRecipientId,
+      originalTransactionId: params.originalTransactionId,
+    },
+  });
+
+  return result;
+}
 
 /**
  * Suspends or re-enables Smart Distribution for an org. This is an org-level flag, not
