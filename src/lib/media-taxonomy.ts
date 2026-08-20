@@ -201,3 +201,133 @@ export function splitListCell(value: string): string[] {
     .map((v) => v.trim())
     .filter(Boolean);
 }
+
+// ============================================================================
+// Smart Distribution — Phase 2: superadmin media network import wizard.
+// Same wizard mechanics as the customer import (above), but mapping onto
+// MediaNetworkContact's richer shape instead of Recipient. Kept as a separate
+// target-field/alias set because the two contact shapes genuinely differ
+// (identity/outlet/coverage vs. a flat Recipient) — see
+// docs/smart-distribution/import-wizard-and-credits.md §2.
+// ============================================================================
+
+export type NetworkImportTargetField = {
+  key:
+    | 'name'
+    | 'email'
+    | 'role'
+    | 'profileUrl'
+    | 'outletName'
+    | 'outletType'
+    | 'location'
+    | 'audienceScope'
+    | 'editorialFocus'
+    | 'geographies'
+    | 'topics'
+    | 'recentCoverageTitle'
+    | 'recentCoverageUrl'
+    | 'recentCoverageDate'
+    | 'ignore';
+  label: string;
+  required?: boolean;
+  isList?: boolean;
+};
+
+export const NETWORK_IMPORT_TARGET_FIELDS: NetworkImportTargetField[] = [
+  { key: 'name', label: 'Contact name', required: true },
+  { key: 'email', label: 'Email address', required: true },
+  { key: 'role', label: 'Role / title' },
+  { key: 'profileUrl', label: 'Profile URL' },
+  { key: 'outletName', label: 'Outlet / publication', required: true },
+  { key: 'outletType', label: 'Outlet type' },
+  { key: 'location', label: 'Outlet location' },
+  { key: 'audienceScope', label: 'Audience scope (local/regional/national/international)' },
+  { key: 'editorialFocus', label: 'Editorial focus', isList: true },
+  { key: 'geographies', label: 'Geography', isList: true },
+  { key: 'topics', label: 'Topics', isList: true },
+  { key: 'recentCoverageTitle', label: 'Recent coverage — title' },
+  { key: 'recentCoverageUrl', label: 'Recent coverage — URL' },
+  { key: 'recentCoverageDate', label: 'Recent coverage — published date' },
+  { key: 'ignore', label: "Don't import this column" },
+];
+
+export const NETWORK_IMPORT_FIELD_ALIASES: Record<string, NetworkImportTargetField['key']> = {
+  name: 'name',
+  fullname: 'name',
+  contactname: 'name',
+  journalist: 'name',
+  email: 'email',
+  emailaddress: 'email',
+  role: 'role',
+  jobtitle: 'role',
+  title: 'role',
+  position: 'role',
+  profileurl: 'profileUrl',
+  linkedin: 'profileUrl',
+  profile: 'profileUrl',
+  outlet: 'outletName',
+  publication: 'outletName',
+  media: 'outletName',
+  outletname: 'outletName',
+  outlettype: 'outletType',
+  publicationtype: 'outletType',
+  mediatype: 'outletType',
+  location: 'location',
+  outletlocation: 'location',
+  region: 'geographies',
+  audiencescope: 'audienceScope',
+  reach: 'audienceScope',
+  beat: 'editorialFocus',
+  specialism: 'editorialFocus',
+  sector: 'editorialFocus',
+  coveragearea: 'editorialFocus',
+  editorialfocus: 'editorialFocus',
+  geography: 'geographies',
+  geographies: 'geographies',
+  area: 'geographies',
+  interests: 'topics',
+  subjects: 'topics',
+  keywords: 'topics',
+  topics: 'topics',
+  recentcoveragetitle: 'recentCoverageTitle',
+  coveragetitle: 'recentCoverageTitle',
+  articletitle: 'recentCoverageTitle',
+  recentcoverageurl: 'recentCoverageUrl',
+  coverageurl: 'recentCoverageUrl',
+  articleurl: 'recentCoverageUrl',
+  url: 'recentCoverageUrl',
+  recentcoveragedate: 'recentCoverageDate',
+  coveragedate: 'recentCoverageDate',
+  publishedat: 'recentCoverageDate',
+  publisheddate: 'recentCoverageDate',
+};
+
+/** Suggests a NetworkImportTargetField for a raw spreadsheet header, or 'ignore'. */
+export function suggestNetworkFieldForHeader(header: string): NetworkImportTargetField['key'] {
+  return NETWORK_IMPORT_FIELD_ALIASES[normaliseHeader(header)] || 'ignore';
+}
+
+export const AUDIENCE_SCOPE_VALUES = ['local', 'regional', 'national', 'international'] as const;
+
+/** Normalises a loosely-typed audience-scope cell to a valid enum value, or undefined. */
+export function parseAudienceScope(value: string): (typeof AUDIENCE_SCOPE_VALUES)[number] | undefined {
+  const v = value.trim().toLowerCase();
+  return (AUDIENCE_SCOPE_VALUES as readonly string[]).includes(v)
+    ? (v as (typeof AUDIENCE_SCOPE_VALUES)[number])
+    : undefined;
+}
+
+export const NETWORK_SOURCE_TYPE_OPTIONS: { value: MediaNetworkSourceType; label: string }[] = [
+  { value: 'press_pilot_research', label: 'Press Pilot research' },
+  { value: 'licensed', label: 'Licensed provider' },
+  { value: 'partner_provided', label: 'Partner-contributed' },
+  { value: 'public_research', label: 'Publicly sourced' },
+  { value: 'other', label: 'Other' },
+];
+
+export type MediaNetworkSourceType =
+  | 'press_pilot_research'
+  | 'licensed'
+  | 'partner_provided'
+  | 'public_research'
+  | 'other';

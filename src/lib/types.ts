@@ -379,3 +379,143 @@ export type EmailEvent = {
     reason?: string;
   };
 };
+
+// ============================================================================
+// Smart Distribution — Phase 2: Press Pilot media network (platform-owned)
+// See docs/smart-distribution/data-model-and-security.md §3.
+// ============================================================================
+
+/**
+ * A single contact in Press Pilot's own media network. Platform-owned, never
+ * tenant-scoped. `identity` must NEVER be returned to an org-facing client read —
+ * only superadmin console callables may read it directly (and must audit-log the
+ * read, see AuditLogEntry below). Org clients only ever see this data anonymised,
+ * via a Phase 3 recommendationSnapshot.
+ */
+export type MediaNetworkContact = {
+  id: string;
+  identity: {
+    name: string;
+    email: string;
+    role?: string;
+    profileUrl?: string;
+  };
+  outlet: {
+    name: string;
+    type: string; // controlled taxonomy ID — same list as Recipient.outletType
+    location?: string;
+    audienceScope?: 'local' | 'regional' | 'national' | 'international';
+  };
+  editorialFocus: string[]; // controlled taxonomy IDs
+  geographies: string[]; // controlled taxonomy IDs
+  topics: string[]; // controlled taxonomy IDs
+  recentCoverage: {
+    title: string;
+    url: string;
+    publishedAt: Date | any;
+    themes: string[];
+  }[];
+  provenance: {
+    sourceType: 'press_pilot_research' | 'licensed' | 'partner_provided' | 'public_research' | 'other';
+    sourceReference?: string;
+    collectedAt: Date | any;
+    lawfulUseNotes?: string;
+    rightsReviewStatus: 'pending' | 'approved' | 'rejected';
+    importBatchId?: string;
+  };
+  contactHealth: {
+    verificationStatus: 'unverified' | 'verified' | 'invalid';
+    verifiedAt?: Date | any;
+    lastContactedAt?: Date | any;
+    bounceCount: number;
+    suppressionStatus: 'none' | 'suppressed' | 'opted_out';
+  };
+  networkStatus: 'active' | 'review' | 'suppressed' | 'archived';
+  createdAt: Date | any;
+  updatedAt?: Date | any;
+};
+
+/** Tracks a single superadmin upload of network contacts, for review-queue and upload history. */
+export type MediaNetworkImportBatch = {
+  id: string;
+  fileName: string;
+  sourceType: MediaNetworkContact['provenance']['sourceType'];
+  sourceReference?: string;
+  uploadedBy: string; // superadmin uid
+  uploadedAt: Date | any;
+  totalRows: number;
+  readyCount: number;
+  duplicateCount: number;
+  invalidCount: number;
+  suppressedCount: number;
+  status: 'processing' | 'review' | 'published' | 'failed';
+};
+
+// ============================================================================
+// Smart Distribution — Phase 2: Credit ledger & wallet
+// See docs/smart-distribution/import-wizard-and-credits.md §4.
+// ============================================================================
+
+/**
+ * One immutable, append-only entry in an organisation's Smart Distribution credit
+ * ledger. Balances are always derived from this collection — never edited in place.
+ * `reversesTransactionId` is an additive field (not in the original spec doc) used
+ * only by `type: 'reversal'` entries to link back to the transaction being reversed,
+ * so the original stays untouched in history while the reversal is traceable.
+ */
+export type CreditTransaction = {
+  id: string;
+  orgId: string;
+  type:
+    | 'purchase'
+    | 'included_allowance'
+    | 'grant'
+    | 'adjustment'
+    | 'usage'
+    | 'refund'
+    | 'expiry'
+    | 'reversal'
+    | 'migration';
+  quantity: number; // positive or negative
+  balanceAfter: number;
+  reasonCode: string;
+  reasonNote?: string;
+  campaignId?: string; // required for usage / refund
+  reversesTransactionId?: string; // set only on type: 'reversal'
+  createdBy: string; // 'system' or a superadmin uid
+  createdAt: Date | any;
+  expiresAt?: Date | any;
+  idempotencyKey: string;
+};
+
+/** Read-optimised cache of an organisation's current Smart Distribution credit balance. */
+export type CreditWalletSummary = {
+  balance: number;
+  lastTransactionId?: string;
+  smartDistributionSuspended: boolean;
+  updatedAt: Date | any;
+};
+
+/**
+ * Records every superadmin action that reads raw Press Pilot media-network contact
+ * identity (name/email/profileUrl) directly, or performs a credit-ledger mutation.
+ * Written by Cloud Functions only; readable by superadmins for their own accountability
+ * trail. Not tenant-scoped — this is a platform-level control, not an org-facing feature.
+ */
+export type AuditLogEntry = {
+  id: string;
+  action:
+    | 'view_network_contact_identity'
+    | 'view_network_batch_identities'
+    | 'credit_grant'
+    | 'credit_purchase'
+    | 'credit_refund'
+    | 'credit_adjustment'
+    | 'credit_reversal'
+    | 'suspend_smart_distribution';
+  actorUid: string;
+  targetId?: string; // contactId, batchId, orgId, or transactionId depending on action
+  orgId?: string; // set for credit actions
+  metadata?: Record<string, unknown>;
+  createdAt: Date | any;
+};

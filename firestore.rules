@@ -75,6 +75,17 @@ service cloud.firestore {
     }
 
     /**
+     * Verifies the authenticated user carries the platform superAdmin custom claim.
+     * Mirrors requireSuperAdmin() in functions/src/super-admin.ts, media-network.ts and
+     * credits.ts. Platform-level, not org-scoped — used for Smart Distribution's
+     * Press Pilot-owned media network and credit ledger, which are structurally
+     * off-limits to every org client regardless of role.
+     */
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.superAdmin == true;
+    }
+
+    /**
      * On update, ensures the orgId of a document cannot be changed.
      * Prevents documents from being moved between organizations.
      */
@@ -207,6 +218,70 @@ service cloud.firestore {
       allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
       allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
       allow delete: if isTeamMember(orgId) && resource != null;
+    }
+
+    /**
+     * @description Press Pilot's own media network. Platform-owned, never tenant-scoped.
+     * @path /mediaNetworkContacts/{contactId}
+     * @principle Raw identity is a Press Pilot asset, not a customer asset. Only
+     *            superadmins (the admin console) may read these documents directly.
+     *            Org-facing clients never query this collection — matching and
+     *            anonymised recommendations are produced by a Cloud Function and written
+     *            to recommendationSnapshots instead (Phase 3). All writes happen via Cloud
+     *            Functions using the Admin SDK, which bypasses these rules entirely — so
+     *            `allow write: if false` here is a defence-in-depth backstop, not the
+     *            primary control.
+     */
+    match /mediaNetworkContacts/{contactId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    /**
+     * @description Upload history / review queue for Press Pilot media-network imports.
+     * @path /mediaNetworkImportBatches/{batchId}
+     * @principle Superadmin only. Written exclusively by importMediaNetworkBatch /
+     *            publishMediaNetworkBatch Cloud Functions.
+     */
+    match /mediaNetworkImportBatches/{batchId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    /**
+     * @description Superadmin accountability trail for raw network-identity reads and
+     *              credit-ledger mutations.
+     * @path /auditLogs/{logId}
+     * @principle Platform-level, not org-scoped. Superadmins may read their own trail;
+     *            written only by Cloud Functions (media-network.ts, credits.ts).
+     */
+    match /auditLogs/{logId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    /**
+     * @description Immutable per-organisation Smart Distribution credit ledger.
+     * @path /orgs/{orgId}/creditTransactions/{transactionId}
+     * @principle Every balance change (purchase, allowance, grant, usage, refund, expiry,
+     *            reversal) is an individual, append-only record. Balance is derived from
+     *            this ledger, never edited directly. Cloud Function / Admin SDK writes only.
+     */
+    match /orgs/{orgId}/creditTransactions/{transactionId} {
+      allow get: if isTeamMember(orgId);
+      allow list: if isTeamMember(orgId);
+      allow write: if false;
+    }
+
+    /**
+     * @description Cached current balance for an organisation's Smart Distribution wallet.
+     * @path /orgs/{orgId}/creditWallet/{docId}
+     * @principle A read-optimised cache derived from creditTransactions. Never the source
+     *            of truth. Cloud Function / Admin SDK writes only.
+     */
+    match /orgs/{orgId}/creditWallet/{docId} {
+      allow get: if isTeamMember(orgId);
+      allow write: if false;
     }
 
     /**
