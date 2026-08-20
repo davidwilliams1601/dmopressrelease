@@ -166,6 +166,25 @@ export type OutletList = {
   updatedAt?: Date | any;
 };
 
+export type OutletType =
+  | 'trade'
+  | 'local-news'
+  | 'national-news'
+  | 'newsletter'
+  | 'podcast'
+  | 'broadcast'
+  | 'creator';
+
+export type RelationshipStatus =
+  | 'unknown'
+  | 'known'
+  | 'pitched'
+  | 'responded'
+  | 'published'
+  | 'declined'
+  | 'bounced'
+  | 'opted_out';
+
 export type Recipient = {
   id: string;
   orgId: string;
@@ -176,6 +195,39 @@ export type Recipient = {
   position?: string;
   notes?: string;
   createdAt: Date | any;
+
+  // --- Smart Distribution additions (all optional; existing rows remain valid) ---
+  editorialFocus?: string[];       // controlled taxonomy IDs; import alias: "beat", "specialism", "sector"
+  geography?: string[];            // controlled taxonomy IDs; import alias: "region", "area", "coverage area"
+  topics?: string[];               // controlled taxonomy IDs
+  outletType?: OutletType;         // controlled taxonomy ID
+  relationshipStatus?: RelationshipStatus;
+  lastContactedAt?: Date | any;
+  doNotContact?: boolean;
+  source?: 'customer_provided';    // fixed value for this collection; distinguishes from network contacts in matching
+  updatedAt?: Date | any;
+};
+
+/**
+ * A saved column-mapping profile for the CSV/XLSX import wizard, scoped to one
+ * organisation, so a recurring export (e.g. a monthly CRM pull) maps automatically
+ * on subsequent uploads.
+ */
+export type ImportMappingProfile = {
+  id: string;
+  orgId: string;
+  name: string;
+  mapping: Record<string, string>; // sourceHeader (normalised) -> target field key
+  createdAt: Date | any;
+  updatedAt?: Date | any;
+};
+
+/** Controlled taxonomy for media-contact matching, stored at /platform/config (mediaTaxonomy field). */
+export type MediaTaxonomy = {
+  editorialFocus: string[];
+  geography: string[];
+  outletType: string[];
+  topics: string[];
 };
 
 export type SendJob = {

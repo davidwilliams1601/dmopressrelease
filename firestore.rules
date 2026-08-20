@@ -196,6 +196,20 @@ service cloud.firestore {
     }
 
     /**
+     * @description Rules for saved CSV/XLSX import column-mapping profiles within an
+     * organization. Lets a team re-apply the same spreadsheet-column mapping on future
+     * imports instead of re-mapping every time.
+     * @path /orgs/{orgId}/importMappingProfiles/{profileId}
+     * @principle Team members only. Partners cannot access import mapping profiles.
+     */
+    match /orgs/{orgId}/importMappingProfiles/{profileId} {
+      allow read: if isTeamMember(orgId);
+      allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
+      allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
+      allow delete: if isTeamMember(orgId) && resource != null;
+    }
+
+    /**
      * @description Rules for Send Job documents within an organization.
      * @path /orgs/{orgId}/sendJobs/{sendJobId}
      * @principle Team members only. Partners cannot access send jobs.

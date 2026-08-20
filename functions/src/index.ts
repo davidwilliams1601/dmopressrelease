@@ -578,6 +578,7 @@ export * from './story-escalation';
 export * from './org-rollup';
 export * from './child-org-provisioning';
 export * from './theme-trends';
+export * from './media-taxonomy';
 
 // Export super-admin functions
 export * from './super-admin';

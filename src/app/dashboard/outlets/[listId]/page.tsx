@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import { NewRecipientDialog } from '@/components/outlets/new-recipient-dialog';
-import { CsvImportDialog } from '@/components/outlets/csv-import-dialog';
+import { ImportWizardDialog } from '@/components/outlets/import-wizard-dialog';
 import { RecipientsTable } from '@/components/outlets/recipients-table';
 
 export default function OutletListDetailPage() {
@@ -90,7 +90,11 @@ export default function OutletListDetailPage() {
         </div>
         {orgId && listId && (
           <div className="flex items-center gap-2">
-            <CsvImportDialog orgId={orgId} listId={listId} />
+            <ImportWizardDialog
+              orgId={orgId}
+              listId={listId}
+              existingEmails={recipients.map((r) => r.email).filter(Boolean)}
+            />
             <NewRecipientDialog orgId={orgId} listId={listId} />
           </div>
         )}
