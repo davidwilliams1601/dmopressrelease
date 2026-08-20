@@ -45,6 +45,7 @@ import {
   normaliseOutletTypeLabel,
 } from '@/lib/media-taxonomy';
 import type { ImportMappingProfile } from '@/lib/types';
+import { joinFullName, splitFullName } from '@/lib/utils';
 
 type ImportWizardDialogProps = {
   orgId: string;
@@ -218,9 +219,14 @@ export function ImportWizardDialog({ orgId, listId, existingEmails }: ImportWiza
   };
 
   const mappedTargetKeys = new Set(Object.values(mapping));
-  const missingRequired = IMPORT_TARGET_FIELDS.filter(
-    (f) => f.required && !mappedTargetKeys.has(f.key)
-  );
+  // Name isn't a single required target any more (it can come from firstName,
+  // firstName+lastName, or a single "name" column), so it's checked separately
+  // rather than via ImportTargetField.required.
+  const hasNameMapping = mappedTargetKeys.has('firstName') || mappedTargetKeys.has('name');
+  const missingRequired = [
+    ...(hasNameMapping ? [] : [{ key: 'firstName' as const, label: 'First name (or Full name)' }]),
+    ...IMPORT_TARGET_FIELDS.filter((f) => f.required && !mappedTargetKeys.has(f.key)),
+  ];
 
   const parsedRecords: ParsedRecord[] = useMemo(() => {
     if (step !== 'validate') return [];
@@ -236,7 +242,9 @@ export function ImportWizardDialog({ orgId, listId, existingEmails }: ImportWiza
         values[target] = values[target] ? `${values[target]}, ${cell}` : cell;
       });
 
-      const name = values.name || '';
+      // Full name for validation/display: prefer an explicit "name" column, otherwise
+      // build it from firstName + lastName (lastName may be blank).
+      const name = values.name || joinFullName(values.firstName || '', values.lastName || '');
       const email = (values.email || '').toLowerCase();
       const outlet = values.outlet || '';
 
@@ -252,7 +260,7 @@ export function ImportWizardDialog({ orgId, listId, existingEmails }: ImportWiza
         seenEmails.add(email);
       }
 
-      return { rowIndex, values: { ...values, email }, errors, isDuplicate };
+      return { rowIndex, values: { ...values, name, email }, errors, isDuplicate };
     });
   }, [step, dataRows, headers, mapping, existingEmailSet]);
 
@@ -275,10 +283,16 @@ export function ImportWizardDialog({ orgId, listId, existingEmails }: ImportWiza
 
         chunk.forEach((record) => {
           const ref = doc(recipientsRef);
+          // Prefer explicitly-mapped firstName/lastName columns; if the sheet only had a
+          // single full-name column, best-effort split it so firstName/lastName are
+          // always populated for editing later, without losing the original full name.
+          const { firstName: splitFirst, lastName: splitLast } = splitFullName(record.values.name);
           const data: Record<string, unknown> = {
             orgId,
             outletListId: listId,
             name: record.values.name,
+            firstName: record.values.firstName || splitFirst,
+            lastName: record.values.lastName || splitLast,
             email: record.values.email,
             outlet: record.values.outlet,
             position: record.values.position || '',

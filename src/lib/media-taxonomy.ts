@@ -125,6 +125,8 @@ export const RELATIONSHIP_STATUS_OPTIONS: { value: string; label: string }[] = [
  */
 export type ImportTargetField = {
   key:
+    | 'firstName'
+    | 'lastName'
     | 'name'
     | 'email'
     | 'outlet'
@@ -143,8 +145,18 @@ export type ImportTargetField = {
   isList?: boolean; // comma-separated values split into an array
 };
 
+/**
+ * QA fix: the downloadable template (TEMPLATE_CSV below) has separate first_name/
+ * last_name columns, but until this fix the only mappable "name" target combined
+ * them into one field, and the alias table had no entry for "lastname" at all — so
+ * importing the official template silently dropped every last name. firstName and
+ * lastName are now first-class targets; the plain "name" target remains available
+ * for spreadsheets that only have a single combined name column.
+ */
 export const IMPORT_TARGET_FIELDS: ImportTargetField[] = [
-  { key: 'name', label: 'Contact name', required: true },
+  { key: 'firstName', label: 'First name' },
+  { key: 'lastName', label: 'Last name' },
+  { key: 'name', label: 'Full name (single column)' },
   { key: 'email', label: 'Email address', required: true },
   { key: 'outlet', label: 'Outlet / publication', required: true },
   { key: 'position', label: 'Position / role' },
@@ -169,8 +181,13 @@ export const IMPORT_FIELD_ALIASES: Record<string, ImportTargetField['key']> = {
   name: 'name',
   fullname: 'name',
   contactname: 'name',
-  firstname: 'name',
   journalist: 'name',
+  firstname: 'firstName',
+  givenname: 'firstName',
+  forename: 'firstName',
+  lastname: 'lastName',
+  surname: 'lastName',
+  familyname: 'lastName',
   email: 'email',
   emailaddress: 'email',
   outlet: 'outlet',

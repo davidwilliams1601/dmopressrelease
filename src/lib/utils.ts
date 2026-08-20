@@ -28,3 +28,22 @@ export function toDate(timestamp: any): Date {
   }
   return new Date(timestamp);
 }
+
+/**
+ * Splits a single full-name string into { firstName, lastName } best-effort — the
+ * first whitespace-separated token is the first name, everything else is the last
+ * name. Used to backfill firstName/lastName for Recipient rows created before those
+ * fields existed (which only ever stored a combined `name`), so opening one of those
+ * contacts in the edit form still shows separate fields instead of leaving them blank.
+ */
+export function splitFullName(fullName: string): { firstName: string; lastName: string } {
+  const trimmed = (fullName || '').trim();
+  if (!trimmed) return { firstName: '', lastName: '' };
+  const parts = trimmed.split(/\s+/);
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
+/** Joins first/last name into the combined `name` field, collapsing extra whitespace. */
+export function joinFullName(firstName: string, lastName: string): string {
+  return [firstName?.trim(), lastName?.trim()].filter(Boolean).join(' ');
+}

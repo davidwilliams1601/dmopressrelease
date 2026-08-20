@@ -214,7 +214,15 @@ export type Recipient = {
   id: string;
   orgId: string;
   outletListId: string;
+  /** Always kept in sync with firstName + lastName ("${firstName} ${lastName}".trim()).
+   *  Kept as the canonical display/personalisation field so every existing read site
+   *  (sends, Cloud Functions matching/dedupe, exports) keeps working unchanged. */
   name: string;
+  /** Added alongside `name` so the add/edit forms and CSV import (which offers separate
+   *  first_name/last_name columns) can capture and edit each part individually.
+   *  Optional because rows created before this field existed only have `name`. */
+  firstName?: string;
+  lastName?: string;
   email: string;
   outlet: string;
   position?: string;

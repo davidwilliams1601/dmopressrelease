@@ -19,6 +19,7 @@ import { useFirestore } from '@/firebase';
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc, serverTimestamp, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { joinFullName } from '@/lib/utils';
 
 type NewRecipientDialogProps = {
   orgId: string;
@@ -47,10 +48,15 @@ export function NewRecipientDialog({ orgId, listId }: NewRecipientDialogProps) {
         'recipients'
       );
 
+      const firstName = (formData.get('firstName') as string) || '';
+      const lastName = (formData.get('lastName') as string) || '';
+
       await addDocumentNonBlocking(recipientsRef, {
         orgId,
         outletListId: listId,
-        name: formData.get('name') as string,
+        name: joinFullName(firstName, lastName),
+        firstName,
+        lastName,
         email: formData.get('email') as string,
         outlet: formData.get('outlet') as string,
         position: formData.get('position') as string || '',
@@ -103,15 +109,26 @@ export function NewRecipientDialog({ orgId, listId }: NewRecipientDialogProps) {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Contact Name *</Label>
+                <Label htmlFor="firstName">First Name *</Label>
                 <Input
-                  id="name"
-                  name="name"
-                  placeholder="e.g., Jane Smith"
+                  id="firstName"
+                  name="firstName"
+                  placeholder="e.g., Jane"
                   required
                 />
               </div>
 
+              <div className="grid gap-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  name="lastName"
+                  placeholder="e.g., Smith"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="email">Email Address *</Label>
                 <Input
@@ -122,9 +139,7 @@ export function NewRecipientDialog({ orgId, listId }: NewRecipientDialogProps) {
                   required
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="outlet">Outlet/Publication *</Label>
                 <Input
@@ -134,15 +149,15 @@ export function NewRecipientDialog({ orgId, listId }: NewRecipientDialogProps) {
                   required
                 />
               </div>
+            </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="position">Position</Label>
-                <Input
-                  id="position"
-                  name="position"
-                  placeholder="e.g., Travel Editor"
-                />
-              </div>
+            <div className="grid gap-2">
+              <Label htmlFor="position">Position</Label>
+              <Input
+                id="position"
+                name="position"
+                placeholder="e.g., Travel Editor"
+              />
             </div>
 
             <div className="grid gap-2">
