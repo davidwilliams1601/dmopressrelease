@@ -83,7 +83,7 @@ export default function ReleaseDetailPage() {
       />
 
       <SmartDistributionFocusCard release={releaseDoc.data} orgId={orgId!} />
-      <RecommendationList release={releaseDoc.data} orgId={orgId!} />
+      <RecommendationList release={releaseDoc.data} orgId={orgId!} organization={organization} />
 
       {/* Analytics Section - Only show for sent releases */}
       {releaseDoc.data.status === 'Sent' && (

@@ -17,12 +17,13 @@ import { collection, query, where } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import { OUTLET_TYPE_LABEL_BY_VALUE } from '@/lib/media-taxonomy';
-import type { Release, RecommendationSnapshot, RecommendationMatchBand } from '@/lib/types';
+import type { Release, RecommendationSnapshot, RecommendationMatchBand, Organization } from '@/lib/types';
 import { Sparkles, Loader2, EyeOff, Check, X, Coins, Users } from 'lucide-react';
 
 type RecommendationListProps = {
   release: Release;
   orgId: string;
+  organization?: Organization | null;
 };
 
 const BAND_ORDER: Record<RecommendationMatchBand, number> = { strong: 0, good: 1, possible: 2 };
@@ -50,7 +51,7 @@ function outletLabel(value: string): string {
  * docs/smart-distribution/import-wizard-and-credits.md §5 for the target copy this
  * mirrors.
  */
-export function RecommendationList({ release, orgId }: RecommendationListProps) {
+export function RecommendationList({ release, orgId, organization }: RecommendationListProps) {
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -127,7 +128,14 @@ export function RecommendationList({ release, orgId }: RecommendationListProps) 
     }
   };
 
-  if (release.approvalStatus !== 'approved') {
+  // Approval is an optional, org-level review step (Professional plan and above
+  // — see organization.approvalWorkflowEnabled in Settings). Orgs that haven't
+  // enabled it (including every Starter-tier org, which can't enable it at all)
+  // should still be able to generate and review recommendations — nothing sends
+  // automatically either way, since a human still has to select contacts and
+  // accept the send. Only gate on approval when the org has actually opted in.
+  const approvalRequired = organization?.approvalWorkflowEnabled === true;
+  if (approvalRequired && release.approvalStatus !== 'approved') {
     return (
       <Card>
         <CardHeader>
