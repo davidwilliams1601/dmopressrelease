@@ -86,10 +86,12 @@ function extractMetadataFromEvent(event: any): {
 /**
  * QA fix (2026-08-20): whether a SendJobRecipient row is a network-sourced Smart
  * Distribution contact (`source === 'smart_distribution_recommendation'` with a
- * `networkContactId`) rather than a customer-owned outlet contact. Used to decide
+ * `networkContactRef`) rather than a customer-owned outlet contact. Used to decide
  * whether the raw email address may be written into a team-readable document.
  * Fails safe: any read error is treated as network-sourced (the more restrictive
  * outcome) rather than risking a leak.
+ * QA fix (H1): checks the opaque `networkContactRef` field, not the old raw
+ * `networkContactId` (which no longer exists on this client-readable row).
  */
 async function isNetworkSourcedRecipient(
   orgId: string,
@@ -107,7 +109,7 @@ async function isNetworkSourcedRecipient(
       return true;
     }
     const data = recipientSnap.data()!;
-    return data.source === 'smart_distribution_recommendation' && !!data.networkContactId;
+    return data.source === 'smart_distribution_recommendation' && !!data.networkContactRef;
   } catch (error) {
     console.error(`[webhook] Failed to check recipient source for ${sendJobRecipientId}, failing safe:`, error);
     return true;
@@ -151,9 +153,17 @@ async function handleSmartDistributionRecipientEvent(
     const recipient = recipientSnap.data()!;
 
     if (event.event === 'delivered') {
-      // Only advance pending -> delivered; never overwrite a later bounce/refund state
-      // that a prior (out-of-order) webhook delivery may have already recorded.
-      if (recipient.deliveryStatus === 'pending') {
+      // QA fix (H7): bounced_soft is documented as an interim status — "credit held,
+      // resolved automatically once final status known" (see the isSoftBounce branch
+      // below) — not a terminal one. Previously this only advanced pending -> delivered,
+      // so once a soft bounce landed, a later 'delivered' event for the same recipient
+      // (SendGrid retried the deferred message and it succeeded) had no way to ever mark
+      // the recipient delivered: it stayed stuck at bounced_soft forever, with its credit
+      // reservation never resolved either way. Advance from bounced_soft too, but still
+      // protect the true terminal states (bounced_hard, failed) and an existing delivered
+      // from being overwritten by a stale, out-of-order 'delivered' webhook — same intent
+      // as the original guard.
+      if (recipient.deliveryStatus === 'pending' || recipient.deliveryStatus === 'bounced_soft') {
         await recipientRef.update({ deliveryStatus: 'delivered', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       }
       return;
@@ -170,6 +180,19 @@ async function handleSmartDistributionRecipientEvent(
     }
 
     if (isHardBounceOrDrop) {
+      // QA fix (H7): a hard bounce/drop already supersedes bounced_soft with no extra
+      // guard needed here (bounced_soft -> bounced_hard/failed was always allowed) — this
+      // is the other half of "later terminal event supersedes bounced_soft". What it must
+      // NOT do is downgrade a recipient that's already reached a terminal state, so a
+      // stale, out-of-order hard-bounce webhook can't re-trigger a second refund attempt
+      // or flip an already-delivered/failed/bounced_hard row backwards.
+      if (
+        recipient.deliveryStatus === 'delivered' ||
+        recipient.deliveryStatus === 'bounced_hard' ||
+        recipient.deliveryStatus === 'failed'
+      ) {
+        return;
+      }
       const newStatus = event.event === 'dropped' ? 'failed' : 'bounced_hard';
       const canRefund =
         recipient.source === 'smart_distribution_recommendation' &&
@@ -226,6 +249,48 @@ function isValidTimestamp(ts: any): boolean {
  * check would then reject every webhook call permanently, secret or not.
  */
 export const SENDGRID_WEBHOOK_VERIFICATION_KEY = 'SENDGRID_WEBHOOK_VERIFICATION_KEY';
+
+/**
+ * QA fix (H9): transactionally claims a single webhook event's deterministic ID and,
+ * only if it hasn't been claimed already, writes the event doc and increments every
+ * associated counter (best-effort parent counter, distributed shard, and daily
+ * aggregate) in that same transaction. Returns true if this call newly claimed the
+ * event (counters were incremented), false if it was already claimed by an earlier
+ * delivery of the same event (a pure no-op — safe and expected for SendGrid's
+ * at-least-once, retry-on-non-2xx delivery model).
+ */
+async function claimWebhookEventAndIncrementCounters(op: {
+  eventRef: FirebaseFirestore.DocumentReference;
+  dailyRef: FirebaseFirestore.DocumentReference;
+  eventData: any;
+  statRef: FirebaseFirestore.DocumentReference;
+  eventType: string;
+}): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const existing = await tx.get(op.eventRef);
+    if (existing.exists) {
+      // Already claimed by a prior delivery of this exact event — no-op.
+      return false;
+    }
+
+    tx.set(op.eventRef, op.eventData);
+
+    if (op.eventType === 'open' || op.eventType === 'click') {
+      const field = op.eventType === 'open' ? 'opens' : 'clicks';
+      // Keep best-effort counter on the parent doc for backwards compatibility
+      tx.update(op.statRef, { [field]: admin.firestore.FieldValue.increment(1) });
+      // Write to distributed counter shard (source of truth)
+      const shardId = Math.floor(Math.random() * NUM_SHARDS);
+      const shardRef = op.statRef.collection('counters').doc(`shard_${shardId}`);
+      tx.set(shardRef, { [field]: admin.firestore.FieldValue.increment(1) }, { merge: true });
+    }
+
+    // Write daily aggregate stats
+    tx.set(op.dailyRef, { [op.eventType]: admin.firestore.FieldValue.increment(1) }, { merge: true });
+
+    return true;
+  });
+}
 
 /**
  * Cloud Function to handle SendGrid webhook events
@@ -383,42 +448,29 @@ export const handleSendGridWebhook = functions
       }
     }
 
-    // Commit in batches (each event uses up to 4 ops: event + parent counter + shard + daily)
-    const BATCH_LIMIT = 125;
+    // QA fix (H9): claim each event's deterministic ID transactionally before touching
+    // any counter, instead of batching an unconditional `batch.set` + `increment(1)`
+    // pair together. The deterministic eventId already prevented a *duplicate event
+    // document* on a webhook retry/replay, but the counter increments below ran
+    // unconditionally in the same batch regardless of whether that event doc already
+    // existed — so a replayed 'open'/'click' delivery (SendGrid explicitly documents
+    // at-least-once delivery with retries) double-counted analytics even though no
+    // duplicate event row was ever created. Reading eventRef and writing the event doc
+    // + every counter inside one transaction makes the whole claim atomic: if the event
+    // was already claimed by a prior delivery, this is a no-op (treated as a successful,
+    // idempotent re-delivery, not an error) and nothing is incremented a second time.
+    const CONCURRENCY = 20;
     let totalCommitted = 0;
+    let totalDuplicates = 0;
 
-    for (let i = 0; i < operations.length; i += BATCH_LIMIT) {
-      const chunk = operations.slice(i, i + BATCH_LIMIT);
-      const batch = db.batch();
-
-      for (const op of chunk) {
-        batch.set(op.eventRef, op.eventData);
-
-        if (op.eventType === 'open') {
-          // Keep best-effort counter on the parent doc for backwards compatibility
-          batch.update(op.statRef, { opens: admin.firestore.FieldValue.increment(1) });
-          // Write to distributed counter shard (source of truth)
-          const shardId = Math.floor(Math.random() * NUM_SHARDS);
-          const shardRef = op.statRef.collection('counters').doc(`shard_${shardId}`);
-          batch.set(shardRef, { opens: admin.firestore.FieldValue.increment(1) }, { merge: true });
-        } else if (op.eventType === 'click') {
-          // Keep best-effort counter on the parent doc for backwards compatibility
-          batch.update(op.statRef, { clicks: admin.firestore.FieldValue.increment(1) });
-          // Write to distributed counter shard (source of truth)
-          const shardId = Math.floor(Math.random() * NUM_SHARDS);
-          const shardRef = op.statRef.collection('counters').doc(`shard_${shardId}`);
-          batch.set(shardRef, { clicks: admin.firestore.FieldValue.increment(1) }, { merge: true });
-        }
-
-        // Write daily aggregate stats
-        batch.set(op.dailyRef, { [op.eventType]: admin.firestore.FieldValue.increment(1) }, { merge: true });
-      }
-
-      await batch.commit();
-      totalCommitted += chunk.length;
+    for (let i = 0; i < operations.length; i += CONCURRENCY) {
+      const chunk = operations.slice(i, i + CONCURRENCY);
+      const claimed = await Promise.all(chunk.map((op) => claimWebhookEventAndIncrementCounters(op)));
+      totalCommitted += claimed.filter(Boolean).length;
+      totalDuplicates += claimed.filter((wasClaimed) => !wasClaimed).length;
     }
 
-    console.log(`Successfully stored ${totalCommitted} events`);
+    console.log(`Successfully stored ${totalCommitted} events (${totalDuplicates} duplicate deliveries skipped)`);
     res.status(200).send('OK');
   } catch (error) {
     console.error('Error processing webhook:', error);

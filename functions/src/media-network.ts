@@ -307,9 +307,19 @@ export const updateMediaNetworkContactStatus = functions.https.onCall(async (dat
 });
 
 /**
- * Publishes a batch: flips every contact still at networkStatus 'review' within that
- * batch to 'active' (contacts a superadmin already individually suppressed/archived
- * during review are left as-is). Marks the batch itself 'published'. Superadmin only.
+ * Publishes a batch: marks the batch itself 'published' once every contact in it has
+ * an explicit decision (networkStatus !== 'review'). Superadmin only.
+ *
+ * QA fix (H5): previously this bulk-flipped every remaining 'review' contact straight
+ * to 'active' with no confirmation, so any contact a superadmin hadn't gotten around
+ * to individually approving/rejecting was silently auto-approved on Publish — for a
+ * media-network import that means an un-vetted contact (raw identity, unconfirmed
+ * consent/rights) could enter the network and become recommendable without anyone
+ * actually deciding it belonged there. Publish now hard-blocks (server-side, so this
+ * can't be bypassed by calling the callable directly) while any contact in the batch
+ * is still undecided; the superadmin must explicitly Approve or Reject every row via
+ * updateMediaNetworkContactStatus first. There is nothing left to bulk-activate at
+ * publish time — every 'active' row already got there via an explicit decision.
  *
  * This is the only path that makes a network contact recommendable — see Phase 3's
  * matching function, which will only ever draw from networkStatus == 'active'.
@@ -328,27 +338,29 @@ export const publishMediaNetworkBatch = functions.https.onCall(async (data, cont
     throw new functions.https.HttpsError('not-found', 'Batch not found.');
   }
 
-  const snapshot = await db
+  const reviewSnapshot = await db
     .collection('mediaNetworkContacts')
     .where('provenance.importBatchId', '==', batchId)
     .where('networkStatus', '==', 'review')
     .get();
 
-  const writer = db.bulkWriter();
-  writer.onWriteError((err) => err.failedAttempts < 3);
+  if (!reviewSnapshot.empty) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      `${reviewSnapshot.size} contact${reviewSnapshot.size !== 1 ? 's' : ''} in this batch still ` +
+        `${reviewSnapshot.size !== 1 ? 'have' : 'has'} no decision. Approve or reject every contact before publishing.`
+    );
+  }
 
-  snapshot.forEach((doc) => {
-    writer.update(doc.ref, {
-      networkStatus: 'active',
-      'provenance.rightsReviewStatus': 'approved',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  });
-  writer.update(batchRef, { status: 'published' });
+  const activeSnapshot = await db
+    .collection('mediaNetworkContacts')
+    .where('provenance.importBatchId', '==', batchId)
+    .where('networkStatus', '==', 'active')
+    .get();
 
-  await writer.close();
+  await batchRef.update({ status: 'published' });
 
-  console.log(`[publishMediaNetworkBatch] ${context.auth!.uid} published batch ${batchId}: ${snapshot.size} contacts activated.`);
+  console.log(`[publishMediaNetworkBatch] ${context.auth!.uid} published batch ${batchId}: ${activeSnapshot.size} active contacts.`);
 
-  return { success: true, publishedCount: snapshot.size };
+  return { success: true, publishedCount: activeSnapshot.size };
 });

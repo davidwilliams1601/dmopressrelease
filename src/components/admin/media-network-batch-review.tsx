@@ -97,6 +97,9 @@ export function MediaNetworkBatchReview({
     }
   };
 
+  // QA fix (H5): reviewCount now gates Publish entirely (see disabled prop below) instead
+  // of just being informational text — the server callable enforces the same rule, so this
+  // is a UX convenience, not the actual safeguard.
   const reviewCount = contacts.filter((c) => c.networkStatus === 'review').length;
 
   return (
@@ -182,16 +185,22 @@ export function MediaNetworkBatchReview({
         )}
 
         <div className="flex items-center justify-between pt-2">
-          <p className="text-sm text-muted-foreground">
+          <p className={`text-sm ${reviewCount > 0 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
             {reviewCount > 0
-              ? `${reviewCount} contact${reviewCount !== 1 ? 's' : ''} still awaiting a decision — publishing will activate them as-is.`
+              ? `${reviewCount} contact${reviewCount !== 1 ? 's' : ''} still awaiting a decision — approve or reject every contact to publish.`
               : 'Every contact in this batch has a decision.'}
           </p>
-          <Button onClick={handlePublish} disabled={isPublishing || batch?.status === 'published'}>
+          <Button
+            onClick={handlePublish}
+            disabled={isPublishing || batch?.status === 'published' || reviewCount > 0}
+            title={reviewCount > 0 ? 'Decide every contact in this batch before publishing.' : undefined}
+          >
             {isPublishing ? (
               <><Loader2 className="h-4 w-4 animate-spin" /> Publishing…</>
             ) : batch?.status === 'published' ? (
               'Already published'
+            ) : reviewCount > 0 ? (
+              <><ShieldAlert className="h-4 w-4" /> {reviewCount} undecided</>
             ) : (
               <><AlertCircle className="h-4 w-4" /> Publish batch</>
             )}
