@@ -382,10 +382,24 @@ export const generateRecommendations = functions.https.onCall(async (data, conte
     .where('decision', '==', 'pending')
     .get();
 
-  const batch = db.batch();
-  for (const doc of existingSnap.docs) {
-    batch.delete(doc.ref);
+  // QA fix (Medium): the previous code deleted every existing pending snapshot and
+  // wrote every new one inside a single shared db.batch(). Firestore batches cap out
+  // at 500 operations; a story with more than ~450 existing pending rows (each one
+  // delete op) combined with the new writes below (each up to 2 ops, thanks to the
+  // H1 stageNetworkContactRef companion write) would exceed that limit and throw,
+  // failing the whole regeneration. Deletes are now chunked into their own batches
+  // (well under the 500-op ceiling) and committed independently of the new-write
+  // batch, so an arbitrarily large existing snapshot set can never blow the limit.
+  const DELETE_BATCH_SIZE = 400;
+  for (let i = 0; i < existingSnap.docs.length; i += DELETE_BATCH_SIZE) {
+    const deleteBatch = db.batch();
+    for (const doc of existingSnap.docs.slice(i, i + DELETE_BATCH_SIZE)) {
+      deleteBatch.delete(doc.ref);
+    }
+    await deleteBatch.commit();
   }
+
+  const batch = db.batch();
 
   const snapshotsCollection = db.collection('orgs').doc(orgId).collection('recommendationSnapshots');
   const now = admin.firestore.FieldValue.serverTimestamp();

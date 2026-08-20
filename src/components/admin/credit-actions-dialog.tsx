@@ -10,6 +10,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -64,6 +74,20 @@ export function CreditActionsDialog({ orgId, orgName, onUpdated }: CreditActions
   const [suspendNote, setSuspendNote] = useState('');
   const [isSuspending, setIsSuspending] = useState(false);
 
+  // QA fix (Medium): every credit-ledger action here is irreversible-in-spirit (a
+  // grant/refund/adjustment/reversal immediately changes a real, billable balance)
+  // and suspend/re-enable immediately changes whether the org can send at all — yet
+  // previously both fired straight off a single click with no "are you sure", unlike
+  // every other consequential action in this app (e.g. the H3 send-dialog confirm
+  // step). `pendingConfirm` holds a human-readable summary of whatever action is
+  // awaiting a final confirm click; nothing actually executes until the admin
+  // explicitly confirms in the AlertDialog below.
+  const [pendingConfirm, setPendingConfirm] = useState<
+    | { kind: 'action'; summary: string }
+    | { kind: 'suspend'; next: boolean; summary: string }
+    | null
+  >(null);
+
   const loadSummary = async () => {
     setIsSummaryLoading(true);
     try {
@@ -97,7 +121,7 @@ export function CreditActionsDialog({ orgId, orgName, onUpdated }: CreditActions
     }
   };
 
-  const runAction = async () => {
+  const requestAction = () => {
     const parsedQuantity = parseFloat(quantity);
     if (action !== 'reversal' && (isNaN(parsedQuantity) || (action === 'adjustment' ? parsedQuantity === 0 : parsedQuantity <= 0))) {
       toast({ title: 'Invalid quantity', description: action === 'adjustment' ? 'Enter a non-zero number.' : 'Enter a positive number.', variant: 'destructive' });
@@ -116,6 +140,18 @@ export function CreditActionsDialog({ orgId, orgName, onUpdated }: CreditActions
       return;
     }
 
+    const summary =
+      action === 'grant' ? `Grant ${parsedQuantity} credit(s) to ${orgName}.`
+      : action === 'purchase' ? `Record a purchase of ${parsedQuantity} credit(s) for ${orgName}.`
+      : action === 'refund' ? `Refund ${parsedQuantity} credit(s) to ${orgName} for campaign "${campaignId.trim()}".`
+      : action === 'adjustment' ? `Apply a ${parsedQuantity > 0 ? '+' : ''}${parsedQuantity} credit adjustment to ${orgName}.`
+      : `Reverse transaction ${transactionId.trim()} for ${orgName}.`;
+
+    setPendingConfirm({ kind: 'action', summary });
+  };
+
+  const runAction = async () => {
+    const parsedQuantity = parseFloat(quantity);
     setIsLoading(true);
     try {
       const functions = getFunctions();
@@ -158,7 +194,18 @@ export function CreditActionsDialog({ orgId, orgName, onUpdated }: CreditActions
       toast({ title: 'Action failed', description: err.message || 'The credit action could not be completed.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
+      setPendingConfirm(null);
     }
+  };
+
+  const requestSuspendToggle = (next: boolean) => {
+    setPendingConfirm({
+      kind: 'suspend',
+      next,
+      summary: next
+        ? `Suspend Smart Distribution for ${orgName}. New recommendations and sends to network contacts will be blocked immediately.`
+        : `Re-enable Smart Distribution for ${orgName}.`,
+    });
   };
 
   const handleSuspendToggle = async (next: boolean) => {
@@ -175,6 +222,16 @@ export function CreditActionsDialog({ orgId, orgName, onUpdated }: CreditActions
       toast({ title: 'Action failed', description: err.message, variant: 'destructive' });
     } finally {
       setIsSuspending(false);
+      setPendingConfirm(null);
+    }
+  };
+
+  const handleConfirm = () => {
+    if (!pendingConfirm) return;
+    if (pendingConfirm.kind === 'suspend') {
+      handleSuspendToggle(pendingConfirm.next);
+    } else {
+      runAction();
     }
   };
 
@@ -205,7 +262,7 @@ export function CreditActionsDialog({ orgId, orgName, onUpdated }: CreditActions
             {suspended && <Badge variant="destructive">Suspended</Badge>}
             <div className="flex items-center gap-2">
               <Label htmlFor="suspend-toggle" className="text-sm">Suspend Smart Distribution</Label>
-              <Switch id="suspend-toggle" checked={suspended} disabled={isSuspending} onCheckedChange={handleSuspendToggle} />
+              <Switch id="suspend-toggle" checked={suspended} disabled={isSuspending} onCheckedChange={requestSuspendToggle} />
             </div>
           </div>
         </div>
@@ -248,7 +305,7 @@ export function CreditActionsDialog({ orgId, orgName, onUpdated }: CreditActions
               <Label htmlFor="reasonNote">Reason (visible to the organisation)</Label>
               <Textarea id="reasonNote" value={reasonNote} onChange={(e) => setReasonNote(e.target.value)} placeholder="Why is this change happening?" />
             </div>
-            <Button onClick={runAction} disabled={isLoading} className="w-full">
+            <Button onClick={requestAction} disabled={isLoading} className="w-full">
               {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Recording…</> : `Record ${action}`}
             </Button>
           </TabsContent>
@@ -293,6 +350,22 @@ export function CreditActionsDialog({ orgId, orgName, onUpdated }: CreditActions
           <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* QA fix (Medium): final confirmation gate for credit actions and suspend/re-enable. */}
+      <AlertDialog open={!!pendingConfirm} onOpenChange={(v) => { if (!v) setPendingConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm this action</AlertDialogTitle>
+            <AlertDialogDescription>{pendingConfirm?.summary}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading || isSuspending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirm} disabled={isLoading || isSuspending}>
+              {isLoading || isSuspending ? <><Loader2 className="h-4 w-4 animate-spin" /> Confirming…</> : 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

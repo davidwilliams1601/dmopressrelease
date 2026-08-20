@@ -265,12 +265,19 @@ service cloud.firestore {
     /**
      * @description Superadmin accountability trail for raw network-identity reads and
      *              credit-ledger mutations.
-     * @path /auditLogs/{logId}
-     * @principle Platform-level, not org-scoped. Superadmins may read their own trail;
-     *            written only by Cloud Functions (media-network.ts, credits.ts).
+     * @path /auditLogs/{actorUid}/entries/{logId}
+     * @principle Platform-level, not org-scoped. Superadmins may read only their OWN
+     *            trail; written only by Cloud Functions (media-network.ts, credits.ts).
+     *            QA fix (M11): this was previously a flat /auditLogs/{logId} collection
+     *            with `allow read: if isSuperAdmin()`, which let ANY superadmin list/read
+     *            EVERY superadmin's entries — contradicting this same comment's "read
+     *            their own trail" intent, since a collection-level `list` rule has no
+     *            resource.data to check per returned document. Nesting entries under the
+     *            acting superadmin's uid lets the rule scope both `get` and `list` purely
+     *            from the path, via the `actorUid` wildcard below.
      */
-    match /auditLogs/{logId} {
-      allow read: if isSuperAdmin();
+    match /auditLogs/{actorUid}/entries/{logId} {
+      allow read: if isSuperAdmin() && request.auth.uid == actorUid;
       allow write: if false;
     }
 

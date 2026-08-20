@@ -69,6 +69,42 @@ const DEFAULT_MEDIA_TAXONOMY: Record<MediaTaxonomyCategory, string[]> = {
   ],
 };
 
+/** Maps the OutletType controlled-taxonomy label to the enum value stored on
+ *  MediaNetworkContact.outlet.type / Recipient.outletType. Server-side mirror of
+ *  src/lib/media-taxonomy.ts's OUTLET_TYPE_VALUE_BY_LABEL — kept in sync manually,
+ *  same convention as DEFAULT_MEDIA_TAXONOMY above. */
+export const OUTLET_TYPE_VALUE_BY_LABEL: Record<string, string> = {
+  'Trade publication': 'trade',
+  'Local news': 'local-news',
+  'National news': 'national-news',
+  Newsletter: 'newsletter',
+  Podcast: 'podcast',
+  Broadcast: 'broadcast',
+  'Creator / influencer': 'creator',
+};
+
+/**
+ * Normalises a raw outlet-type string into the controlled kebab-case enum value.
+ * QA fix (Medium): server-side defence in depth so a client bug (or a future direct
+ * API caller) can't silently persist an un-normalised label — mirrors the client
+ * helper of the same name in src/lib/media-taxonomy.ts.
+ */
+export function normaliseOutletTypeLabel(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  const exact = OUTLET_TYPE_VALUE_BY_LABEL[trimmed];
+  if (exact) return exact;
+  const caseInsensitive = Object.entries(OUTLET_TYPE_VALUE_BY_LABEL).find(
+    ([label]) => label.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (caseInsensitive) return caseInsensitive[1];
+  if (Object.values(OUTLET_TYPE_VALUE_BY_LABEL).includes(trimmed)) return trimmed;
+  return trimmed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 /**
  * Get the current curated media-contact taxonomy (editorial focus, geography, outlet
  * type, topics). Super-admin only — this callable powers the admin console's editing

@@ -42,6 +42,7 @@ import {
   parseAudienceScope,
   NETWORK_SOURCE_TYPE_OPTIONS,
   type MediaNetworkSourceType,
+  normaliseOutletTypeLabel,
 } from '@/lib/media-taxonomy';
 
 type Step = 'upload' | 'source' | 'map' | 'validate';
@@ -193,7 +194,11 @@ export function MediaNetworkImportWizard({ onImported }: { onImported: () => voi
         role: values.role,
         profileUrl: values.profileUrl,
         outletName: values.outletName,
-        outletType: values.outletType,
+        // QA fix (Medium): normalise the raw CSV label (e.g. "Trade publication") to
+        // the controlled kebab-case value ("trade") that MediaNetworkContact.outlet.type
+        // actually stores — previously written raw, which silently broke every
+        // downstream equality match against this field (see media-taxonomy.ts).
+        outletType: values.outletType ? normaliseOutletTypeLabel(values.outletType) : values.outletType,
         location: values.location,
         audienceScope: values.audienceScope ? parseAudienceScope(values.audienceScope) : undefined,
         editorialFocus: values.editorialFocus ? splitListCell(values.editorialFocus) : [],

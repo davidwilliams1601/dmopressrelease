@@ -69,7 +69,8 @@ recommendation for someone they already have listed by name.
 
 Editorial focus, geography, outlet type and topics are all controlled taxonomy IDs, following
 the existing pattern in `theme-taxonomy-card.tsx` / `vertical-categories-card.tsx`, stored in
-`platform/mediaTaxonomy` and readable by any signed-in user. New terms can be proposed during
+`platform/config` (field `mediaTaxonomy`; QA fix: doc previously said `platform/mediaTaxonomy`,
+a naming drift vs. the actual implementation) and readable by any signed-in user. New terms can be proposed during
 import ("we didn't recognise 'Sustainability & ESG' — add it to the taxonomy?") but are only
 written by a superadmin-approved action, keeping the vocabulary consistent across all
 organisations and therefore usable for matching.

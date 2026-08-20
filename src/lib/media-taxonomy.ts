@@ -77,6 +77,37 @@ export const OUTLET_TYPE_LABEL_BY_VALUE: Record<string, string> = Object.fromEnt
   Object.entries(OUTLET_TYPE_VALUE_BY_LABEL).map(([label, value]) => [value, label])
 );
 
+/**
+ * Normalises a raw outlet-type cell (as typed by a customer in a CSV, or picked from a
+ * dropdown that still shows the human-readable label) into the controlled kebab-case
+ * enum value that Recipient.outletType / MediaNetworkContact.outlet.type actually store.
+ *
+ * QA fix (Medium): both import wizards previously wrote the raw label straight through
+ * (e.g. "Trade publication") even though this lookup table already existed, which
+ * silently broke every downstream equality-based match against the enum value (outlet
+ * type filters, OUTLET_TYPE_LABEL_BY_VALUE display, and Smart Distribution's own
+ * matching logic in recommendations.ts). Falls back to a best-effort kebab-slug for a
+ * genuinely free-text value that matches nothing in the known label list, rather than
+ * either crashing the import or silently keeping unnormalised text with spaces/case
+ * that will never match anything again.
+ */
+export function normaliseOutletTypeLabel(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  const exact = OUTLET_TYPE_VALUE_BY_LABEL[trimmed];
+  if (exact) return exact;
+  const caseInsensitive = Object.entries(OUTLET_TYPE_VALUE_BY_LABEL).find(
+    ([label]) => label.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (caseInsensitive) return caseInsensitive[1];
+  // Already looks like a normalised kebab value (e.g. re-importing our own export).
+  if (Object.values(OUTLET_TYPE_VALUE_BY_LABEL).includes(trimmed)) return trimmed;
+  return trimmed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 export const RELATIONSHIP_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'unknown', label: 'Unknown' },
   { value: 'known', label: 'Known contact' },

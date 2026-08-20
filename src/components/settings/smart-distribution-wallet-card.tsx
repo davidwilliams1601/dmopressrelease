@@ -68,6 +68,34 @@ export function SmartDistributionWalletCard({ orgId }: SmartDistributionWalletCa
     return <Skeleton className="h-64 w-full rounded-xl" />;
   }
 
+  // QA fix (M9): a failed walletQuery read (e.g. a transient/network error, which
+  // use-doc.tsx handles locally rather than crashing the page) previously fell through
+  // to `wallet?.balance ?? 0`, showing "0 credits" — indistinguishable from a genuinely
+  // empty/zero wallet — which could wrongly make an org believe Smart Distribution sends
+  // are unavailable to them. Surface the failure instead of guessing a balance.
+  if (walletQuery.error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline flex items-center gap-2">
+            <Coins className="h-5 w-5 text-primary" />
+            Smart Distribution credits
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Couldn&apos;t load your credit balance</AlertTitle>
+            <AlertDescription>
+              {walletQuery.error.message || 'Something went wrong loading your wallet.'} Try
+              refreshing the page — this isn&apos;t necessarily a zero balance.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const balance = wallet?.balance ?? 0;
 
   return (
@@ -101,7 +129,14 @@ export function SmartDistributionWalletCard({ orgId }: SmartDistributionWalletCa
           </Alert>
         )}
 
-        {transactions.length === 0 ? (
+        {transactionsQuery.error ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Couldn&apos;t load your recent credit activity. Try refreshing the page.
+            </AlertDescription>
+          </Alert>
+        ) : transactions.length === 0 ? (
           <p className="text-sm text-muted-foreground">No credit activity yet.</p>
         ) : (
           <div className="overflow-x-auto">

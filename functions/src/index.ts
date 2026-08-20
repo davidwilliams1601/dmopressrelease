@@ -624,24 +624,44 @@ export const cancelScheduledSend = functions.https.onCall(async (data, context) 
     .collection('sendJobs')
     .doc(sendJobId);
 
-  const jobDoc = await jobRef.get();
-  if (!jobDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Send job not found.');
+  // QA fix (Medium): cancellation race. This previously read the job's status with a
+  // plain (non-transactional) .get() and then wrote 'cancelled' with a plain .update(),
+  // with no atomicity between the two. processScheduledSendJobs (and processSendJob's
+  // H6 claim) runs its own compare-and-set transaction that flips 'scheduled' -> 
+  // 'processing' right before dispatching. If that transaction commits in the window
+  // between this function's read and its write, the plain update here would stomp
+  // 'processing' back to 'cancelled' — the UI shows "cancelled" and zero credits were
+  // meant to be spent, but the scheduler has already claimed the job and executeSendJob
+  // is (or is about to start) actively dispatching and charging credits underneath it.
+  // Wrapping the read-check-write in the same kind of transaction the scheduler uses
+  // makes this a real compare-and-set: whichever side's transaction commits first wins
+  // the 'scheduled' status atomically, and the loser sees a status that is no longer
+  // 'scheduled' and fails cleanly instead of overwriting an in-flight dispatch.
+  let jobData: FirebaseFirestore.DocumentData;
+  try {
+    jobData = await db.runTransaction(async (txn) => {
+      const freshDoc = await txn.get(jobRef);
+      if (!freshDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Send job not found.');
+      }
+      const data = freshDoc.data()!;
+      if (data.status !== 'scheduled') {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          `Cannot cancel a send job with status "${data.status}". Only scheduled jobs can be cancelled ` +
+            '(it may have already started dispatching).'
+        );
+      }
+      txn.update(jobRef, {
+        status: 'cancelled',
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return data;
+    });
+  } catch (err) {
+    if (err instanceof functions.https.HttpsError) throw err;
+    throw new functions.https.HttpsError('internal', 'Failed to cancel send job.');
   }
-
-  const jobData = jobDoc.data()!;
-  if (jobData.status !== 'scheduled') {
-    throw new functions.https.HttpsError(
-      'failed-precondition',
-      `Cannot cancel a send job with status "${jobData.status}". Only scheduled jobs can be cancelled.`
-    );
-  }
-
-  // Cancel the send job
-  await jobRef.update({
-    status: 'cancelled',
-    cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
 
   // Revert release status to Ready if it was set to Scheduled
   const releaseRef = db
