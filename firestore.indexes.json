@@ -113,6 +113,16 @@
       ]
     },
     {
+      "collectionGroup": "recipients",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "orgId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "recommendationSnapshots",
       "queryScope": "COLLECTION",
       "fields": [
