@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toDate } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -332,7 +333,7 @@ export function CreditActionsDialog({ orgId, orgName, onUpdated }: CreditActions
                 {transactions.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="text-xs whitespace-nowrap">
-                      {t.createdAt?.toDate ? format(t.createdAt.toDate(), 'd MMM yyyy HH:mm') : '—'}
+                      {t.createdAt ? format(toDate(t.createdAt), 'd MMM yyyy HH:mm') : '—'}
                     </TableCell>
                     <TableCell><Badge variant="outline">{t.type}</Badge></TableCell>
                     <TableCell className={`text-right ${t.quantity < 0 ? 'text-destructive' : 'text-green-600'}`}>{t.quantity > 0 ? `+${t.quantity}` : t.quantity}</TableCell>

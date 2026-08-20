@@ -1,3 +1,18 @@
+import type { Timestamp } from 'firebase/firestore';
+
+/**
+ * QA fix (Low): every persisted timestamp field below used to be typed `Date | any`,
+ * which removed compile-time protection at exactly the Firestore read/write boundary
+ * (the `any` half accepted anything — a string, a number, undefined — with the compiler
+ * silently allowing whatever the calling code did with it). Firestore reads genuinely
+ * return a `Timestamp` object (not a `Date`) until something calls `.toDate()` on it, and
+ * a fresh client-side write is a real `Date`, so `Date | Timestamp` is the honest type for
+ * a field that may be read fresh off a snapshot or freshly constructed before being
+ * written — not `any`. Use the `toDate()` helper in src/lib/utils.ts to normalise either
+ * shape into a plain `Date` before calling Date-only methods like `.getTime()`.
+ */
+export type FirestoreTimestamp = Date | Timestamp;
+
 export type VerticalId = 'dmo' | 'charity' | 'trade-body' | 'publisher' | 'education';
 
 /** Curated UK region/nation options for Organization.region — see src/lib/regions.ts. */
@@ -99,7 +114,7 @@ export type User = {
   initials: string;
   orgId: string;
   role: 'Admin' | 'User' | 'Partner';
-  createdAt: Date | any;
+  createdAt: FirestoreTimestamp;
   inviteId?: string;
   businessDescription?: string;
   businessCategories?: string[];
@@ -122,8 +137,8 @@ export type Release = {
   slug: string;
   bodyCopy?: string;
   status: 'Draft' | 'Ready' | 'Sent' | 'Scheduled';
-  createdAt: Date | any; // Can be Date or Firestore Timestamp
-  updatedAt?: Date | any; // Can be Date or Firestore Timestamp
+  createdAt: FirestoreTimestamp; // Can be Date or Firestore Timestamp
+  updatedAt?: FirestoreTimestamp; // Can be Date or Firestore Timestamp
   sends?: number;
   opens?: number;
   clicks?: number;
@@ -134,17 +149,17 @@ export type Release = {
     fileName: string;
     size: number;
     mimeType: string;
-    uploadedAt: Date | any;
+    uploadedAt: FirestoreTimestamp;
   };
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   approverId?: string;
   approverName?: string;
   approverEmail?: string;
-  approvalRequestedAt?: Date | any;
+  approvalRequestedAt?: FirestoreTimestamp;
   approvalRequestedById?: string;
   approvalRequestedByName?: string;
   approvalRequestedByEmail?: string;
-  approvalResolvedAt?: Date | any;
+  approvalResolvedAt?: FirestoreTimestamp;
   approvalNotes?: string;
 
   // --- Smart Distribution additions (Phase 3; optional, additive) ---
@@ -172,8 +187,8 @@ export type OutletList = {
   name: string;
   description?: string;
   recipientCount?: number;
-  createdAt: Date | any;
-  updatedAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
 };
 
 export type OutletType =
@@ -204,7 +219,7 @@ export type Recipient = {
   outlet: string;
   position?: string;
   notes?: string;
-  createdAt: Date | any;
+  createdAt: FirestoreTimestamp;
 
   // --- Smart Distribution additions (all optional; existing rows remain valid) ---
   editorialFocus?: string[];       // controlled taxonomy IDs; import alias: "beat", "specialism", "sector"
@@ -212,10 +227,10 @@ export type Recipient = {
   topics?: string[];               // controlled taxonomy IDs
   outletType?: OutletType;         // controlled taxonomy ID
   relationshipStatus?: RelationshipStatus;
-  lastContactedAt?: Date | any;
+  lastContactedAt?: FirestoreTimestamp;
   doNotContact?: boolean;
   source?: 'customer_provided';    // fixed value for this collection; distinguishes from network contacts in matching
-  updatedAt?: Date | any;
+  updatedAt?: FirestoreTimestamp;
 };
 
 /**
@@ -228,8 +243,8 @@ export type ImportMappingProfile = {
   orgId: string;
   name: string;
   mapping: Record<string, string>; // sourceHeader (normalised) -> target field key
-  createdAt: Date | any;
-  updatedAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
 };
 
 /** Controlled taxonomy for media-contact matching, stored at /platform/config (mediaTaxonomy field). */
@@ -249,10 +264,10 @@ export type SendJob = {
   totalRecipients: number;
   sentCount: number;
   failedCount: number;
-  createdAt: Date | any;
-  completedAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  completedAt?: FirestoreTimestamp;
   error?: string;
-  scheduledAt?: Date | any;
+  scheduledAt?: FirestoreTimestamp;
 
   // --- Smart Distribution additions (Phase 4; all optional, additive) ---
   /** Set by the client at creation: whether this send should also include the
@@ -274,7 +289,7 @@ export type PartnerEmail = {
   orgId: string;
   subject: string;
   sentBy: string;
-  sentAt: Date | any;
+  sentAt: FirestoreTimestamp;
   recipientCount: number;
   sentCount: number;
   opens: number;
@@ -287,14 +302,14 @@ export type PartnerInvite = {
   orgId: string;
   code: string;
   createdBy: string;
-  createdAt: Date | any;
-  expiresAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  expiresAt?: FirestoreTimestamp;
   maxUses?: number;
   useCount: number;
   status: 'active' | 'expired' | 'revoked';
   label?: string;
   sentTo?: string;
-  sentAt?: Date | any;
+  sentAt?: FirestoreTimestamp;
   sentBy?: string;
   sentNote?: string | null;
   sendCount?: number;
@@ -306,7 +321,7 @@ export type Tag = {
   name: string;
   color?: string;
   createdBy: string;
-  createdAt: Date | any;
+  createdAt: FirestoreTimestamp;
 };
 
 export type PartnerSubmission = {
@@ -324,7 +339,7 @@ export type PartnerSubmission = {
     fileName: string;
     size: number;
     mimeType: string;
-    uploadedAt: Date | any;
+    uploadedAt: FirestoreTimestamp;
   }>;
   status: 'submitted' | 'reviewed' | 'used' | 'archived';
   aiThemes?: string[];
@@ -332,9 +347,9 @@ export type PartnerSubmission = {
   aiEditorialScore?: number;
   aiEditorialRationale?: string;
   aiContentType?: string;
-  aiAnalyzedAt?: Date | any;
-  createdAt: Date | any;
-  updatedAt?: Date | any;
+  aiAnalyzedAt?: FirestoreTimestamp;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
   reviewNotes?: string;
   usedInReleaseIds?: string[];
   partnerSocialHandles?: SocialHandles;
@@ -351,7 +366,7 @@ export type PartnerSubmission = {
   /** Set on an escalated COPY: snapshot of the daughter org's display name at the time of escalation. */
   sourceOrgName?: string;
   /** Set on the ORIGINAL submission once a team member pushes it up to the parent org. */
-  escalatedAt?: Date | any;
+  escalatedAt?: FirestoreTimestamp;
   /** Set on the ORIGINAL submission: which parent org it was escalated to. */
   escalatedToOrgId?: string;
   /** Set on the ORIGINAL submission: id of the copy created in the parent org's submissions, for traceability. */
@@ -369,8 +384,8 @@ export type MediaRequest = {
   deadline?: string;
   additionalInfo?: string;
   status: 'new' | 'in-progress' | 'completed' | 'archived';
-  createdAt: Date | any;
-  updatedAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
 };
 
 export type WebContent = {
@@ -385,8 +400,8 @@ export type WebContent = {
   status: 'Draft' | 'Ready' | 'Published';
   sourceSubmissionIds: string[];
   sourceReleaseId?: string;
-  createdAt: Date | any;
-  updatedAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
 };
 
 export type EmailEvent = {
@@ -395,7 +410,7 @@ export type EmailEvent = {
   releaseId: string;
   recipientEmail: string;
   eventType: 'delivered' | 'open' | 'click' | 'bounce' | 'spam_report' | 'unsubscribe';
-  timestamp: Date | any;
+  timestamp: FirestoreTimestamp;
   metadata?: {
     url?: string;
     userAgent?: string;
@@ -436,27 +451,27 @@ export type MediaNetworkContact = {
   recentCoverage: {
     title: string;
     url: string;
-    publishedAt: Date | any;
+    publishedAt: FirestoreTimestamp;
     themes: string[];
   }[];
   provenance: {
     sourceType: 'press_pilot_research' | 'licensed' | 'partner_provided' | 'public_research' | 'other';
     sourceReference?: string;
-    collectedAt: Date | any;
+    collectedAt: FirestoreTimestamp;
     lawfulUseNotes?: string;
     rightsReviewStatus: 'pending' | 'approved' | 'rejected';
     importBatchId?: string;
   };
   contactHealth: {
     verificationStatus: 'unverified' | 'verified' | 'invalid';
-    verifiedAt?: Date | any;
-    lastContactedAt?: Date | any;
+    verifiedAt?: FirestoreTimestamp;
+    lastContactedAt?: FirestoreTimestamp;
     bounceCount: number;
     suppressionStatus: 'none' | 'suppressed' | 'opted_out';
   };
   networkStatus: 'active' | 'review' | 'suppressed' | 'archived';
-  createdAt: Date | any;
-  updatedAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
 };
 
 /** Tracks a single superadmin upload of network contacts, for review-queue and upload history. */
@@ -466,7 +481,7 @@ export type MediaNetworkImportBatch = {
   sourceType: MediaNetworkContact['provenance']['sourceType'];
   sourceReference?: string;
   uploadedBy: string; // superadmin uid
-  uploadedAt: Date | any;
+  uploadedAt: FirestoreTimestamp;
   totalRows: number;
   readyCount: number;
   duplicateCount: number;
@@ -510,8 +525,8 @@ export type CreditTransaction = {
   campaignId?: string; // required for usage / refund
   reversesTransactionId?: string; // set only on type: 'reversal'
   createdBy: string; // 'system' or a superadmin uid
-  createdAt: Date | any;
-  expiresAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  expiresAt?: FirestoreTimestamp;
   idempotencyKey: string;
 };
 
@@ -520,7 +535,7 @@ export type CreditWalletSummary = {
   balance: number;
   lastTransactionId?: string;
   smartDistributionSuspended: boolean;
-  updatedAt: Date | any;
+  updatedAt: FirestoreTimestamp;
 };
 
 /**
@@ -545,7 +560,7 @@ export type AuditLogEntry = {
   targetId?: string; // contactId, batchId, orgId, or transactionId depending on action
   orgId?: string; // set for credit actions
   metadata?: Record<string, unknown>;
-  createdAt: Date | any;
+  createdAt: FirestoreTimestamp;
 };
 
 // ============================================================================
@@ -590,10 +605,10 @@ export type RecommendationSnapshot = {
   matchScore: number;
   creditCost: 0 | 1;
   decision: 'pending' | 'included' | 'not_relevant';
-  decidedAt?: Date | any;
+  decidedAt?: FirestoreTimestamp;
   decidedBy?: string; // uid
-  createdAt: Date | any;
-  updatedAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
 };
 
 // ============================================================================
@@ -654,6 +669,6 @@ export type SendJobRecipient = {
    *  (e.g. failed the final pre-send eligibility/dedupe recheck, or the org's credit
    *  balance was insufficient at the moment this recipient's turn came up). */
   skipReason?: string;
-  createdAt: Date | any;
-  updatedAt?: Date | any;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
 };

@@ -532,11 +532,15 @@ export function ImportWizardDialog({ orgId, listId, existingEmails }: ImportWiza
                     >
                       <TableCell>
                         {r.errors.length > 0 ? (
-                          <span title={r.errors.join(', ')}><AlertCircle className="h-4 w-4 text-destructive" /></span>
+                          <span title={r.errors.join(', ')}>
+                            <AlertCircle className="h-4 w-4 text-destructive" role="img" aria-label={`Invalid row: ${r.errors.join(', ')}`} />
+                          </span>
                         ) : r.isDuplicate ? (
-                          <span title="Matches an existing contact's email"><AlertCircle className="h-4 w-4 text-muted-foreground" /></span>
+                          <span title="Matches an existing contact's email">
+                            <AlertCircle className="h-4 w-4 text-muted-foreground" role="img" aria-label="Duplicate row — matches an existing contact's email" />
+                          </span>
                         ) : (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <CheckCircle2 className="h-4 w-4 text-green-500" role="img" aria-label="Valid row" />
                         )}
                       </TableCell>
                       <TableCell>{r.values.name || <span className="text-muted-foreground italic">empty</span>}</TableCell>

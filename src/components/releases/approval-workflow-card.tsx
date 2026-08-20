@@ -229,7 +229,7 @@ export function ApprovalWorkflowCard({ release, orgId }: Props) {
         {isApproved && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircle className="h-5 w-5 text-green-600" aria-hidden="true" />
               <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                 Approved
               </Badge>

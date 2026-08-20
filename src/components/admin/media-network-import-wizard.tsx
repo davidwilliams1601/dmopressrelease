@@ -380,7 +380,13 @@ export function MediaNetworkImportWizard({ onImported }: { onImported: () => voi
                     const valid = r.name && r.email && EMAIL_RE.test(r.email) && r.outletName;
                     return (
                       <TableRow key={i} className={!valid ? 'bg-destructive/5' : ''}>
-                        <TableCell>{valid ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-destructive" />}</TableCell>
+                        <TableCell>
+                          {valid ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" role="img" aria-label="Valid row" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-destructive" role="img" aria-label="Invalid row — missing name, email, or outlet" />
+                          )}
+                        </TableCell>
                         <TableCell>{r.name || <span className="text-muted-foreground italic">empty</span>}</TableCell>
                         <TableCell>{r.email || <span className="text-muted-foreground italic">empty</span>}</TableCell>
                         <TableCell>{r.outletName || <span className="text-muted-foreground italic">empty</span>}</TableCell>

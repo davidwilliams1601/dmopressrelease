@@ -87,20 +87,22 @@ export function SendJobsCard({ orgId, releaseId }: SendJobsCardProps) {
     }
   };
 
+  // Icons here are always paired with the status text in getStatusBadge below, so they are
+  // marked aria-hidden (decorative) — the visible text is the accessible name for screen readers.
   const getStatusIcon = (status: SendJob['status']) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+        return <CheckCircle2 className="h-4 w-4 text-green-600" aria-hidden="true" />;
       case 'failed':
-        return <XCircle className="h-4 w-4 text-red-600" />;
+        return <XCircle className="h-4 w-4 text-red-600" aria-hidden="true" />;
       case 'processing':
-        return <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />;
+        return <Loader2 className="h-4 w-4 text-blue-600 animate-spin" aria-hidden="true" />;
       case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-600" />;
+        return <Clock className="h-4 w-4 text-yellow-600" aria-hidden="true" />;
       case 'scheduled':
-        return <CalendarClock className="h-4 w-4 text-blue-600" />;
+        return <CalendarClock className="h-4 w-4 text-blue-600" aria-hidden="true" />;
       case 'cancelled':
-        return <Ban className="h-4 w-4 text-gray-500" />;
+        return <Ban className="h-4 w-4 text-gray-500" aria-hidden="true" />;
     }
   };
 

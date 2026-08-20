@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toDate } from '@/lib/utils';
 import {
   Card,
   CardContent,
@@ -260,10 +261,7 @@ export function WebContentEditForm({ content, orgId }: WebContentEditFormProps) 
             </div>
 
             <p className="text-sm text-muted-foreground">
-              Created: {format(
-                content.createdAt?.toDate ? content.createdAt.toDate() : new Date(content.createdAt),
-                'dd MMM yyyy, HH:mm'
-              )}
+              Created: {format(toDate(content.createdAt), 'dd MMM yyyy, HH:mm')}
             </p>
           </CardContent>
         </Card>
