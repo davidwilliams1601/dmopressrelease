@@ -581,6 +581,7 @@ export * from './theme-trends';
 export * from './media-taxonomy';
 export * from './media-network';
 export * from './credits';
+export * from './recommendations';
 
 // Export super-admin functions
 export * from './super-admin';

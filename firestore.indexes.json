@@ -111,6 +111,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "recommendationSnapshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "storyId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "decision",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { ReleaseEditForm } from '@/components/releases/release-edit-form';
 import { ReleaseAnalytics } from '@/components/releases/release-analytics';
+import { SmartDistributionFocusCard } from '@/components/releases/smart-distribution-focus-card';
+import { RecommendationList } from '@/components/releases/recommendation-list';
 
 export default function ReleaseDetailPage() {
   const params = useParams();
@@ -79,6 +81,9 @@ export default function ReleaseDetailPage() {
         orgId={orgId!}
         organization={organization}
       />
+
+      <SmartDistributionFocusCard release={releaseDoc.data} orgId={orgId!} />
+      <RecommendationList release={releaseDoc.data} orgId={orgId!} />
 
       {/* Analytics Section - Only show for sent releases */}
       {releaseDoc.data.status === 'Sent' && (

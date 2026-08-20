@@ -70,6 +70,13 @@ export const OUTLET_TYPE_VALUE_BY_LABEL: Record<string, string> = {
   'Creator / influencer': 'creator',
 };
 
+/** Reverse of OUTLET_TYPE_VALUE_BY_LABEL — used to display a human-readable outlet-type
+ *  label given the stored kebab-case value (Recipient.outletType / MediaNetworkContact.outlet.type
+ *  / RecommendationSnapshot.outletCategory all share this same value space). */
+export const OUTLET_TYPE_LABEL_BY_VALUE: Record<string, string> = Object.fromEntries(
+  Object.entries(OUTLET_TYPE_VALUE_BY_LABEL).map(([label, value]) => [value, label])
+);
+
 export const RELATIONSHIP_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'unknown', label: 'Unknown' },
   { value: 'known', label: 'Known contact' },

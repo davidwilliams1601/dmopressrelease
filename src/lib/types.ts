@@ -146,6 +146,16 @@ export type Release = {
   approvalRequestedByEmail?: string;
   approvalResolvedAt?: Date | any;
   approvalNotes?: string;
+
+  // --- Smart Distribution additions (Phase 3; optional, additive) ---
+  /** Controlled-taxonomy tags used to match this story against Recipient/MediaNetworkContact
+   *  editorialFocus/geographies/topics when generating recommendations. Set via the release
+   *  editor's "Smart Distribution focus" control (src/lib/media-taxonomy.ts DEFAULT_MEDIA_TAXONOMY). */
+  smartDistribution?: {
+    editorialFocus?: string[]; // controlled taxonomy IDs
+    geographies?: string[]; // controlled taxonomy IDs
+    topics?: string[]; // controlled taxonomy IDs
+  };
 };
 
 export type EngagementStats = {
@@ -507,6 +517,7 @@ export type AuditLogEntry = {
   action:
     | 'view_network_contact_identity'
     | 'view_network_batch_identities'
+    | 'view_network_contact_identity_for_diagnostic'
     | 'credit_grant'
     | 'credit_purchase'
     | 'credit_refund'
@@ -518,4 +529,49 @@ export type AuditLogEntry = {
   orgId?: string; // set for credit actions
   metadata?: Record<string, unknown>;
   createdAt: Date | any;
+};
+
+// ============================================================================
+// Smart Distribution — Phase 3: Matching & recommendation snapshots
+// See docs/smart-distribution/implementation-plan.md lines 49-77.
+// ============================================================================
+
+export type RecommendationMatchBand = 'strong' | 'good' | 'possible';
+
+/**
+ * One row of a combined, ranked recommendation list generated for an approved story.
+ * Never contains a name/email/profileUrl for `source: 'network_contact'` rows — this is
+ * enforced structurally by this type having no identity fields at all, not just by
+ * convention. Written only by the `generateRecommendations` Cloud Function; the
+ * `decision` field is updated only by `recordRecommendationDecision`. See
+ * docs/smart-distribution/data-model-and-security.md for the Firestore rules (team
+ * members: get/list only; all writes are Cloud-Function-only).
+ */
+export type RecommendationSnapshot = {
+  id: string;
+  orgId: string;
+  storyId: string; // = Release.id
+  source: 'customer_contact' | 'network_contact';
+  /** Set only when source === 'customer_contact'. Path: orgs/{orgId}/outletLists/{listId}/recipients/{id}. */
+  recipientRef?: string;
+  /** Set only when source === 'network_contact'. Opaque mediaNetworkContacts/{id} — safe to
+   *  store because mediaNetworkContacts stays superadmin-read-only regardless of this reference. */
+  networkContactId?: string;
+  /** e.g. "Regional lifestyle journalist — South West England". Always set for network_contact rows. */
+  anonymisedLabel: string;
+  /** Real name — set only for source === 'customer_contact' (the org already owns this contact). */
+  displayName?: string;
+  outletCategory: string; // outlet type taxonomy id
+  editorialFocus: string[];
+  geographies: string[];
+  recentCoverageThemes: string[];
+  rationale: string;
+  matchBand: RecommendationMatchBand;
+  matchScore: number;
+  creditCost: 0 | 1;
+  decision: 'pending' | 'included' | 'not_relevant';
+  decidedAt?: Date | any;
+  decidedBy?: string; // uid
+  createdAt: Date | any;
+  updatedAt?: Date | any;
 };
