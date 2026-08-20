@@ -6,14 +6,26 @@ import { sendWithRetry } from './sendgrid-retry';
 import { resolveOrgColors } from './brand-utils';
 import { emailFooter } from './email-branding';
 import { getStorage } from 'firebase-admin/storage';
+
+// QA fix (2026-08-20): admin.initializeApp() must run before ANY module that calls
+// admin.firestore() at its own top level is required. send-distribution.ts and
+// credits.ts both do this (`const db = admin.firestore();` at module scope), and
+// TypeScript compiles `import` to an in-place `require()` for this CommonJS target
+// — it does NOT hoist requires above other statements the way native ESM hoists
+// imports. Previously both were imported above this line, so requiring this file at
+// all (including Firebase CLI's own deploy-time codebase analysis) always threw
+// "The default Firebase app does not exist", independent of any QA branch changes
+// (reproduces identically on a clean `main` checkout). Moving the imports below the
+// initializeApp() call fixes the ordering; everything else in this file already
+// requires modules after this line.
+admin.initializeApp();
+
 import { resolveSmartDistributionRecipientsForSend } from './send-distribution';
 import {
   reserveSmartDistributionCredit,
   finalizeSmartDistributionCreditReservation,
   releaseSmartDistributionCreditReservation,
 } from './credits';
-
-admin.initializeApp();
 
 // Export webhook handlers
 export * from './webhooks';
