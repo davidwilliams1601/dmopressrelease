@@ -311,6 +311,25 @@ service cloud.firestore {
     }
 
     /**
+     * @description Smart Distribution (Phase 4): per-recipient delivery + credit-cost
+     * record for a send job. Extends the existing sendJobs collection (see
+     * docs/smart-distribution/data-model-and-security.md §4). Team members may read
+     * their own org's rows (to power the send-history/wallet UI) but never write —
+     * only Cloud Functions create/update these (executeSendJob pre-creates each row;
+     * the SendGrid webhook updates deliveryStatus and refund linkage). The
+     * networkContactId field must never be exposed through client-facing reads of this
+     * collection in application code (enforce in the callable/API layer, not just
+     * here) — the read-time projection used in the UI is what actually keeps identity
+     * hidden.
+     * @path /orgs/{orgId}/sendJobs/{sendJobId}/recipients/{recipientId}
+     * @principle Team members only, read-only from the client.
+     */
+    match /orgs/{orgId}/sendJobs/{sendJobId}/recipients/{recipientId} {
+      allow get, list: if isTeamMember(orgId);
+      allow write: if false;
+    }
+
+    /**
      * @description Rules for analytics Event documents within an organization.
      * @path /orgs/{orgId}/events/{eventId}
      * @principle Read-only for team members. Only Cloud Functions can write events.

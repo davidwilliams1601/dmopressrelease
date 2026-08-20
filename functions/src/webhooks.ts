@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { refundSmartDistributionCredit } from './credits';
 
 const db = admin.firestore();
 
@@ -38,22 +39,118 @@ function verifySendGridSignature(
 }
 
 /**
- * Extract orgId and releaseId from custom args in SendGrid event
+ * Extract orgId and releaseId from custom args in SendGrid event. Also extracts the
+ * Phase-4 Smart Distribution custom args (`sendJobId`/`sendJobRecipientId`) set by
+ * `sendEmail()`'s `customArgs` — present on every send-job-originated email, absent on
+ * anything sent outside a sendJob (e.g. partner emails), so their presence alone is
+ * what gates the auto-refund logic below.
  */
-function extractMetadataFromEvent(event: any): { orgId?: string; releaseId?: string; partnerEmailId?: string } {
+function extractMetadataFromEvent(event: any): {
+  orgId?: string;
+  releaseId?: string;
+  partnerEmailId?: string;
+  sendJobId?: string;
+  sendJobRecipientId?: string;
+} {
   const root = event;
   const nested = event.custom_args || {};
 
   const orgId = root.orgId || nested.orgId;
   const releaseId = root.releaseId || nested.releaseId;
   const partnerEmailId = root.partnerEmailId || nested.partnerEmailId;
+  const sendJobId = root.sendJobId || nested.sendJobId;
+  const sendJobRecipientId = root.sendJobRecipientId || nested.sendJobRecipientId;
 
   if (orgId && (releaseId || partnerEmailId)) {
-    return { orgId, releaseId, partnerEmailId };
+    return { orgId, releaseId, partnerEmailId, sendJobId, sendJobRecipientId };
   }
 
   console.warn('Could not extract orgId/releaseId or partnerEmailId from event:', event.event);
   return {};
+}
+
+/**
+ * Smart Distribution (Phase 4): updates the per-recipient `SendJobRecipient` doc for a
+ * SendGrid delivery/bounce event and, for a hard bounce or dropped message on a
+ * network-sourced recipient that was actually charged, issues the automatic refund
+ * (`import-wizard-and-credits.md` §4 refund rules table). Never throws — a failure here
+ * must not take down the rest of the webhook batch; errors are logged and swallowed.
+ *
+ * Idempotent against webhook retries: `refundSmartDistributionCredit` writes its ledger
+ * entry with idempotencyKey `refund_${sendJobRecipientId}`, so a duplicate delivery of
+ * the same bounce event safely no-ops on the ledger even if this function runs twice.
+ *
+ * NOTE on the 'dropped' interpretation: SendGrid's 'dropped' event covers several
+ * reasons (invalid email, spam-content, unsubscribed, etc.) and is not explicitly
+ * addressed in the spec docs. This treats every 'dropped' event as a hard-bounce
+ * equivalent for refund purposes — documented here as a deliberate interpretation,
+ * not a literal requirement, and called out again in the Phase 4 PR description.
+ */
+async function handleSmartDistributionRecipientEvent(
+  orgId: string,
+  sendJobId: string,
+  sendJobRecipientId: string,
+  event: any
+): Promise<void> {
+  try {
+    const recipientRef = db
+      .collection('orgs').doc(orgId)
+      .collection('sendJobs').doc(sendJobId)
+      .collection('recipients').doc(sendJobRecipientId);
+
+    const recipientSnap = await recipientRef.get();
+    if (!recipientSnap.exists) {
+      console.warn(`[webhook] SendJobRecipient ${sendJobRecipientId} not found for job ${sendJobId}`);
+      return;
+    }
+    const recipient = recipientSnap.data()!;
+
+    if (event.event === 'delivered') {
+      // Only advance pending -> delivered; never overwrite a later bounce/refund state
+      // that a prior (out-of-order) webhook delivery may have already recorded.
+      if (recipient.deliveryStatus === 'pending') {
+        await recipientRef.update({ deliveryStatus: 'delivered', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      }
+      return;
+    }
+
+    const isSoftBounce = event.event === 'bounce' && event.type === 'blocked';
+    const isHardBounceOrDrop =
+      (event.event === 'bounce' && event.type !== 'blocked') || event.event === 'dropped';
+
+    if (isSoftBounce) {
+      // "Credit held, resolved automatically once final status known" — no refund yet.
+      await recipientRef.update({ deliveryStatus: 'bounced_soft', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return;
+    }
+
+    if (isHardBounceOrDrop) {
+      const newStatus = event.event === 'dropped' ? 'failed' : 'bounced_hard';
+      const canRefund =
+        recipient.source === 'smart_distribution_recommendation' &&
+        !!recipient.creditTransactionId &&
+        !recipient.refundTransactionId;
+
+      if (canRefund) {
+        const refund = await refundSmartDistributionCredit({
+          orgId,
+          campaignId: sendJobId,
+          originalTransactionId: recipient.creditTransactionId,
+          sendJobRecipientId,
+          reasonCode: event.event === 'dropped' ? 'delivery_failure_auto_refund' : 'hard_bounce_auto_refund',
+        });
+        await recipientRef.update({
+          deliveryStatus: newStatus,
+          refundTransactionId: refund.id,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        await recipientRef.update({ deliveryStatus: newStatus, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      }
+    }
+  } catch (err) {
+    console.error(`[webhook] Failed to process Smart Distribution recipient event for ${sendJobRecipientId}:`, err);
+  }
 }
 
 /**
@@ -113,11 +210,23 @@ export const handleSendGridWebhook = functions.https.onRequest(async (req, res) 
         continue;
       }
 
-      const { orgId, releaseId, partnerEmailId } = extractMetadataFromEvent(event);
+      const { orgId, releaseId, partnerEmailId, sendJobId, sendJobRecipientId } = extractMetadataFromEvent(event);
 
       if (!orgId || (!releaseId && !partnerEmailId)) {
         console.warn('Skipping event without orgId and releaseId/partnerEmailId:', event.event);
         continue;
+      }
+
+      // Smart Distribution (Phase 4): update the per-recipient doc and run the
+      // auto-refund logic alongside (not instead of) the existing generic events/stats
+      // write path below. Only relevant events matter here; the generic path still
+      // records every event type for analytics as before.
+      if (
+        sendJobId &&
+        sendJobRecipientId &&
+        (event.event === 'delivered' || event.event === 'bounce' || event.event === 'dropped')
+      ) {
+        await handleSmartDistributionRecipientEvent(orgId, sendJobId, sendJobRecipientId, event);
       }
 
       let eventType: string;

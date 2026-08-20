@@ -6,6 +6,8 @@ import { sendWithRetry } from './sendgrid-retry';
 import { resolveOrgColors } from './brand-utils';
 import { emailFooter } from './email-branding';
 import { getStorage } from 'firebase-admin/storage';
+import { resolveSmartDistributionRecipientsForSend } from './send-distribution';
+import { debitSmartDistributionCredit } from './credits';
 
 admin.initializeApp();
 
@@ -52,8 +54,35 @@ function isValidUrl(url: string): boolean {
   }
 }
 
+/** Normalises a name/email pair into a single lowercase key for identity dedupe.
+ *  Must mirror the same helper duplicated in recommendations.ts / send-distribution.ts. */
+function normaliseIdentity(name?: string, email?: string): string {
+  return `${(name || '').trim().toLowerCase()}|${(email || '').trim().toLowerCase()}`;
+}
+
+/** A single entry in the unified, merged send list executeSendJob dispatches to —
+ *  either a plain outlet-list recipient or a Smart Distribution recommendation that
+ *  passed the send-time eligibility recheck. */
+type MergedSendEntry = {
+  sendJobRecipientId: string;
+  source: 'customer_contact' | 'smart_distribution_recommendation';
+  recipientRef?: string;
+  networkContactId?: string;
+  recommendationSnapshotId?: string;
+  name?: string;
+  email: string;
+  outlet?: string;
+};
+
 /**
  * Core sending logic extracted for reuse by both immediate and scheduled sends.
+ *
+ * Smart Distribution (Phase 4): when `sendJob.includeSmartDistributionRecommendations
+ * === true`, this also merges in the release's currently-`included` recommendations
+ * (re-validated at send time via `resolveSmartDistributionRecipientsForSend`), writes
+ * a full `SendJobRecipient` row per recipient — including a `suppressed` row for every
+ * recommendation rejected by the recheck — and debits exactly one credit per
+ * successfully-delivered network-sourced recipient, never for a rejected or failed one.
  */
 async function executeSendJob(
   orgId: string,
@@ -88,8 +117,10 @@ async function executeSendJob(
   }
   const org = orgDoc.data();
 
-  // Fetch all recipients from selected outlet lists
+  // Fetch all recipients from selected outlet lists, tracking each one's full document
+  // path (recipientRef) and identity so Smart Distribution merging/dedupe below can use them.
   const recipients: any[] = [];
+  const seenIdentities = new Set<string>();
   for (const listId of sendJob.outletListIds) {
     const recipientsSnapshot = await db
       .collection('orgs')
@@ -100,7 +131,9 @@ async function executeSendJob(
       .get();
 
     recipientsSnapshot.docs.forEach((doc) => {
-      recipients.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      recipients.push({ id: doc.id, ...data, recipientRef: doc.ref.path });
+      seenIdentities.add(normaliseIdentity(data.name, data.email));
     });
   }
 
@@ -111,32 +144,181 @@ async function executeSendJob(
     console.warn(`Skipped ${skippedCount} recipients with invalid emails`);
   }
 
-  console.log(`Sending to ${validRecipients.length} recipients`);
+  // --- Smart Distribution merge (Phase 4) ---
+  let smartDistributionMergedCount = 0;
+  const mergedEntries: MergedSendEntry[] = validRecipients.map((r) => ({
+    sendJobRecipientId: '', // filled in once the SendJobRecipient doc is created below
+    source: 'customer_contact' as const,
+    recipientRef: r.recipientRef,
+    name: r.name,
+    email: r.email,
+    outlet: r.outlet,
+  }));
+
+  const suppressedEntries: Array<{
+    source: 'customer_contact' | 'smart_distribution_recommendation';
+    recipientRef?: string;
+    networkContactId?: string;
+    recommendationSnapshotId: string;
+    skipReason: string;
+  }> = [];
+
+  if (sendJob.includeSmartDistributionRecommendations === true) {
+    const { eligible, rejected } = await resolveSmartDistributionRecipientsForSend(
+      orgId,
+      sendJob.releaseId,
+      seenIdentities
+    );
+
+    for (const entry of eligible) {
+      smartDistributionMergedCount++;
+      mergedEntries.push({
+        sendJobRecipientId: '',
+        source: entry.source,
+        recipientRef: entry.recipientRef,
+        networkContactId: entry.networkContactId,
+        recommendationSnapshotId: entry.snapshotId,
+        name: entry.name,
+        email: entry.email || '',
+        outlet: entry.outlet,
+      });
+    }
+    for (const entry of rejected) {
+      smartDistributionMergedCount++; // "merged into consideration" even though suppressed
+      suppressedEntries.push({
+        source: entry.source,
+        recipientRef: entry.recipientRef,
+        networkContactId: entry.networkContactId,
+        recommendationSnapshotId: entry.snapshotId,
+        skipReason: entry.rejectedReason,
+      });
+    }
+  }
+
+  const sendableEntries = mergedEntries.filter((e) => e.email && isValidEmail(e.email));
+
+  console.log(
+    `Sending to ${sendableEntries.length} recipients (${validRecipients.length} outlet-list, ` +
+      `${sendableEntries.length - validRecipients.length} Smart Distribution) for job ${jobId}`
+  );
+
+  // --- Pre-create a SendJobRecipient row for every recipient before any send attempt ---
+  // (both dispatchable entries as 'pending' and pre-send-rejected recommendations as
+  // 'suppressed' with no send attempt and no charge) so the recipients subcollection is a
+  // complete per-send record from the very start, per data-model-and-security.md §4.
+  const recipientsCollection = jobRef.collection('recipients');
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  let writeBatch = db.batch();
+  let opsInBatch = 0;
+  const flushIfNeeded = async () => {
+    if (opsInBatch >= 400) {
+      await writeBatch.commit();
+      writeBatch = db.batch();
+      opsInBatch = 0;
+    }
+  };
+
+  for (const entry of sendableEntries) {
+    const ref = recipientsCollection.doc();
+    entry.sendJobRecipientId = ref.id;
+    writeBatch.set(ref, {
+      orgId,
+      sendJobId: jobId,
+      source: entry.source,
+      ...(entry.recipientRef ? { recipientRef: entry.recipientRef } : {}),
+      ...(entry.networkContactId ? { networkContactId: entry.networkContactId } : {}),
+      ...(entry.recommendationSnapshotId ? { recommendationSnapshotId: entry.recommendationSnapshotId } : {}),
+      deliveryStatus: 'pending',
+      createdAt: now,
+    });
+    opsInBatch++;
+    await flushIfNeeded();
+  }
+  for (const entry of suppressedEntries) {
+    const ref = recipientsCollection.doc();
+    writeBatch.set(ref, {
+      orgId,
+      sendJobId: jobId,
+      source: entry.source,
+      ...(entry.recipientRef ? { recipientRef: entry.recipientRef } : {}),
+      ...(entry.networkContactId ? { networkContactId: entry.networkContactId } : {}),
+      recommendationSnapshotId: entry.recommendationSnapshotId,
+      deliveryStatus: 'suppressed',
+      skipReason: entry.skipReason,
+      createdAt: now,
+    });
+    opsInBatch++;
+    await flushIfNeeded();
+  }
+  if (opsInBatch > 0) {
+    await writeBatch.commit();
+  }
 
   let sentCount = 0;
   let failedCount = 0;
+  let smartDistributionCreditsUsed = 0;
   const failedRecipients: string[] = [];
 
   // Send emails in batches to avoid timeout
   const BATCH_SIZE = 50;
-  for (let i = 0; i < validRecipients.length; i += BATCH_SIZE) {
-    const batch = validRecipients.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < sendableEntries.length; i += BATCH_SIZE) {
+    const batch = sendableEntries.slice(i, i + BATCH_SIZE);
 
     await Promise.all(
-      batch.map(async (recipient) => {
+      batch.map(async (entry) => {
+        const recipientDocRef = recipientsCollection.doc(entry.sendJobRecipientId);
         try {
-          await sendEmail(recipient, release, orgId, org);
+          await sendEmail(
+            { name: entry.name, email: entry.email, outlet: entry.outlet },
+            release,
+            orgId,
+            org,
+            { sendJobId: jobId, sendJobRecipientId: entry.sendJobRecipientId }
+          );
           sentCount++;
+
+          if (entry.source === 'smart_distribution_recommendation' && entry.networkContactId) {
+            const debit = await debitSmartDistributionCredit({
+              orgId,
+              campaignId: jobId,
+              networkContactId: entry.networkContactId,
+            });
+            if (debit) {
+              smartDistributionCreditsUsed++;
+              await recipientDocRef.update({
+                deliveryStatus: 'delivered',
+                creditTransactionId: debit.id,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            } else {
+              // Delivered but the org's balance couldn't cover it at debit time (rare
+              // race with a concurrent send job) — never charge, but the send did happen.
+              await recipientDocRef.update({
+                deliveryStatus: 'delivered',
+                skipReason: 'insufficient_balance_uncharged',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+          } else {
+            await recipientDocRef.update({
+              deliveryStatus: 'delivered',
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
         } catch (error) {
-          console.error(`Failed to send to ${recipient.email} (after retries):`, error);
+          console.error(`Failed to send to ${entry.email} (after retries):`, error);
           failedCount++;
-          failedRecipients.push(recipient.email);
+          failedRecipients.push(entry.email);
+          await recipientDocRef.update({
+            deliveryStatus: 'failed',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
         }
       })
     );
 
     // Update progress periodically
-    if (i + BATCH_SIZE < validRecipients.length) {
+    if (i + BATCH_SIZE < sendableEntries.length) {
       await jobRef.update({
         sentCount,
         failedCount,
@@ -144,12 +326,20 @@ async function executeSendJob(
     }
   }
 
-  // Update send job with results
+  // Update send job with results — server is the source of truth for totalRecipients
+  // once Smart Distribution merging has happened, overriding the client's list-only estimate.
   await jobRef.update({
     status: 'completed',
+    totalRecipients: sendableEntries.length,
     sentCount,
     failedCount,
     ...(failedRecipients.length > 0 ? { failedRecipients } : {}),
+    ...(sendJob.includeSmartDistributionRecommendations === true
+      ? {
+          smartDistributionRecipientCount: smartDistributionMergedCount,
+          smartDistributionCreditsUsed,
+        }
+      : {}),
     completedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -369,7 +559,13 @@ export const cancelScheduledSend = functions.https.onCall(async (data, context) 
 /**
  * Send email to a recipient using SendGrid
  */
-async function sendEmail(recipient: any, release: any, orgId: string, org: any) {
+async function sendEmail(
+  recipient: any,
+  release: any,
+  orgId: string,
+  org: any,
+  sendJobContext?: { sendJobId: string; sendJobRecipientId: string }
+) {
   if (!sendgridApiKey) {
     console.log(`[MOCK] Would send email to ${recipient.email}`);
     console.log(`Subject: ${release.headline}`);
@@ -399,6 +595,9 @@ async function sendEmail(recipient: any, release: any, orgId: string, org: any) 
     customArgs: {
       orgId: orgId,
       releaseId: release.id || '',
+      ...(sendJobContext
+        ? { sendJobId: sendJobContext.sendJobId, sendJobRecipientId: sendJobContext.sendJobRecipientId }
+        : {}),
     },
     trackingSettings: {
       clickTracking: {

@@ -14,13 +14,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Send, Loader2, Lock, Clock, CalendarClock } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { Send, Loader2, Lock, Clock, CalendarClock, Sparkles, AlertTriangle } from 'lucide-react';
+import { useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, doc, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, doc, serverTimestamp, getDocs, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import type { Release, OutletList } from '@/lib/types';
+import type { Release, OutletList, RecommendationSnapshot, CreditWalletSummary } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 
@@ -48,6 +49,35 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
   );
 
   const outletLists = outletListsQuery.data || [];
+
+  // --- Smart Distribution additions (Phase 4) ---
+  // Included recommendations for this story — same {storyId ASC, decision ASC}
+  // composite index already created in Phase 3, no new index needed.
+  const [includeSmartDistribution, setIncludeSmartDistribution] = useState(true);
+  const includedRecommendationsQuery = useCollection<RecommendationSnapshot>(
+    useMemoFirebase(() => {
+      if (!orgId || !release?.id) return null;
+      return query(
+        collection(firestore, 'orgs', orgId, 'recommendationSnapshots'),
+        where('storyId', '==', release.id),
+        where('decision', '==', 'included')
+      );
+    }, [firestore, orgId, release?.id])
+  );
+  const includedRecommendations = includedRecommendationsQuery.data || [];
+  const smartDistributionCustomerCount = includedRecommendations.filter((r) => r.source === 'customer_contact').length;
+  const smartDistributionNetworkCount = includedRecommendations.filter((r) => r.source === 'network_contact').length;
+  const smartDistributionCreditCost = smartDistributionNetworkCount; // 1 credit per network contact, 0 for customer contacts
+
+  const walletQuery = useDoc<CreditWalletSummary>(
+    useMemoFirebase(() => {
+      if (!orgId) return null;
+      return doc(firestore, 'orgs', orgId, 'creditWallet', 'summary');
+    }, [firestore, orgId])
+  );
+  const wallet = walletQuery.data;
+  const walletBalance = wallet?.balance ?? 0;
+  const insufficientBalance = includeSmartDistribution && smartDistributionCreditCost > walletBalance;
 
   const toggleList = (listId: string) => {
     setSelectedLists((prev) =>
@@ -137,6 +167,7 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
           failedCount: 0,
           createdAt: serverTimestamp(),
           scheduledAt: Timestamp.fromDate(scheduledDateTime),
+          includeSmartDistributionRecommendations: includeSmartDistribution,
         });
 
         // Update release status to Scheduled (don't increment sends yet)
@@ -160,6 +191,7 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
           sentCount: 0,
           failedCount: 0,
           createdAt: serverTimestamp(),
+          includeSmartDistributionRecommendations: includeSmartDistribution,
         });
 
         // Update release status and send count
@@ -292,6 +324,61 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
             )}
           </div>
 
+          {/* Smart Distribution */}
+          {includedRecommendations.length > 0 && (
+            <div className="space-y-3">
+              <div
+                className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50"
+                onClick={() => setIncludeSmartDistribution((v) => !v)}
+              >
+                <Checkbox
+                  checked={includeSmartDistribution}
+                  onCheckedChange={() => setIncludeSmartDistribution((v) => !v)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <p className="font-medium flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Also include {includedRecommendations.length} Smart Distribution recommended contact
+                    {includedRecommendations.length !== 1 ? 's' : ''}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {smartDistributionCustomerCount > 0 && (
+                      <>{smartDistributionCustomerCount} from your own contacts (free)</>
+                    )}
+                    {smartDistributionCustomerCount > 0 && smartDistributionNetworkCount > 0 && ' · '}
+                    {smartDistributionNetworkCount > 0 && (
+                      <>{smartDistributionNetworkCount} Press Pilot network contact{smartDistributionNetworkCount !== 1 ? 's' : ''} ({smartDistributionCreditCost} credit{smartDistributionCreditCost !== 1 ? 's' : ''})</>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {includeSmartDistribution && wallet?.smartDistributionSuspended && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Smart Distribution suspended</AlertTitle>
+                  <AlertDescription>
+                    Smart Distribution has been suspended for your organisation. Network contacts will not be
+                    included in this send.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {includeSmartDistribution && !wallet?.smartDistributionSuspended && insufficientBalance && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Low credit balance</AlertTitle>
+                  <AlertDescription>
+                    Your balance is {walletBalance} credit{walletBalance !== 1 ? 's' : ''}, but this send could use up
+                    to {smartDistributionCreditCost}. Contacts beyond your balance won&apos;t be sent.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+
           {/* Schedule Toggle */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">When to Send</Label>
@@ -368,6 +455,13 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
                     <p className="text-2xl font-bold">{selectedLists.length}</p>
                   </div>
                 </div>
+                {includeSmartDistribution && includedRecommendations.length > 0 && (
+                  <p className="text-sm text-muted-foreground mt-3 pt-3 border-t">
+                    +{includedRecommendations.length} Smart Distribution contact
+                    {includedRecommendations.length !== 1 ? 's' : ''} will also be included
+                    {smartDistributionCreditCost > 0 ? ` (${smartDistributionCreditCost} credit${smartDistributionCreditCost !== 1 ? 's' : ''})` : ''}.
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
