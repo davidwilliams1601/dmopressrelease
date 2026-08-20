@@ -279,7 +279,15 @@ export const generateRecommendations = functions.https.onCall(async (data, conte
     throw new functions.https.HttpsError('not-found', 'Story not found.');
   }
   const release = releaseSnap.data()!;
-  if (release.approvalStatus !== 'approved') {
+
+  // Approval is an optional, org-level review step (Professional plan and
+  // above — see approvalWorkflowEnabled in Settings). Orgs that haven't
+  // enabled it (every Starter-tier org included, since they can't enable it
+  // at all) should still be able to generate recommendations — mirrors the
+  // same gate in RecommendationList on the frontend.
+  const orgSnap = await db.collection('orgs').doc(orgId).get();
+  const approvalRequired = orgSnap.exists && orgSnap.data()?.approvalWorkflowEnabled === true;
+  if (approvalRequired && release.approvalStatus !== 'approved') {
     throw new functions.https.HttpsError(
       'failed-precondition',
       'Only an approved story can generate recommendations.'
