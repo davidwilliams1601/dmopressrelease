@@ -217,9 +217,22 @@ function isValidTimestamp(ts: any): boolean {
 }
 
 /**
+ * Secret name bound below via `.runWith({ secrets: [...] })`, same pattern as
+ * STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET in stripe.ts. The value lives in Google
+ * Secret Manager (set with `firebase functions:secrets:set SENDGRID_WEBHOOK_VERIFICATION_KEY`).
+ *
+ * QA fix (2026-08-20): without this binding, setting the Secret Manager value alone
+ * does NOT expose it to this function's runtime `process.env` — the C3 fail-closed
+ * check would then reject every webhook call permanently, secret or not.
+ */
+export const SENDGRID_WEBHOOK_VERIFICATION_KEY = 'SENDGRID_WEBHOOK_VERIFICATION_KEY';
+
+/**
  * Cloud Function to handle SendGrid webhook events
  */
-export const handleSendGridWebhook = functions.https.onRequest(async (req, res) => {
+export const handleSendGridWebhook = functions
+  .runWith({ secrets: [SENDGRID_WEBHOOK_VERIFICATION_KEY] })
+  .https.onRequest(async (req, res) => {
   console.log('Received SendGrid webhook');
 
   if (req.method !== 'POST') {
