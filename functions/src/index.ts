@@ -579,6 +579,8 @@ export * from './org-rollup';
 export * from './child-org-provisioning';
 export * from './theme-trends';
 export * from './media-taxonomy';
+export * from './media-network';
+export * from './credits';
 
 // Export super-admin functions
 export * from './super-admin';

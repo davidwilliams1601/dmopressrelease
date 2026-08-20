@@ -25,6 +25,7 @@ import { SetOrgParentDialog } from '@/components/admin/set-org-parent-dialog';
 import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
 import { SeedDemoDialog } from '@/components/admin/seed-demo-dialog';
 import { ResetPasswordDialog } from '@/components/admin/reset-password-dialog';
+import { CreditActionsDialog } from '@/components/admin/credit-actions-dialog';
 import { VerticalCategoriesCard } from '@/components/admin/vertical-categories-card';
 import { ThemeTaxonomyCard } from '@/components/admin/theme-taxonomy-card';
 import { MediaTaxonomyCard } from '@/components/admin/media-taxonomy-card';
@@ -373,6 +374,11 @@ export default function AdminOrgsPage() {
                         <ResetPasswordDialog
                           orgName={org.name}
                           adminEmail={org.adminEmail}
+                        />
+                        <CreditActionsDialog
+                          orgId={org.id}
+                          orgName={org.name}
+                          onUpdated={loadReport}
                         />
                         <DeleteOrgDialog
                           orgId={org.id}

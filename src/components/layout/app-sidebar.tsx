@@ -25,6 +25,7 @@ import {
   Building2,
   BarChart3,
   Network,
+  Radio,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useUserData } from '@/hooks/use-user-data';
@@ -98,12 +99,24 @@ export default function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname.startsWith('/dashboard/admin')}
+                  isActive={pathname.startsWith('/dashboard/admin/orgs')}
                   tooltip={{ children: 'Organisations' }}
                 >
                   <a href="/dashboard/admin/orgs">
                     <Building2 />
                     <span>Organisations</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/dashboard/admin/media-network')}
+                  tooltip={{ children: 'Media Network' }}
+                >
+                  <a href="/dashboard/admin/media-network">
+                    <Radio />
+                    <span>Media Network</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
