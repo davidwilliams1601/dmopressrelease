@@ -39,8 +39,9 @@ type Props = {
 
 export function ApprovalWorkflowCard({ release, orgId }: Props) {
   const { firestore, user } = useFirebase();
-  const { name: currentUserName, email: currentUserEmail } = useUserData();
+  const { name: currentUserName, email: currentUserEmail, role: currentUserRole } = useUserData();
   const { toast } = useToast();
+  const isAdmin = currentUserRole === 'Admin';
 
   const [selectedApproverId, setSelectedApproverId] = useState<string>('');
   const [rejectNotes, setRejectNotes] = useState('');
@@ -89,6 +90,31 @@ export function ApprovalWorkflowCard({ release, orgId }: Props) {
     updateDocumentNonBlocking(getReleaseRef(), {
       approvalStatus: 'approved',
       status: 'Ready',
+      approvalResolvedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    toast({ title: "Release approved — it's now ready to send." });
+  };
+
+  // Admins can approve their own release directly, skipping the pending step
+  // entirely (no approvalRequestedAt/approverId=someone-else transition, so the
+  // onApprovalRequested notification function never fires — no self-email).
+  // This exists because the normal flow requires picking a DIFFERENT org member
+  // as approver (see selectableUsers below), which made recommendations
+  // permanently unreachable for solo-operator orgs with no second team member.
+  const handleSelfApprove = () => {
+    if (!user) return;
+    updateDocumentNonBlocking(getReleaseRef(), {
+      approvalStatus: 'approved',
+      status: 'Ready',
+      approverId: user.uid,
+      approverName: currentUserName || '',
+      approverEmail: currentUserEmail || '',
+      approvalRequestedAt: serverTimestamp(),
+      approvalRequestedById: user.uid,
+      approvalRequestedByName: currentUserName || '',
+      approvalRequestedByEmail: currentUserEmail || '',
+      approvalNotes: null,
       approvalResolvedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -153,15 +179,24 @@ export function ApprovalWorkflowCard({ release, orgId }: Props) {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              type="button"
-              disabled={!selectedApproverId}
-              onClick={handleRequestApproval}
-            >
-              Submit for Approval
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                disabled={!selectedApproverId}
+                onClick={handleRequestApproval}
+              >
+                Submit for Approval
+              </Button>
+              {isAdmin && (
+                <Button type="button" variant="outline" onClick={handleSelfApprove}>
+                  <CheckCircle className="h-4 w-4" />
+                  Approve now
+                </Button>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Selecting an approver will notify them by email.
+              Selecting an approver will notify them by email
+              {isAdmin ? ', or approve it yourself now if no review is needed.' : '.'}
             </p>
           </div>
         )}
@@ -278,13 +313,21 @@ export function ApprovalWorkflowCard({ release, orgId }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                type="button"
-                disabled={!selectedApproverId}
-                onClick={handleRequestApproval}
-              >
-                Re-submit for Approval
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  disabled={!selectedApproverId}
+                  onClick={handleRequestApproval}
+                >
+                  Re-submit for Approval
+                </Button>
+                {isAdmin && (
+                  <Button type="button" variant="outline" onClick={handleSelfApprove}>
+                    <CheckCircle className="h-4 w-4" />
+                    Approve now
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )}
