@@ -373,6 +373,33 @@ service cloud.firestore {
     }
 
     /**
+     * @description Collection-group counterpart of the two nested "recipients" rules
+     * above (outletLists/{id}/recipients and sendJobs/{id}/recipients). The QA fix in
+     * src/app/dashboard/outlets/[listId]/page.tsx runs `collectionGroup(firestore,
+     * 'recipients')` filtered by orgId so the import wizard's duplicate check can see
+     * every outlet list an org owns, not just the one open in the UI — that query
+     * needs a matching wildcard rule or Firestore denies the whole `list` request with
+     * "Missing or insufficient permissions", even though each nested collection
+     * already grants the same team member the same read access individually.
+     * Grants no access beyond what the two path-specific rules above already allow:
+     * `resource.data.orgId` is the same immutable, server/rule-enforced field checked
+     * there, so a caller can only ever see rows for orgs they already belong to.
+     * @path /{path=**}/recipients/{recipientId}
+     * @principle Team members only, read-only from the client. Grants read access only —
+     *            no `write` rule here, deliberately: Firestore unions ALL matching
+     *            `match` blocks for a given path, so the two path-specific rules above
+     *            remain the sole authority on writes (outletLists/recipients still
+     *            allows a team member's own-org create/update, sendJobs/recipients
+     *            still denies every client write). Adding `allow write: if false` here
+     *            would be a no-op for outletLists/recipients (a stricter rule elsewhere
+     *            never revokes a grant from another matching rule) and would misleadingly
+     *            suggest this block controls writes when it does not.
+     */
+    match /{path=**}/recipients/{recipientId} {
+      allow get, list: if isTeamMember(resource.data.orgId);
+    }
+
+    /**
      * @description Rules for analytics Event documents within an organization.
      * @path /orgs/{orgId}/events/{eventId}
      * @principle Read-only for team members. Only Cloud Functions can write events.
