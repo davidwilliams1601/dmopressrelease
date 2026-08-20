@@ -229,7 +229,11 @@ export const importMediaNetworkBatch = functions.https.onCall(async (data, conte
       })
       .then(() => ({ email, ok: true }))
       .catch((err) => {
-        console.warn(`[importMediaNetworkBatch] concurrent duplicate for ${email}, skipping:`, err?.message || err);
+        // QA fix (Low): log the deterministic (one-way-hashed) doc ID rather than the
+        // raw network-contact email — this warning previously put a raw network-contact
+        // address into ordinary Cloud Function logs, outside the documented
+        // superadmin-only audit trail for that anonymised data.
+        console.warn(`[importMediaNetworkBatch] concurrent duplicate for contact ${contactRef.id}, skipping:`, err?.message || err);
         return { email, ok: false };
       });
     rowOutcomes.push(writePromise);

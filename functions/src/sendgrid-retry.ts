@@ -38,12 +38,23 @@ function isTransientError(error: any): boolean {
  * - Backoff delays: 1s, 2s, 4s
  * - Only retries transient errors (5xx, 429, network errors)
  * - Throws on permanent failures immediately
+ *
+ * QA fix (Low): retry/exhaustion logs previously always printed the raw `msg.to`
+ * address, which meant Press Pilot network contacts' real emails (not just
+ * customer-owned outlet contacts) ended up in ordinary Cloud Function logs on every
+ * retry or final failure — outside the documented superadmin-only audit trail for
+ * that anonymised data. Callers that are sending to a network contact should now
+ * pass a non-identifying `logLabel` (e.g. a sendJobRecipientId) to use in these log
+ * lines instead; callers sending to a customer-owned contact can omit it and the
+ * real `to` address is used, since that address is already visible to its own org.
  */
 export async function sendWithRetry(
   msg: sgMail.MailDataRequired,
-  maxRetries = 3
+  maxRetries = 3,
+  logLabel?: string
 ): Promise<void> {
   const delays = [1000, 2000, 4000]; // exponential backoff
+  const displayTarget = logLabel || (msg as any).to;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -56,7 +67,7 @@ export async function sendWithRetry(
         // Permanent error or last attempt — propagate
         if (isLastAttempt && isTransientError(error)) {
           console.error(
-            `[sendWithRetry] All ${maxRetries} attempts exhausted for ${(msg as any).to}. Giving up.`
+            `[sendWithRetry] All ${maxRetries} attempts exhausted for ${displayTarget}. Giving up.`
           );
         }
         throw error;
@@ -65,7 +76,7 @@ export async function sendWithRetry(
       // Transient error — wait and retry
       const delay = delays[attempt - 1] || 4000;
       console.warn(
-        `[sendWithRetry] Attempt ${attempt}/${maxRetries} failed for ${(msg as any).to} ` +
+        `[sendWithRetry] Attempt ${attempt}/${maxRetries} failed for ${displayTarget} ` +
         `(${error.code || error.statusCode || 'network error'}). Retrying in ${delay}ms...`
       );
       await new Promise((resolve) => setTimeout(resolve, delay));

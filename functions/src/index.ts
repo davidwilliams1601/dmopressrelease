@@ -336,12 +336,22 @@ async function executeSendJob(
             }
           }
 
+          // QA fix (Low): for a network-sourced recipient, log a non-identifying
+          // label (the sendJobRecipientId) instead of the real email everywhere a
+          // send is logged, so raw network-contact addresses stop appearing in
+          // ordinary Cloud Function logs on successful sends, failures, and retries.
+          // Customer-owned contacts keep their real email in logs, since it's already
+          // visible to their own org.
+          const recipientLogLabel = isNetworkContact
+            ? `networkContact:${entry.sendJobRecipientId}`
+            : entry.email;
           await sendEmail(
             { name: entry.name, email: entry.email, outlet: entry.outlet },
             release,
             orgId,
             org,
-            { sendJobId: jobId, sendJobRecipientId: entry.sendJobRecipientId }
+            { sendJobId: jobId, sendJobRecipientId: entry.sendJobRecipientId },
+            recipientLogLabel
           );
           sentCount++;
 
@@ -375,7 +385,13 @@ async function executeSendJob(
             });
           }
         } catch (error) {
-          console.error(`Failed to send to ${entry.email} (after retries):`, error);
+          // QA fix (Low): use the same non-identifying label here as in sendEmail —
+          // this catch previously always logged the raw entry.email regardless of
+          // isNetworkContact.
+          const failureLogLabel = isNetworkContact
+            ? `networkContact:${entry.sendJobRecipientId}`
+            : entry.email;
+          console.error(`Failed to send to ${failureLogLabel} (after retries):`, error);
           failedCount++;
           if (isNetworkContact) {
             // QA fix (2026-08-20): never record a network contact's raw email address on
@@ -822,16 +838,26 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
 
 /**
  * Send email to a recipient using SendGrid
+ *
+ * QA fix (Low): accepts an optional `logLabel` used in place of the recipient's real
+ * email in this function's own log lines and in sendWithRetry's retry/exhaustion
+ * logs. Callers dispatching to a Press Pilot network contact should pass a
+ * non-identifying label (e.g. a sendJobRecipientId) so that contact's raw email
+ * never appears in ordinary Cloud Function logs outside the superadmin audit trail;
+ * callers sending to a customer-owned contact can omit it, since that address is
+ * already visible to its own org.
  */
 async function sendEmail(
   recipient: any,
   release: any,
   orgId: string,
   org: any,
-  sendJobContext?: { sendJobId: string; sendJobRecipientId: string }
+  sendJobContext?: { sendJobId: string; sendJobRecipientId: string },
+  logLabel?: string
 ) {
+  const displayTarget = logLabel || recipient.email;
   if (!sendgridApiKey) {
-    console.log(`[MOCK] Would send email to ${recipient.email}`);
+    console.log(`[MOCK] Would send email to ${displayTarget}`);
     console.log(`Subject: ${release.headline}`);
     return;
   }
@@ -873,8 +899,8 @@ async function sendEmail(
     },
   };
 
-  await sendWithRetry(msg);
-  console.log(`Email sent successfully to ${recipient.email}`);
+  await sendWithRetry(msg, 3, logLabel);
+  console.log(`Email sent successfully to ${displayTarget}`);
 }
 
 /**
