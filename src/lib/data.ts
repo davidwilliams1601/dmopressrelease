@@ -1,4 +1,5 @@
 import type { Organization, Release, EngagementStats } from './types';
+import { toDate } from './utils';
 
 export const getOrganization = (): Organization => ({
   id: 'visit-kent',
@@ -87,7 +88,7 @@ export const getReleases = (): Release[] => {
 
 export const getRecentReleases = (count = 5): Release[] => {
   return allReleases
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .sort((a, b) => toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime())
     .slice(0, count);
 };
 

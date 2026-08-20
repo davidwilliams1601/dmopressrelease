@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { toDate } from '@/lib/utils';
 import {
   LineChart,
   Line,
@@ -46,7 +47,7 @@ export function AnalyticsChart({ events, dailyStats }: AnalyticsChartProps) {
     const eventsByDate = new Map<string, { date: string; opens: number; clicks: number }>();
 
     events.forEach((event) => {
-      const timestamp = event.timestamp?.toDate ? event.timestamp.toDate() : new Date(event.timestamp);
+      const timestamp = toDate(event.timestamp);
       const dateKey = format(timestamp, 'MMM dd, yyyy');
 
       if (!eventsByDate.has(dateKey)) {

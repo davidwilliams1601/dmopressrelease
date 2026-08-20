@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useUserData } from '@/hooks/use-user-data';
+import { toDate } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -121,7 +122,7 @@ export default function MediaNetworkAdminPage() {
                         <TableCell className="font-medium">{batch.fileName}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{batch.sourceType}</TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                          {batch.uploadedAt?.toDate ? format(batch.uploadedAt.toDate(), 'd MMM yyyy HH:mm') : '—'}
+                          {batch.uploadedAt ? format(toDate(batch.uploadedAt), 'd MMM yyyy HH:mm') : '—'}
                         </TableCell>
                         <TableCell className="text-right">{batch.readyCount}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{batch.duplicateCount}</TableCell>

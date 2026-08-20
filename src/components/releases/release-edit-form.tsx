@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { toDate } from '@/lib/utils';
 import {
   Card,
   CardContent,
@@ -284,10 +285,7 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
 
             <div className="grid gap-2">
               <p className="text-sm text-muted-foreground">
-                Created: {format(
-                  release.createdAt?.toDate ? release.createdAt.toDate() : new Date(release.createdAt),
-                  'dd MMM yyyy, HH:mm'
-                )}
+                Created: {format(toDate(release.createdAt), 'dd MMM yyyy, HH:mm')}
               </p>
             </div>
           </CardContent>
