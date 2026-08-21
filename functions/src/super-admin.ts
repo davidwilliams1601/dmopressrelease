@@ -895,7 +895,8 @@ export const backfillOrgBilling = functions
       }
 
       const billingSnap = await db.collection('orgs').doc(orgId).collection('billing').doc('state').get();
-      if (billingSnap.data()?.stripeCustomerId) {
+      const billingData = billingSnap.data();
+      if (billingData?.stripeCustomerId) {
         skipped.push({ orgId, reason: 'already has a Stripe customer' });
         continue;
       }
@@ -906,18 +907,23 @@ export const backfillOrgBilling = functions
         metadata: { orgId, backfilled: 'true' },
       });
 
-      await db.collection('orgs').doc(orgId).collection('billing').doc('state').set(
-        {
-          stripeCustomerId: customer.id,
-          // Marked 'active' (not tied to a real Stripe subscription yet) so this legacy
-          // org keeps normal, unlocked access until they choose to add a card via the
-          // now-functional "Add payment method" button.
-          subscriptionStatus: 'active',
-          hasPaymentMethod: false,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
+      const update: Record<string, any> = {
+        stripeCustomerId: customer.id,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      // Only default to 'active'/no-payment-method when this org had NO billing doc at
+      // all before now (a truly untracked legacy org that has always had unrestricted
+      // access). If a billing doc already exists — e.g. a lapsed trial recorded as
+      // 'paused'/'past_due'/'canceled' by the real Stripe-backed signup flow but somehow
+      // missing its customer id — we must NOT stomp that status to 'active', or this
+      // backfill would silently unlock an account that genuinely has no payment method
+      // on file, defeating the billing lock.
+      if (billingData?.subscriptionStatus === undefined) {
+        update.subscriptionStatus = 'active';
+        update.hasPaymentMethod = false;
+      }
+
+      await db.collection('orgs').doc(orgId).collection('billing').doc('state').set(update, { merge: true });
 
       processed.push({ orgId, name: org.name || orgId });
       console.log(`[backfillOrgBilling] Created Stripe customer ${customer.id} for legacy org ${orgId}`);
