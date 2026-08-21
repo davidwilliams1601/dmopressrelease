@@ -209,12 +209,18 @@ export const importMediaNetworkBatch = functions.https.onCall(async (data, conte
     // auto-generated one — this is what makes create() below a real, race-safe
     // uniqueness check across concurrent import calls.
     const contactRef = db.collection('mediaNetworkContacts').doc(networkContactDocId(email));
+    // Bug fix: an unparseable coverage date (e.g. "12/05/26" or free text) previously
+    // became an Invalid Date, which either fails the write or stores an unformattable
+    // value that crashes any UI that later formats it. Keep the row, drop the bad date.
+    const parsedCoverageDate = row.recentCoverageDate ? new Date(row.recentCoverageDate) : null;
+    const publishedAt =
+      parsedCoverageDate && !Number.isNaN(parsedCoverageDate.getTime()) ? parsedCoverageDate : null;
     const recentCoverage = row.recentCoverageTitle
       ? [
           {
             title: row.recentCoverageTitle,
             url: row.recentCoverageUrl || '',
-            publishedAt: row.recentCoverageDate ? new Date(row.recentCoverageDate) : null,
+            publishedAt,
             themes: [] as string[],
           },
         ]
@@ -304,12 +310,28 @@ export const importMediaNetworkBatch = functions.https.onCall(async (data, conte
   return { batchId: batchRef.id, totalRows: rows.length, readyCount, duplicateCount, invalidCount };
 });
 
+/**
+ * Bug fix (defence in depth for the Media Network page crash): a Firestore Timestamp
+ * cannot survive the callable response as a Timestamp — it arrives on the client as a
+ * plain `{ _seconds, _nanoseconds }` object. Returning ISO 8601 strings instead makes
+ * the callable contract explicit and unambiguous for every consumer. The client's
+ * `toDate` also handles the serialised object shape, so old and new payloads both work.
+ */
+function serialiseTimestamps<T extends Record<string, unknown>>(data: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    out[key] =
+      value instanceof admin.firestore.Timestamp ? value.toDate().toISOString() : value;
+  }
+  return out as T;
+}
+
 /** Lists all media-network import batches, most recent first. Superadmin only. */
 export const listMediaNetworkBatches = functions.https.onCall(async (_data, context) => {
   requireSuperAdmin(context);
 
   const snapshot = await db.collection('mediaNetworkImportBatches').orderBy('uploadedAt', 'desc').limit(100).get();
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snapshot.docs.map((d) => ({ id: d.id, ...serialiseTimestamps(d.data()) }));
 });
 
 /**
