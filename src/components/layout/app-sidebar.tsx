@@ -28,13 +28,16 @@ import {
   Radio,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { useUserData } from '@/hooks/use-user-data';
 import { useVerticalConfig } from '@/hooks/use-vertical-config';
 import { useOrganization } from '@/hooks/use-organization';
 import UserNav from './user-nav';
+import { SupportTicketDialog } from './support-ticket-dialog';
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
   const { role, isSuperAdmin, orgId } = useUserData();
   const { config } = useVerticalConfig(orgId);
   const { organization } = useOrganization(orgId);
@@ -127,12 +130,16 @@ export default function AppSidebar() {
       <SidebarFooter className="p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip={{ children: 'Help & Support' }}>
+            <SidebarMenuButton
+              tooltip={{ children: 'Help & Support' }}
+              onClick={() => setIsSupportOpen(true)}
+            >
               <CircleHelp />
               <span>Help & Support</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <SupportTicketDialog open={isSupportOpen} onOpenChange={setIsSupportOpen} />
         <div className="flex flex-wrap gap-x-3 px-3 py-1 text-[10px] text-muted-foreground">
           <a href="/legal/privacy" className="hover:underline">Privacy</a>
           <a href="/legal/terms" className="hover:underline">Terms</a>
