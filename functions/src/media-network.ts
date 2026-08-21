@@ -61,11 +61,40 @@ async function writeAuditLog(entry: {
   }
 }
 
+/**
+ * QA fix (issue #23): the media-network importer now accepts separate first-name/
+ * last-name columns as well as a single combined name column, matching the customer
+ * contact importer. The client wizard resolves a display name before calling, but this
+ * collection is superadmin/server-owned and the callable payload is untrusted, so the
+ * same either/or rule is re-applied here: a full name wins, otherwise firstName and
+ * lastName are joined. A row with no usable name at all is still counted invalid.
+ */
+function resolveImportedName(row: NetworkImportRow): {
+  name: string;
+  firstName: string;
+  lastName: string;
+} {
+  const firstName = (row.firstName || '').trim();
+  const lastName = (row.lastName || '').trim();
+  const explicit = (row.name || '').trim();
+  const name = explicit || [firstName, lastName].filter(Boolean).join(' ');
+
+  // Back-fill the parts from a combined name column so every contact created from here
+  // on has structured name data, without ever changing the stored display name.
+  if (!firstName && !lastName && name) {
+    const parts = name.split(/\s+/);
+    return { name, firstName: parts[0], lastName: parts.slice(1).join(' ') };
+  }
+  return { name, firstName, lastName };
+}
+
 const VALID_SOURCE_TYPES = ['press_pilot_research', 'licensed', 'partner_provided', 'public_research', 'other'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type NetworkImportRow = {
   name?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   role?: string;
   profileUrl?: string;
@@ -157,7 +186,7 @@ export const importMediaNetworkBatch = functions.https.onCall(async (data, conte
   const rowOutcomes: Promise<{ email: string; ok: boolean }>[] = [];
 
   for (const row of rows) {
-    const name = (row.name || '').trim();
+    const { name, firstName, lastName } = resolveImportedName(row);
     const email = (row.email || '').trim().toLowerCase();
     const outletName = (row.outletName || '').trim();
 
@@ -195,6 +224,8 @@ export const importMediaNetworkBatch = functions.https.onCall(async (data, conte
       .create(contactRef, {
         identity: {
           name,
+          ...(firstName ? { firstName } : {}),
+          ...(lastName ? { lastName } : {}),
           email,
           ...(row.role ? { role: row.role } : {}),
           ...(row.profileUrl ? { profileUrl: row.profileUrl } : {}),

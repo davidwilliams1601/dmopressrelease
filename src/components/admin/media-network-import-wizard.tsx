@@ -43,7 +43,9 @@ import {
   NETWORK_SOURCE_TYPE_OPTIONS,
   type MediaNetworkSourceType,
   normaliseOutletTypeLabel,
+  buildNetworkDisplayName,
 } from '@/lib/media-taxonomy';
+import { splitFullName } from '@/lib/utils';
 
 type Step = 'upload' | 'source' | 'map' | 'validate';
 
@@ -164,11 +166,18 @@ export function MediaNetworkImportWizard({ onImported }: { onImported: () => voi
   };
 
   const mappedTargetKeys = new Set(Object.values(mapping));
-  const missingRequired = NETWORK_IMPORT_TARGET_FIELDS.filter((f) => f.required && !mappedTargetKeys.has(f.key));
+  // QA fix (issue #23): a name can now come from a single "Contact name" column OR from
+  // First name (+ optional Last name), matching the customer contact importer. So it is
+  // checked as an either/or here rather than via NetworkImportTargetField.required.
+  const hasNameMapping = mappedTargetKeys.has('name') || mappedTargetKeys.has('firstName');
+  const missingRequired = [
+    ...(hasNameMapping ? [] : [{ key: 'firstName' as const, label: 'First name (or Contact name)' }]),
+    ...NETWORK_IMPORT_TARGET_FIELDS.filter((f) => f.required && !mappedTargetKeys.has(f.key)),
+  ];
   const rightsIncomplete =
     !sourceType || ((sourceType === 'licensed' || sourceType === 'partner_provided') && !sourceReference.trim());
 
-  const buildRows = () =>
+  const buildRows = (): Record<string, string>[] =>
     dataRows.map((row) => {
       const values: Record<string, string> = {};
       headers.forEach((_, i) => {
@@ -178,7 +187,9 @@ export function MediaNetworkImportWizard({ onImported }: { onImported: () => voi
         if (!cell) return;
         values[target] = values[target] ? `${values[target]}, ${cell}` : cell;
       });
-      return values;
+      // Resolve the display name once, here, so the preview table, the validity check
+      // and the payload sent to importMediaNetworkBatch can never disagree.
+      return { ...values, name: buildNetworkDisplayName(values) };
     });
 
   const previewRows = step === 'validate' ? buildRows() : [];
@@ -188,26 +199,35 @@ export function MediaNetworkImportWizard({ onImported }: { onImported: () => voi
   const handleImport = async () => {
     setIsImporting(true);
     try {
-      const rows = buildRows().map((values) => ({
-        name: values.name,
-        email: values.email,
-        role: values.role,
-        profileUrl: values.profileUrl,
-        outletName: values.outletName,
-        // QA fix (Medium): normalise the raw CSV label (e.g. "Trade publication") to
-        // the controlled kebab-case value ("trade") that MediaNetworkContact.outlet.type
-        // actually stores — previously written raw, which silently broke every
-        // downstream equality match against this field (see media-taxonomy.ts).
-        outletType: values.outletType ? normaliseOutletTypeLabel(values.outletType) : values.outletType,
-        location: values.location,
-        audienceScope: values.audienceScope ? parseAudienceScope(values.audienceScope) : undefined,
-        editorialFocus: values.editorialFocus ? splitListCell(values.editorialFocus) : [],
-        geographies: values.geographies ? splitListCell(values.geographies) : [],
-        topics: values.topics ? splitListCell(values.topics) : [],
-        recentCoverageTitle: values.recentCoverageTitle,
-        recentCoverageUrl: values.recentCoverageUrl,
-        recentCoverageDate: values.recentCoverageDate,
-      }));
+      const rows = buildRows().map((values) => {
+        // Populate firstName/lastName even when the sheet only had one combined column,
+        // best-effort, so every newly imported network contact has structured name parts
+        // available for personalised greetings and dedup without losing the original
+        // display name.
+        const split = splitFullName(values.name || '');
+        return {
+          name: values.name,
+          firstName: values.firstName || split.firstName,
+          lastName: values.lastName || split.lastName,
+          email: values.email,
+          role: values.role,
+          profileUrl: values.profileUrl,
+          outletName: values.outletName,
+          // QA fix (Medium): normalise the raw CSV label (e.g. "Trade publication") to
+          // the controlled kebab-case value ("trade") that MediaNetworkContact.outlet.type
+          // actually stores — previously written raw, which silently broke every
+          // downstream equality match against this field (see media-taxonomy.ts).
+          outletType: values.outletType ? normaliseOutletTypeLabel(values.outletType) : values.outletType,
+          location: values.location,
+          audienceScope: values.audienceScope ? parseAudienceScope(values.audienceScope) : undefined,
+          editorialFocus: values.editorialFocus ? splitListCell(values.editorialFocus) : [],
+          geographies: values.geographies ? splitListCell(values.geographies) : [],
+          topics: values.topics ? splitListCell(values.topics) : [],
+          recentCoverageTitle: values.recentCoverageTitle,
+          recentCoverageUrl: values.recentCoverageUrl,
+          recentCoverageDate: values.recentCoverageDate,
+        };
+      });
 
       const functions = getFunctions();
       const importBatch = httpsCallable<
@@ -311,6 +331,11 @@ export function MediaNetworkImportWizard({ onImported }: { onImported: () => voi
                 <AlertDescription>Map a column to: {missingRequired.map((f) => f.label).join(', ')} before continuing.</AlertDescription>
               </Alert>
             )}
+            <p className="text-sm text-muted-foreground">
+              Names can be mapped either way: use <strong>First name</strong> (and optionally{' '}
+              <strong>Last name</strong>) for lists with separate columns, or{' '}
+              <strong>Contact name</strong> for a single combined column.
+            </p>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>

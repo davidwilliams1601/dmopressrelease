@@ -268,6 +268,8 @@ export function splitListCell(value: string): string[] {
 
 export type NetworkImportTargetField = {
   key:
+    | 'firstName'
+    | 'lastName'
     | 'name'
     | 'email'
     | 'role'
@@ -288,8 +290,21 @@ export type NetworkImportTargetField = {
   isList?: boolean;
 };
 
+/**
+ * QA fix (issue #23): parity with the customer contact importer, which already accepts
+ * separate first-name/last-name columns. Publisher, PR and licensed media lists almost
+ * always ship `First Name` / `Last Name` as distinct columns, and the network importer
+ * previously offered only a single combined "Contact name" target — forcing a manual
+ * spreadsheet merge before every import and leaving the network schema without
+ * structured name parts. `name` is no longer flagged `required` here because a usable
+ * display name can now come from either a full-name column or firstName (+ lastName);
+ * that either/or rule is enforced in the wizard's missingRequired check and again
+ * server-side in importMediaNetworkBatch.
+ */
 export const NETWORK_IMPORT_TARGET_FIELDS: NetworkImportTargetField[] = [
-  { key: 'name', label: 'Contact name', required: true },
+  { key: 'firstName', label: 'First name' },
+  { key: 'lastName', label: 'Last name' },
+  { key: 'name', label: 'Contact name (single column)' },
   { key: 'email', label: 'Email address', required: true },
   { key: 'role', label: 'Role / title' },
   { key: 'profileUrl', label: 'Profile URL' },
@@ -311,6 +326,12 @@ export const NETWORK_IMPORT_FIELD_ALIASES: Record<string, NetworkImportTargetFie
   fullname: 'name',
   contactname: 'name',
   journalist: 'name',
+  firstname: 'firstName',
+  givenname: 'firstName',
+  forename: 'firstName',
+  lastname: 'lastName',
+  surname: 'lastName',
+  familyname: 'lastName',
   email: 'email',
   emailaddress: 'email',
   role: 'role',
@@ -360,6 +381,22 @@ export const NETWORK_IMPORT_FIELD_ALIASES: Record<string, NetworkImportTargetFie
 /** Suggests a NetworkImportTargetField for a raw spreadsheet header, or 'ignore'. */
 export function suggestNetworkFieldForHeader(header: string): NetworkImportTargetField['key'] {
   return NETWORK_IMPORT_FIELD_ALIASES[normaliseHeader(header)] || 'ignore';
+}
+
+/**
+ * Builds the display name for an imported network contact from whichever name columns
+ * were mapped. Deterministic and shared by the wizard preview and the payload it sends,
+ * so what a superadmin reviews on screen is exactly what gets stored. The same rule is
+ * re-applied server-side (importMediaNetworkBatch) because the client is not trusted.
+ */
+export function buildNetworkDisplayName(values: {
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+}): string {
+  const full = (values.name || '').trim();
+  if (full) return full;
+  return [(values.firstName || '').trim(), (values.lastName || '').trim()].filter(Boolean).join(' ');
 }
 
 export const AUDIENCE_SCOPE_VALUES = ['local', 'regional', 'national', 'international'] as const;

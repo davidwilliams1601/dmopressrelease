@@ -444,7 +444,16 @@ export type EmailEvent = {
 export type MediaNetworkContact = {
   id: string;
   identity: {
+    /**
+     * Display name. Always populated: either the imported full-name column or
+     * firstName + lastName joined. Kept as the canonical field because
+     * recommendation labels and existing pre-firstName/lastName documents rely
+     * on it.
+     */
     name: string;
+    /** Structured name parts, present when the import supplied them (see media-taxonomy.ts). */
+    firstName?: string;
+    lastName?: string;
     email: string;
     role?: string;
     profileUrl?: string;
