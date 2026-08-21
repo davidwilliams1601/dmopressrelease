@@ -60,6 +60,28 @@ required additions before any row can be published to `mediaNetworkContacts`:
 2. **Review queue** — rows are held at `networkStatus: 'review'` until a superadmin approves
    them; nothing becomes recommendable (`active`) automatically.
 
+### Name columns (issue #23)
+
+The network importer accepts names either way, matching the customer contact importer:
+
+| CSV structure | Mapping | Stored on `identity` |
+|---|---|---|
+| `Name` / `Full name` / `Contact name` | Contact name (single column) | `name` as supplied, plus `firstName` / `lastName` best-effort split |
+| `First Name` + `Last Name` | First name + Last name | `name` = joined, `firstName`, `lastName` |
+| `First Name` only | First name | `name` = first name, `firstName` |
+
+Headers auto-map from `first_name` / `firstname` / `forename` / `given name` and `last_name` /
+`lastname` / `surname` / `family name`. `identity.name` remains the canonical display field, so
+contacts imported before this change (and every anonymised recommendation label derived from
+them) are unaffected. A row is only invalid when no usable name can be built from any mapped
+name column. The rule is applied in the wizard (`buildNetworkDisplayName`) and re-applied
+server-side in `importMediaNetworkBatch` (`resolveImportedName`), because the callable payload
+is untrusted.
+
+Fixtures for the manual regression pass live in `docs/smart-distribution/fixtures/`:
+`media-network-first-last-name.csv` (separate columns) and
+`media-network-combined-name.csv` (single combined column — the pre-existing behaviour).
+
 Deduplication against the network runs first at import time, then again at recommendation
 time against each organisation's own uploaded contacts (see acceptance criteria in
 `implementation-plan.md`) — a customer should never receive an anonymised network
