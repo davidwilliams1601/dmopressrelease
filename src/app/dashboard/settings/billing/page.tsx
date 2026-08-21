@@ -2,7 +2,8 @@
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
-import { Check } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Loader2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -11,6 +12,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,11 +30,12 @@ import { useOrganization } from '@/hooks/use-organization';
 import { getEntitlements } from '@/hooks/use-entitlements';
 import { useOrgBilling } from '@/hooks/use-org-billing';
 import { useBillingPortal } from '@/hooks/use-billing-portal';
-import { TIERS, type TierId } from '@/lib/tiers';
+import { useChangePlan } from '@/hooks/use-change-plan';
+import { TIERS, type SelfServeTierId } from '@/lib/tiers';
 import { toDate } from '@/lib/utils';
 import { SmartDistributionWalletCard } from '@/components/settings/smart-distribution-wallet-card';
 
-const TIER_ORDER: TierId[] = ['starter', 'professional', 'organisation'];
+const TIER_ORDER: SelfServeTierId[] = ['starter', 'professional', 'organisation'];
 
 const FEATURE_LABELS: Record<string, string> = {
   approvalWorkflows: 'Approval workflows',
@@ -46,6 +58,8 @@ export default function BillingPage() {
   const { organization, isLoading: isOrgLoading } = useOrganization(orgId);
   const { billing } = useOrgBilling(orgId);
   const { openPortal, isLoading: isPortalLoading } = useBillingPortal();
+  const { changePlan, isLoading: isChangingPlan } = useChangePlan();
+  const [pendingTier, setPendingTier] = useState<SelfServeTierId | null>(null);
 
   if (isUserLoading || isOrgLoading) {
     return (
@@ -164,12 +178,51 @@ export default function BillingPage() {
                     ))}
                 </ul>
               </CardContent>
+              {!isCurrent && (
+                <CardFooter>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setPendingTier(id)}
+                    disabled={isChangingPlan}
+                  >
+                    {tier.priceMonthly > current.priceMonthly ? `Upgrade to ${tier.name}` : `Downgrade to ${tier.name}`}
+                  </Button>
+                </CardFooter>
+              )}
             </Card>
           );
         })}
       </div>
 
       {orgId && <SmartDistributionWalletCard orgId={orgId} />}
+
+      <AlertDialog open={!!pendingTier} onOpenChange={(v) => { if (!v) setPendingTier(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingTier && TIERS[pendingTier].priceMonthly > current.priceMonthly ? 'Upgrade' : 'Downgrade'} to {pendingTier && TIERS[pendingTier].name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingTier &&
+                `You'll move to the ${TIERS[pendingTier].name} plan at £${TIERS[pendingTier].priceMonthly}/month. Stripe will prorate the difference on your next invoice.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isChangingPlan}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isChangingPlan}
+              onClick={async () => {
+                if (!pendingTier) return;
+                const ok = await changePlan(pendingTier);
+                if (ok) setPendingTier(null);
+              }}
+            >
+              {isChangingPlan ? <><Loader2 className="h-4 w-4 animate-spin" /> Confirming…</> : 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card>
         <CardHeader>

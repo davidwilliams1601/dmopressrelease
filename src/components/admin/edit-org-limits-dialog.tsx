@@ -36,6 +36,7 @@ type EditOrgLimitsDialogProps = {
   currentCanProvisionChildOrgs?: boolean;
   currentMaxChildOrgs?: number | null;
   currentChildOrgDefaultTier?: string | null;
+  currentBillingLockOverride?: boolean;
   onUpdated: () => void;
 };
 
@@ -50,6 +51,7 @@ export function EditOrgLimitsDialog({
   currentCanProvisionChildOrgs,
   currentMaxChildOrgs,
   currentChildOrgDefaultTier,
+  currentBillingLockOverride,
   onUpdated,
 }: EditOrgLimitsDialogProps) {
   const [open, setOpen] = useState(false);
@@ -71,6 +73,7 @@ export function EditOrgLimitsDialog({
     currentMaxChildOrgs != null ? String(currentMaxChildOrgs) : ''
   );
   const [childOrgDefaultTier, setChildOrgDefaultTier] = useState(currentChildOrgDefaultTier ?? '');
+  const [billingLockOverride, setBillingLockOverride] = useState(currentBillingLockOverride ?? false);
   const { toast } = useToast();
 
   const handleSave = async () => {
@@ -104,6 +107,7 @@ export function EditOrgLimitsDialog({
         maxUsers: parsedUsers,
         tier: tier || null,
         contractValueMonthly: parsedContractValue,
+        billingLockOverride,
         ...(isNetworkRoot
           ? {
               canProvisionChildOrgs,
@@ -235,6 +239,19 @@ export function EditOrgLimitsDialog({
               </div>
             </>
           )}
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="billingLockOverride">Exempt From Billing Lock</Label>
+              <p className="text-xs text-muted-foreground">
+                Keep this org accessible even if its subscription lapses — for accounts you personally commission or manage outside self-serve Stripe billing.
+              </p>
+            </div>
+            <Switch
+              id="billingLockOverride"
+              checked={billingLockOverride}
+              onCheckedChange={setBillingLockOverride}
+            />
+          </div>
           <p className="text-xs text-muted-foreground">
             Clear a limit field to remove it entirely.
           </p>

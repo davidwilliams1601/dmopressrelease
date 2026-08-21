@@ -2,6 +2,7 @@
 import AppSidebar from '@/components/layout/app-sidebar';
 import AppHeader from '@/components/layout/header';
 import { TrialBanner } from '@/components/billing/trial-banner';
+import { BillingLockScreen } from '@/components/billing/billing-lock-screen';
 import {
   SidebarProvider,
   Sidebar,
@@ -9,9 +10,15 @@ import {
 } from '@/components/ui/sidebar';
 import { useUser } from '@/firebase';
 import { useUserData } from '@/hooks/use-user-data';
-import { useRouter } from 'next/navigation';
+import { useOrganization } from '@/hooks/use-organization';
+import { useBillingLock } from '@/hooks/use-billing-lock';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// Routes still reachable while an org is billing-locked, so an admin can add a
+// card, and a super admin can manage other orgs (e.g. grant a billingLockOverride).
+const BILLING_LOCK_EXEMPT_PREFIXES = ['/dashboard/settings/billing', '/dashboard/admin'];
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +28,12 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
-  const { role, isLoading: isRoleLoading } = useUserData();
+  const { role, orgId, isLoading: isRoleLoading } = useUserData();
+  const { organization } = useOrganization(orgId);
+  const { isLocked, reason } = useBillingLock(orgId, organization);
   const router = useRouter();
+  const pathname = usePathname();
+  const isExemptRoute = BILLING_LOCK_EXEMPT_PREFIXES.some((p) => pathname?.startsWith(p));
 
   useEffect(() => {
     // Wait for both auth AND role to finish loading before redirecting.
@@ -70,7 +81,7 @@ export default function DashboardLayout({
         <AppHeader />
         <main className="p-4 lg:p-6 space-y-4">
           <TrialBanner />
-          {children}
+          {isLocked && !isExemptRoute ? <BillingLockScreen reason={reason} /> : children}
         </main>
       </SidebarInset>
     </SidebarProvider>

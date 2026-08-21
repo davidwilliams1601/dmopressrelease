@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { getTierPriceMonthly } from './tiers';
 import { sendWelcomeEmail } from './welcome-email';
+import { getStripe, STRIPE_SECRET_KEY } from './stripe';
 
 const db = admin.firestore();
 
@@ -404,6 +405,7 @@ export const getSuperAdminReport = functions.https.onCall(async (_data, context)
         region: org.region ?? null,
         escalatedInCount,
         escalatedInUsedCount,
+        billingLockOverride: !!org.billingLockOverride,
       };
     })
   );
@@ -752,7 +754,7 @@ export async function resolveThemeTaxonomy(vertical: string | undefined): Promis
 export const updateOrgLimits = functions.https.onCall(async (data, context) => {
   requireSuperAdmin(context);
 
-  const { orgId, maxPartners, maxUsers, tier, contractValueMonthly, canProvisionChildOrgs, maxChildOrgs, childOrgDefaultTier } = data;
+  const { orgId, maxPartners, maxUsers, tier, contractValueMonthly, canProvisionChildOrgs, maxChildOrgs, childOrgDefaultTier, billingLockOverride } = data;
 
   if (!orgId) {
     throw new functions.https.HttpsError('invalid-argument', 'Missing required field: orgId');
@@ -837,9 +839,90 @@ export const updateOrgLimits = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'childOrgDefaultTier must be starter, professional, organisation, or null.');
   }
 
+  // Manual per-org exemption from the billing read-only lock (dashboard/layout.tsx),
+  // for accounts David personally commissions/manages outside the normal self-serve
+  // Stripe lifecycle (e.g. a legacy production org, or a deal handled by invoice).
+  // Independent of tier — 'enterprise' orgs are already exempt by tier alone, this
+  // is for self-serve-tier orgs that still need an exemption.
+  if (billingLockOverride !== undefined) {
+    if (billingLockOverride === null) {
+      update.billingLockOverride = admin.firestore.FieldValue.delete();
+    } else if (typeof billingLockOverride === 'boolean') {
+      update.billingLockOverride = billingLockOverride;
+    } else {
+      throw new functions.https.HttpsError('invalid-argument', 'billingLockOverride must be a boolean or null.');
+    }
+  }
+
   await orgRef.update(update);
 
-  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'} | contractValueMonthly=${contractValueMonthly ?? 'unchanged/none'} | canProvisionChildOrgs=${canProvisionChildOrgs ?? 'unchanged'} | maxChildOrgs=${maxChildOrgs ?? 'unchanged/none'} | childOrgDefaultTier=${childOrgDefaultTier ?? 'unchanged/none'}`);
+  console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'} | contractValueMonthly=${contractValueMonthly ?? 'unchanged/none'} | canProvisionChildOrgs=${canProvisionChildOrgs ?? 'unchanged'} | maxChildOrgs=${maxChildOrgs ?? 'unchanged/none'} | childOrgDefaultTier=${childOrgDefaultTier ?? 'unchanged/none'} | billingLockOverride=${billingLockOverride ?? 'unchanged/none'}`);
 
   return { success: true };
 });
+
+/**
+ * One-off backfill for legacy orgs that predate the self-serve Stripe billing flow
+ * (e.g. Visit Kent) — they have a `tier` but no `orgs/{orgId}/billing/state` doc, so
+ * the Billing page has no Stripe customer to open a portal session for and every
+ * billing button is a dead end. Creates a Stripe customer for each such org (no
+ * subscription — we don't know their real payment arrangement) and writes a private
+ * billing/state doc marked 'active' so they keep normal, unlocked access and now have
+ * a working "Add payment method" button. Super-admin only. Idempotent — safe to re-run;
+ * orgs that already have a stripeCustomerId are skipped.
+ */
+export const backfillOrgBilling = functions
+  .runWith({ secrets: [STRIPE_SECRET_KEY] })
+  .https.onCall(async (_data, context) => {
+    requireSuperAdmin(context);
+
+    const stripe = getStripe();
+    const orgsSnap = await db.collection('orgs').get();
+
+    const processed: { orgId: string; name: string }[] = [];
+    const skipped: { orgId: string; reason: string }[] = [];
+
+    for (const orgDoc of orgsSnap.docs) {
+      const orgId = orgDoc.id;
+      const org = orgDoc.data();
+      const tier = org.tier;
+
+      // Only self-serve tiers are governed by Stripe at all — 'enterprise' deals are
+      // manually invoiced and have no Stripe price to attach a customer/subscription to.
+      if (!['starter', 'professional', 'organisation'].includes(tier)) {
+        skipped.push({ orgId, reason: `tier=${tier ?? 'none'} (not self-serve)` });
+        continue;
+      }
+
+      const billingSnap = await db.collection('orgs').doc(orgId).collection('billing').doc('state').get();
+      if (billingSnap.data()?.stripeCustomerId) {
+        skipped.push({ orgId, reason: 'already has a Stripe customer' });
+        continue;
+      }
+
+      const customer = await stripe.customers.create({
+        email: org.pressContact?.email || undefined,
+        name: org.name || orgId,
+        metadata: { orgId, backfilled: 'true' },
+      });
+
+      await db.collection('orgs').doc(orgId).collection('billing').doc('state').set(
+        {
+          stripeCustomerId: customer.id,
+          // Marked 'active' (not tied to a real Stripe subscription yet) so this legacy
+          // org keeps normal, unlocked access until they choose to add a card via the
+          // now-functional "Add payment method" button.
+          subscriptionStatus: 'active',
+          hasPaymentMethod: false,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      processed.push({ orgId, name: org.name || orgId });
+      console.log(`[backfillOrgBilling] Created Stripe customer ${customer.id} for legacy org ${orgId}`);
+    }
+
+    console.log(`[backfillOrgBilling] Done: processed=${processed.length}, skipped=${skipped.length}`);
+    return { processed, skipped };
+  });

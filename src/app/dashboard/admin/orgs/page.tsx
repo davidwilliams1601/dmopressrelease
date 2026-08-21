@@ -21,6 +21,7 @@ import { Building2, Users, Send, Mail, RefreshCw, Network, PoundSterling, Layers
 import { Button } from '@/components/ui/button';
 import { ProvisionOrgDialog } from '@/components/admin/provision-org-dialog';
 import { EditOrgLimitsDialog } from '@/components/admin/edit-org-limits-dialog';
+import { BackfillBillingDialog } from '@/components/admin/backfill-billing-dialog';
 import { SetOrgParentDialog } from '@/components/admin/set-org-parent-dialog';
 import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
 import { SeedDemoDialog } from '@/components/admin/seed-demo-dialog';
@@ -56,6 +57,7 @@ type OrgStat = {
   region: string | null;
   escalatedInCount: number;
   escalatedInUsedCount: number;
+  billingLockOverride: boolean;
 };
 
 type Totals = {
@@ -186,6 +188,7 @@ export default function AdminOrgsPage() {
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          <BackfillBillingDialog onDone={loadReport} />
           <ProvisionOrgDialog onOrgProvisioned={loadReport} />
         </div>
       </div>
@@ -363,6 +366,7 @@ export default function AdminOrgsPage() {
                           currentCanProvisionChildOrgs={org.canProvisionChildOrgs}
                           currentMaxChildOrgs={org.maxChildOrgs}
                           currentChildOrgDefaultTier={org.childOrgDefaultTier}
+                          currentBillingLockOverride={org.billingLockOverride}
                           onUpdated={loadReport}
                         />
                         <SetOrgParentDialog
