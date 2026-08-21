@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { format as formatDate } from "date-fns"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -20,13 +21,47 @@ export function getAppBaseUrl(): string {
 /**
  * Safely convert a Firestore Timestamp or serialized date to a JS Date.
  * Handles both Firestore Timestamp objects (with .toDate()) and plain date strings/numbers.
+ *
+ * Bug fix: a Timestamp returned from an httpsCallable is NOT a Timestamp on the client —
+ * the callable protocol JSON-serialises it into a plain `{ _seconds, _nanoseconds }`
+ * object (some paths use `{ seconds, nanoseconds }`), which has no `.toDate()`, so this
+ * fell through to `new Date(object)` and produced an Invalid Date. Passing that to
+ * date-fns `format` throws `RangeError: Invalid time value`, which took out the whole
+ * Superadmin Media Network page the moment it had its first import batch to render.
+ * Those serialised shapes are now handled explicitly.
  */
 export function toDate(timestamp: any): Date {
   if (!timestamp) return new Date();
-  if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+  if (typeof timestamp.toDate === 'function') {
     return timestamp.toDate();
   }
+  if (typeof timestamp.toMillis === 'function') {
+    return new Date(timestamp.toMillis());
+  }
+  const seconds = timestamp._seconds ?? timestamp.seconds;
+  if (typeof seconds === 'number') {
+    const nanos = timestamp._nanoseconds ?? timestamp.nanoseconds ?? 0;
+    return new Date(seconds * 1000 + Math.round(nanos / 1e6));
+  }
   return new Date(timestamp);
+}
+
+/** True when a value is a Date that can actually be formatted. */
+export function isValidDate(value: unknown): value is Date {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+/**
+ * Formats any timestamp shape `toDate` understands, returning `fallback` instead of
+ * throwing when the value can't be parsed. Use this rather than calling date-fns
+ * `format(toDate(x))` directly on data that came back from a callable or an import —
+ * an unparseable date should render as a dash, never crash the page.
+ */
+export function formatTimestamp(value: any, pattern: string, fallback = '—'): string {
+  if (!value) return fallback;
+  const date = toDate(value);
+  if (!isValidDate(date)) return fallback;
+  return formatDate(date, pattern);
 }
 
 /**
