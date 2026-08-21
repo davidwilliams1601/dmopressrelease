@@ -64,6 +64,8 @@ export type Organization = {
   maxSubmissionsPerPartner?: number;
   maxUsers?: number;
   tier?: 'starter' | 'professional' | 'organisation' | 'enterprise';
+  /** Manual exemption from the billing read-only lock, set by Press Pilot for accounts they personally commission/manage outside the normal self-serve Stripe lifecycle. */
+  billingLockOverride?: boolean;
   approvalWorkflowEnabled?: boolean;
   contentTypes?: Array<{ name: string; description?: string }>;
   branding?: OrgBranding;

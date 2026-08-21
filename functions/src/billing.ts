@@ -242,6 +242,74 @@ export const createBillingPortalSession = functions
     return { url: session.url };
   });
 
+/**
+ * Directly change an org's Stripe subscription to a different self-serve tier's
+ * price, with prorated billing. Admin-only. This is deterministic and doesn't
+ * depend on the Stripe Customer Portal's "switch plan" setting being enabled —
+ * used by the Upgrade/Downgrade buttons on the tier-comparison cards.
+ *
+ * Requires an existing active/trialing subscription (i.e. a payment method
+ * already on file or still within the trial) — legacy orgs backfilled with only
+ * a Stripe customer (no subscription yet) must add a card via the portal first.
+ */
+export const changeSubscriptionPlan = functions
+  .runWith({ secrets: [STRIPE_SECRET_KEY] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'You must be signed in.');
+    }
+    const orgId = context.auth.token.orgId as string | undefined;
+    if (!orgId) {
+      throw new functions.https.HttpsError('failed-precondition', 'No organisation found for this account.');
+    }
+
+    const userSnap = await db.collection('orgs').doc(orgId).collection('users').doc(context.auth.uid).get();
+    if (userSnap.data()?.role !== 'Admin') {
+      throw new functions.https.HttpsError('permission-denied', 'Only admins can manage billing.');
+    }
+
+    if (!isSelfServeTierId(data?.targetTier)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Invalid targetTier. Choose starter, professional, or organisation.'
+      );
+    }
+    const targetTier: SelfServeTierId = data.targetTier;
+
+    const billingSnap = await billingRef(orgId).get();
+    const subscriptionId = billingSnap.data()?.stripeSubscriptionId as string | undefined;
+    if (!subscriptionId) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Add a payment method before changing your plan.'
+      );
+    }
+
+    const stripe = getStripe();
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const currentItem = subscription.items.data[0];
+    if (!currentItem) {
+      throw new functions.https.HttpsError('internal', 'Subscription has no items to update.');
+    }
+    const newPriceId = priceIdForTier(targetTier);
+    if (currentItem.price?.id === newPriceId) {
+      throw new functions.https.HttpsError('failed-precondition', 'You are already on this plan.');
+    }
+
+    const updated = await stripe.subscriptions.update(subscriptionId, {
+      items: [{ id: currentItem.id, price: newPriceId }],
+      proration_behavior: 'create_prorations',
+    });
+
+    // The webhook will also receive customer.subscription.updated and re-sync, but
+    // we sync here too so the UI reflects the change immediately without waiting
+    // on webhook delivery latency.
+    await syncSubscription(updated);
+
+    console.log(`[changeSubscriptionPlan] ${orgId}: switched to ${targetTier} (sub ${subscriptionId})`);
+    return { success: true, tier: targetTier, status: updated.status };
+  });
+
 /** Resolve the org id for a subscription/customer via Stripe metadata (set at creation). */
 async function orgExists(orgId: string): Promise<boolean> {
   return (await db.collection('orgs').doc(orgId).get()).exists;
