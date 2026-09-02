@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
+import { sendWithRetry } from './sendgrid-retry';
 import { escapeHtml } from './html-utils';
 import { emailWrapper, emailButton } from './email-branding';
 import { getMediaRequestTopicsLabel } from './vertical-labels';
@@ -111,7 +112,7 @@ export const onNewPartnerSubmission = functions.firestore
 
       await Promise.all(
         recipients.map((r) =>
-          sgMail.send({
+          sendWithRetry({
             to: r.email,
             ...orgSender(org, fromEmail),
             subject: `New submission from ${submission.partnerName || 'a partner'} — ${submission.title || 'Untitled'}`,
@@ -151,8 +152,28 @@ export const onNewMediaRequest = functions.firestore
       const topicsLabel = getMediaRequestTopicsLabel(orgData.vertical);
 
       const recipients = await getOptedInUsers(orgId, 'mediaRequests');
+
+      // The org's press contact is the newsroom form's designated destination, so
+      // they're notified whether or not they hold a user account. `submitStoryRequest`
+      // used to mail them separately, which double-notified any press contact who was
+      // also an opted-in user; adding them here instead keeps the coverage with one send.
+      //
+      // Note this deliberately ignores an opt-out on the press contact's own user
+      // record: opting out of the org-wide feed shouldn't silently drop journalist
+      // enquiries addressed to them specifically. Matches the previous behaviour.
+      const pressContactEmail: string | undefined = orgData.pressContact?.email;
+      if (
+        pressContactEmail &&
+        !recipients.some((r) => r.email.toLowerCase() === pressContactEmail.toLowerCase())
+      ) {
+        recipients.push({
+          name: orgData.pressContact?.name || 'Press contact',
+          email: pressContactEmail,
+        });
+      }
+
       if (recipients.length === 0) {
-        console.log('[onNewMediaRequest] No opted-in users — skipping');
+        console.log('[onNewMediaRequest] No opted-in users and no press contact — skipping');
         return;
       }
 
@@ -193,7 +214,7 @@ export const onNewMediaRequest = functions.firestore
 
       await Promise.all(
         recipients.map((r) =>
-          sgMail.send({
+          sendWithRetry({
             to: r.email,
             // Journalist enquiry — org staff should be able to reply straight
             // to the journalist, not to the org's own press contact.
