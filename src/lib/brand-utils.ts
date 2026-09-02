@@ -67,7 +67,11 @@ export function resolveOrgColors(branding?: { primaryColor?: string; secondaryCo
 export type AttributionLevel = 'full' | 'subtle' | 'none';
 
 export function getAttribution(tier?: string | null): AttributionLevel {
-  if (tier === 'organisation') return 'none';
+  // Enterprise gets the same full whitelabel/no-attribution treatment as
+  // Organisation (see getTierAttribution in ./tiers). Handled here rather than
+  // only in tiers.ts because public newsroom/release pages and the branding
+  // card call this helper directly.
+  if (tier === 'organisation' || tier === 'enterprise') return 'none';
   if (tier === 'professional') return 'subtle';
   return 'full';
 }

@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { escapeHtml } from './html-utils';
 import { emailWrapper, emailButton } from './email-branding';
+import { orgSender } from './sender';
 
 const db = admin.firestore();
 
@@ -81,7 +82,7 @@ export const onApprovalRequested = functions.firestore
       sgMail.setApiKey(key);
       await sgMail.send({
         to: approverEmail,
-        from: { email: fromEmail, name: org.name },
+        ...orgSender(org, fromEmail),
         subject: `Approval requested: "${after.headline || 'Untitled'}" — ${org.name}`,
         html: emailWrapper(org, 'Approval requested', bodyHtml),
         text: `${requestedByName} has asked you to review a press release before it's sent.\n\nHeadline: ${after.headline}\nRequested by: ${requestedByName}\nDate: ${dateStr}\n\nReview it here: ${detailUrl}`,
@@ -181,7 +182,7 @@ export const onApprovalResolved = functions.firestore
       sgMail.setApiKey(key);
       await sgMail.send({
         to: requestedByEmail,
-        from: { email: fromEmail, name: org.name },
+        ...orgSender(org, fromEmail),
         subject,
         html: emailWrapper(org, headerTitle, bodyHtml),
         text: bodyText,

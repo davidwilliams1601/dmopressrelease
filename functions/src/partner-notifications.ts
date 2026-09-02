@@ -4,6 +4,7 @@ import sgMail from '@sendgrid/mail';
 import { sendWithRetry } from './sendgrid-retry';
 import { escapeHtml } from './html-utils';
 import { emailFooter, emailCallout, emailLink, emailMetric, emailMetricSmall, getEmailColors } from './email-branding';
+import { orgSender } from './sender';
 
 const db = admin.firestore();
 
@@ -106,7 +107,7 @@ export const onSubmissionUsed = functions.firestore
 
       await sendWithRetry({
         to: after.partnerEmail,
-        from: { email: fromEmail, name: orgName },
+        ...orgSender(orgData, fromEmail),
         subject: `Your content has been selected — ${orgName}`,
         html,
         text: `Hi ${after.partnerName},\n\nYour submission "${after.title}" has been selected for an upcoming press release from ${orgName}${releaseHeadline ? `: "${releaseHeadline}"` : ''}.\n\n${releaseUrl ? `Read it here: ${releaseUrl}\n\n` : ''}Thank you for contributing!\n\n${orgName}`,
@@ -186,7 +187,7 @@ export const onSubmissionApproved = functions.firestore
 
       await sendWithRetry({
         to: after.partnerEmail,
-        from: { email: fromEmail, name: orgName },
+        ...orgSender(orgData, fromEmail),
         subject: `Submission approved — ${orgName}`,
         html,
         text: `Hi ${after.partnerName},
@@ -409,7 +410,7 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
       try {
         await sendWithRetry({
           to: partnerEmail,
-          from: { email: fromEmail, name: orgName },
+          ...orgSender(orgData, fromEmail),
           subject: `Your ${quarterLabel} submissions report — ${orgName}`,
           html,
           text,
@@ -744,7 +745,7 @@ export const sendPartnerEmail = functions.https.onCall(async (data, context) => 
       try {
         await sendWithRetry({
           to: partner.email,
-          from: { email: fromEmail, name: orgName },
+          ...orgSender(orgData, fromEmail),
           subject: subject.trim(),
           html,
           text,
@@ -923,7 +924,6 @@ async function sendMonthlyImpactForOrg(
   const orgData = orgDoc.data()!;
   const orgName: string = orgData.name || 'Your organisation';
   const orgSlug: string = orgData.slug || orgId;
-  const senderEmail: string = orgData.pressContact?.email || fromEmail;
   const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
 
   // Get all partner users
@@ -1070,7 +1070,7 @@ async function sendMonthlyImpactForOrg(
     try {
       await sendWithRetry({
         to: partnerEmail,
-        from: { email: senderEmail, name: orgName },
+        ...orgSender(orgData, fromEmail),
         subject: `Your ${monthLabel} Impact Report — ${orgName}`,
         html,
         text,

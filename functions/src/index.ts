@@ -5,6 +5,7 @@ import { escapeHtml } from './html-utils';
 import { sendWithRetry } from './sendgrid-retry';
 import { resolveOrgColors } from './brand-utils';
 import { emailFooter } from './email-branding';
+import { orgSender } from './sender';
 import { getStorage } from 'firebase-admin/storage';
 
 // QA fix (2026-08-20): admin.initializeApp() must run before ANY module that calls
@@ -870,15 +871,11 @@ async function sendEmail(
     throw new Error('Missing sendgrid.from_email config. Set it with: firebase functions:config:set sendgrid.from_email="you@yourdomain.com"');
   }
 
-  const replyToEmail = org?.pressContact?.email;
-
   const msg: any = {
     to: recipient.email,
-    from: {
-      email: fromEmail,
-      name: org?.name || 'Press Release',
-    },
-    ...(replyToEmail ? { replyTo: { email: replyToEmail, name: org?.name || '' } } : {}),
+    // Journalists see the org's name as the sender and replies route to the
+    // org's press contact. See ./sender for why `from.email` stays platform-owned.
+    ...orgSender(org, fromEmail, { fallbackName: 'Press Release' }),
     subject: release.headline,
     text: release.bodyCopy || 'No content',
     html: formatEmailHtml(release, recipient, org),
