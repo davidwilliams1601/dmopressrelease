@@ -66,7 +66,7 @@ export const onNewPartnerSubmission = functions.firestore
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       if (!orgDoc.exists) return;
       const orgData = orgDoc.data()!;
-      const org = { name: orgData.name || 'Your organisation', branding: orgData.branding, tier: orgData.tier };
+      const org = { ...orgData, name: orgData.name || 'Your organisation' };
 
       const recipients = await getOptedInUsers(orgId, 'partnerSubmissions');
       if (recipients.length === 0) {
@@ -147,7 +147,7 @@ export const onNewMediaRequest = functions.firestore
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       if (!orgDoc.exists) return;
       const orgData = orgDoc.data()!;
-      const org = { name: orgData.name || 'Your organisation', branding: orgData.branding, tier: orgData.tier };
+      const org = { ...orgData, name: orgData.name || 'Your organisation' };
       const topicsLabel = getMediaRequestTopicsLabel(orgData.vertical);
 
       const recipients = await getOptedInUsers(orgId, 'mediaRequests');
