@@ -51,7 +51,7 @@ export const onApprovalRequested = functions.firestore
     try {
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       const orgData = orgDoc.exists ? orgDoc.data()! : {};
-      const org = { name: orgData.name || 'Your organisation', branding: orgData.branding, tier: orgData.tier };
+      const org = { ...orgData, name: orgData.name || 'Your organisation' };
 
       const headline = escapeHtml(after.headline || 'Untitled');
       const requestedByName = escapeHtml(after.approvalRequestedByName || 'A team member');
@@ -133,7 +133,7 @@ export const onApprovalResolved = functions.firestore
     try {
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       const orgData = orgDoc.exists ? orgDoc.data()! : {};
-      const org = { name: orgData.name || 'Your organisation', branding: orgData.branding, tier: orgData.tier };
+      const org = { ...orgData, name: orgData.name || 'Your organisation' };
 
       const headline = after.headline || 'Untitled';
       const detailUrl = `${appUrl}/dashboard/releases/${releaseId}`;

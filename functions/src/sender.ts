@@ -26,6 +26,22 @@ export function getFromEmail(): string | null {
   return functions.config().sendgrid?.from_email || process.env.SENDGRID_FROM_EMAIL || null;
 }
 
+/**
+ * IMPORTANT for callers: pass the org's Firestore document, not a hand-built
+ * subset of it.
+ *
+ * Several call sites used to construct a trimmed `{ name, branding, tier }`
+ * object for the email branding helpers and then reuse it here. Because
+ * `pressContact` is optional, those objects type-checked cleanly but silently
+ * produced mail with no Reply-To — the exact bug this module exists to prevent.
+ * Those sites now spread the full doc (`{ ...orgData, name: ... }`) so no field
+ * can be dropped on the way through.
+ *
+ * A required `pressContact` key would catch this at compile time, but Firestore
+ * hands back `DocumentData`, whose index signature TypeScript refuses to match
+ * against a required property — it would break every correct caller. The
+ * runtime warning below is the backstop instead.
+ */
 type OrgSenderLike = {
   name?: string | null;
   pressContact?: { name?: string | null; email?: string | null } | null;
@@ -64,6 +80,16 @@ export function orgSender(
   const replyToName = override
     ? override.name || orgName
     : org?.pressContact?.name || orgName;
+
+  if (!replyToEmail) {
+    // No Reply-To means replies to this message land in the Press Pilot inbox
+    // instead of the org's. Usually that's an org with no press contact set,
+    // but it's also the signature of a caller passing a trimmed org object.
+    console.warn(
+      `[orgSender] No reply-to resolved for org "${orgName}" — replies will route to the platform inbox. ` +
+        `Check the org has pressContact.email set, and that the caller passed the full org document.`
+    );
+  }
 
   return {
     from: { email: fromEmail, name: orgName },
