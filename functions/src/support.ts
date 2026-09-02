@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
+import { sendWithRetry } from './sendgrid-retry';
 import { escapeHtml } from './html-utils';
 
 const db = admin.firestore();
@@ -97,7 +98,7 @@ export const submitSupportTicket = functions.https.onCall(async (data, context) 
     </html>
   `;
 
-  await sgMail.send({
+  await sendWithRetry({
     to: SUPPORT_INBOX,
     from: { email: fromEmail, name: 'PressPilot Support' },
     ...(authEmail ? { replyTo: authEmail } : {}),

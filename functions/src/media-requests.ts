@@ -1,9 +1,5 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import sgMail from '@sendgrid/mail';
-import { escapeHtml } from './html-utils';
-import { getMediaRequestTopicsLabel } from './vertical-labels';
-import { orgSender } from './sender';
 
 const db = admin.firestore();
 
@@ -11,8 +7,6 @@ const db = admin.firestore();
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
-
-// Escape HTML special characters to prevent XSS in email templates
 
 /**
  * Public callable Cloud Function to submit a journalist story request.
@@ -127,91 +121,14 @@ export const submitStoryRequest = functions.https.onCall(async (data) => {
   await requestRef.set(requestData);
   console.log(`Media request created: ${requestRef.id} for org ${orgId} from ${cleanEmail}`);
 
-  // 6. Send email notification to org's press contact (best-effort — don't fail the request)
-  try {
-    await sendNotificationEmail(orgId, requestData);
-  } catch (err) {
-    console.error('Failed to send notification email (non-fatal):', err);
-  }
+  // 6. Notification is handled by the `onNewMediaRequest` Firestore trigger in
+  // org-user-notifications.ts, which fires on the write above. This function used
+  // to also send its own email to the org's press contact, which meant a single
+  // journalist enquiry produced two differently-templated emails — and, where the
+  // press contact was also an org user with media-request notifications on (the
+  // normal case), both landed on the same person. The trigger now covers the press
+  // contact explicitly, so this send has been removed rather than deduplicated.
 
   return { success: true };
 });
 
-async function sendNotificationEmail(orgId: string, request: Record<string, any>) {
-  const sendgridApiKey = functions.config().sendgrid?.key || process.env.SENDGRID_API_KEY;
-  if (!sendgridApiKey) {
-    console.log('[MOCK] Would send story request notification email');
-    return;
-  }
-
-  const fromEmail = functions.config().sendgrid?.from_email || process.env.SENDGRID_FROM_EMAIL;
-  if (!fromEmail) {
-    console.warn('sendgrid.from_email not configured — skipping notification email');
-    return;
-  }
-
-  // Fetch org to get pressContact.email
-  const orgDoc = await db.collection('orgs').doc(orgId).get();
-  const org = orgDoc.data();
-  const toEmail = org?.pressContact?.email;
-  if (!toEmail) {
-    console.warn(`Org ${orgId} has no pressContact.email — skipping notification`);
-    return;
-  }
-
-  sgMail.setApiKey(sendgridApiKey);
-
-  const name = escapeHtml(request.name);
-  const email = escapeHtml(request.email);
-  const outlet = escapeHtml(request.outlet);
-  const topic = escapeHtml(request.topic);
-  const destinations = request.destinations ? escapeHtml(request.destinations) : null;
-  const deadline = request.deadline ? escapeHtml(request.deadline) : null;
-  const additionalInfo = request.additionalInfo ? escapeHtml(request.additionalInfo) : null;
-  const orgName = escapeHtml(org?.name || 'Your Organisation');
-  const topicsLabel = getMediaRequestTopicsLabel(org?.vertical);
-
-  const optionalRows = [
-    destinations ? `<tr><td style="padding:6px 0;color:#666;width:140px;vertical-align:top;">${topicsLabel}</td><td style="padding:6px 0;">${destinations}</td></tr>` : '',
-    deadline ? `<tr><td style="padding:6px 0;color:#666;width:140px;vertical-align:top;">Deadline</td><td style="padding:6px 0;">${deadline}</td></tr>` : '',
-    additionalInfo ? `<tr><td style="padding:6px 0;color:#666;width:140px;vertical-align:top;">Additional Info</td><td style="padding:6px 0;">${additionalInfo}</td></tr>` : '',
-  ].join('');
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="utf-8"></head>
-    <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;">
-      <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:20px;">
-        <h2 style="margin:0;color:#1a1a1a;">New Story Request — ${orgName}</h2>
-      </div>
-      <div style="background:#fff;padding:20px;border-radius:8px;border:1px solid #e5e7eb;">
-        <table style="width:100%;border-collapse:collapse;">
-          <tr><td style="padding:6px 0;color:#666;width:140px;vertical-align:top;">From</td><td style="padding:6px 0;"><strong>${name}</strong> (${email})</td></tr>
-          <tr><td style="padding:6px 0;color:#666;vertical-align:top;">Publication</td><td style="padding:6px 0;">${outlet}</td></tr>
-          <tr><td style="padding:6px 0;color:#666;vertical-align:top;">Story Angle</td><td style="padding:6px 0;">${topic}</td></tr>
-          ${optionalRows}
-        </table>
-      </div>
-      <p style="margin-top:20px;font-size:13px;color:#666;">
-        Log in to PressPilot to view and manage this request.
-      </p>
-    </body>
-    </html>
-  `;
-
-  await sgMail.send({
-    to: toEmail,
-    // The org is being told about a journalist's request — hitting reply should
-    // reach the journalist directly.
-    ...orgSender(org, fromEmail, {
-      replyToOverride: { email: request.email, name: request.name },
-      fallbackName: orgName,
-    }),
-    subject: `New story request from ${request.name} (${request.outlet})`,
-    text: `New story request from ${request.name} at ${request.outlet}.\n\nStory angle: ${request.topic}\n\nLog in to PressPilot to view details.`,
-    html,
-  });
-
-  console.log(`Notification email sent to ${toEmail}`);
-}

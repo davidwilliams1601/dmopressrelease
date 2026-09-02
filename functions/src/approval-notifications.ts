@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
+import { sendWithRetry } from './sendgrid-retry';
 import { escapeHtml } from './html-utils';
 import { emailWrapper, emailButton } from './email-branding';
 import { orgSender } from './sender';
@@ -80,7 +81,7 @@ export const onApprovalRequested = functions.firestore
       `;
 
       sgMail.setApiKey(key);
-      await sgMail.send({
+      await sendWithRetry({
         to: approverEmail,
         ...orgSender(org, fromEmail),
         subject: `Approval requested: "${after.headline || 'Untitled'}" — ${org.name}`,
@@ -180,7 +181,7 @@ export const onApprovalResolved = functions.firestore
       }
 
       sgMail.setApiKey(key);
-      await sgMail.send({
+      await sendWithRetry({
         to: requestedByEmail,
         ...orgSender(org, fromEmail),
         subject,
