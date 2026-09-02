@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { escapeHtml } from './html-utils';
 import { getMediaRequestTopicsLabel } from './vertical-labels';
+import { orgSender } from './sender';
 
 const db = admin.firestore();
 
@@ -201,7 +202,12 @@ async function sendNotificationEmail(orgId: string, request: Record<string, any>
 
   await sgMail.send({
     to: toEmail,
-    from: { email: fromEmail, name: orgName },
+    // The org is being told about a journalist's request — hitting reply should
+    // reach the journalist directly.
+    ...orgSender(org, fromEmail, {
+      replyToOverride: { email: request.email, name: request.name },
+      fallbackName: orgName,
+    }),
     subject: `New story request from ${request.name} (${request.outlet})`,
     text: `New story request from ${request.name} at ${request.outlet}.\n\nStory angle: ${request.topic}\n\nLog in to PressPilot to view details.`,
     html,

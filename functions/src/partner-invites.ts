@@ -7,6 +7,7 @@ import { GEMINI_MODEL } from './ai-config';
 import { sendWithRetry } from './sendgrid-retry';
 import { escapeHtml } from './html-utils';
 import { emailHeader, emailFooter, emailButton, emailCallout, getEmailColors } from './email-branding';
+import { orgSender } from './sender';
 
 const db = admin.firestore();
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
@@ -213,7 +214,6 @@ export const sendPartnerInviteEmail = functions.https.onCall(async (data, contex
   const orgData = orgDoc.data()!;
   const orgName: string = orgData.name || 'Your organisation';
   const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
-  const replyToEmail: string | undefined = orgData.pressContact?.email;
 
   const inviteLink = `${appUrl}/partner-signup?code=${invite.code}`;
   const trimmedNote = typeof note === 'string' ? note.trim() : '';
@@ -254,8 +254,7 @@ export const sendPartnerInviteEmail = functions.https.onCall(async (data, contex
   try {
     await sendWithRetry({
       to: partnerEmail.trim(),
-      from: { email: fromEmail, name: orgName },
-      ...(replyToEmail ? { replyTo: { email: replyToEmail, name: orgName } } : {}),
+      ...orgSender(orgData, fromEmail),
       subject: `You're invited to join ${orgName} on Press Pilot`,
       html,
       text,

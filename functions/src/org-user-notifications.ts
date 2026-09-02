@@ -4,6 +4,7 @@ import sgMail from '@sendgrid/mail';
 import { escapeHtml } from './html-utils';
 import { emailWrapper, emailButton } from './email-branding';
 import { getMediaRequestTopicsLabel } from './vertical-labels';
+import { orgSender } from './sender';
 
 const db = admin.firestore();
 
@@ -112,7 +113,7 @@ export const onNewPartnerSubmission = functions.firestore
         recipients.map((r) =>
           sgMail.send({
             to: r.email,
-            from: { email: fromEmail, name: org.name },
+            ...orgSender(org, fromEmail),
             subject: `New submission from ${submission.partnerName || 'a partner'} — ${submission.title || 'Untitled'}`,
             html: emailWrapper(org, 'New partner submission', bodyHtml),
             text: `${partnerName} has submitted "${submission.title}" for review.\n\n${tagLine ? `Tags: ${tagLine}\n\n` : ''}Review it here: ${detailUrl}`,
@@ -194,7 +195,11 @@ export const onNewMediaRequest = functions.firestore
         recipients.map((r) =>
           sgMail.send({
             to: r.email,
-            from: { email: fromEmail, name: org.name },
+            // Journalist enquiry — org staff should be able to reply straight
+            // to the journalist, not to the org's own press contact.
+            ...orgSender(org, fromEmail, {
+              replyToOverride: { email: request.email, name: request.name },
+            }),
             subject: `New media request from ${request.name || 'a journalist'}, ${request.outlet || ''}`,
             html: emailWrapper(org, 'New media request', bodyHtml),
             text: `New media request from ${request.name} at ${request.outlet}.\n\nStory angle: ${request.topic}${deadline ? `\nDeadline: ${request.deadline}` : ''}\n\nView it here: ${detailUrl}`,

@@ -54,7 +54,11 @@ export function resolveOrgColors(branding?: { primaryColor?: string; secondaryCo
 export type AttributionLevel = 'full' | 'subtle' | 'none';
 
 export function getAttribution(tier?: string | null): AttributionLevel {
-  if (tier === 'organisation') return 'none';
+  // Enterprise gets the same full whitelabel/no-attribution treatment as
+  // Organisation (see src/lib/tiers.ts). Keep these two branches together —
+  // splitting them is what caused Enterprise orgs to render
+  // "Sent by {Org} via PressPilot" in emails and on public newsroom pages.
+  if (tier === 'organisation' || tier === 'enterprise') return 'none';
   if (tier === 'professional') return 'subtle';
   return 'full';
 }
