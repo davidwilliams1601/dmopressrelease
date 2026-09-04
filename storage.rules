@@ -44,6 +44,26 @@ service firebase.storage {
       allow delete: if isOrgMember();
     }
 
+    // Partner submission video — kept on its own path so the size/type limits can
+    // differ from images without loosening the image rule. MP4/H.264 only: it is the
+    // one container that plays natively in every current browser, so constraining it
+    // here avoids storing footage nobody can review. 200MB ceiling is ~60s of phone
+    // video at high bitrate, which is the product cap enforced client-side too.
+    match /orgs/{orgId}/submissions/{submissionId}/video/{fileName} {
+      function isOrgMember() {
+        return request.auth != null
+          && firestore.exists(/databases/(default)/documents/orgs/$(orgId)/users/$(request.auth.uid));
+      }
+
+      allow read: if isOrgMember();
+
+      allow write: if isOrgMember() &&
+                      request.resource.size < 200 * 1024 * 1024 &&
+                      request.resource.contentType.matches('video/mp4');
+
+      allow delete: if isOrgMember();
+    }
+
     // Organization branding assets (logo) — publicly readable for emails and public pages
     match /orgs/{orgId}/branding/{fileName} {
       function isOrgMember() {

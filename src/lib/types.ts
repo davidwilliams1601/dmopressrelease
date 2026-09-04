@@ -351,6 +351,24 @@ export type PartnerSubmission = {
     mimeType: string;
     uploadedAt: FirestoreTimestamp;
   }>;
+  /** Optional single video clip. MP4 only, capped at 60s / 200MB (see src/lib/storage.ts). */
+  videoUrl?: string | null;
+  videoStoragePath?: string | null;
+  videoMetadata?: {
+    fileName: string;
+    size: number;
+    mimeType: string;
+    durationSeconds: number;
+    uploadedAt: FirestoreTimestamp;
+  } | null;
+  /**
+   * Speech-to-text transcript of the video, produced asynchronously by the
+   * transcribeSubmissionVideo function so the story is triageable (and searchable)
+   * without anyone having to watch the clip.
+   */
+  videoTranscript?: string | null;
+  videoTranscriptStatus?: 'pending' | 'complete' | 'failed' | 'skipped';
+  videoTranscribedAt?: FirestoreTimestamp;
   status: 'submitted' | 'reviewed' | 'used' | 'archived';
   aiThemes?: string[];
   aiThemeAnalysis?: string;

@@ -237,6 +237,53 @@ export default function SubmissionDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {submission.videoUrl && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Video</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <video
+                  src={submission.videoUrl}
+                  controls
+                  preload="metadata"
+                  className="w-full rounded-lg border bg-black aspect-video"
+                />
+
+                {/* Transcript is the point of the video for triage: it lets a reviewer
+                    judge the story without watching, and gives the draft generator
+                    something to work with. */}
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Transcript</h4>
+
+                  {submission.videoTranscriptStatus === 'pending' && (
+                    <p className="text-sm text-muted-foreground">
+                      Transcribing… this usually takes a minute or two.
+                    </p>
+                  )}
+
+                  {submission.videoTranscriptStatus === 'failed' && (
+                    <p className="text-sm text-muted-foreground">
+                      We couldn&rsquo;t transcribe this clip automatically. The video is
+                      still available to watch above.
+                    </p>
+                  )}
+
+                  {submission.videoTranscriptStatus === 'complete' &&
+                    (submission.videoTranscript ? (
+                      <div className="whitespace-pre-wrap text-sm text-muted-foreground rounded-lg border bg-muted/40 p-3">
+                        {submission.videoTranscript}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No speech was detected in this clip.
+                      </p>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">

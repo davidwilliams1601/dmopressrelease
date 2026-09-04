@@ -1055,6 +1055,7 @@ export * from './partner-invites';
 
 // Export submission analysis functions
 export * from './submission-analysis';
+export * from './video-transcription';
 
 // Export media request functions
 export * from './media-requests';

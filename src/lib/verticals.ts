@@ -322,7 +322,7 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       marketing:
         'I agree to receive occasional updates and opportunities, such as campaign briefs and partner news.',
       photoRelease:
-        'I confirm that written parental/guardian consent has been obtained for every pupil named or pictured in this submission, in line with the school’s safeguarding and data protection policy, and that this consent is held on file at the school.',
+        'I confirm that written parental/guardian consent has been obtained for every pupil named, pictured, filmed or recorded in this submission, in line with the school’s safeguarding and data protection policy, and that this consent is held on file at the school.',
     },
     provision: {
       description: 'Creates a new education provider organisation and its first admin account.',
