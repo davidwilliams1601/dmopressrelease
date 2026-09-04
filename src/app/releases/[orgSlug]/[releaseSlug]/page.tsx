@@ -32,6 +32,8 @@ type ReleaseData = {
   id: string; headline: string; slug: string; bodyCopy?: string;
   status: string; imageUrl?: string; targetMarket?: string;
   audience?: string; createdAt?: any;
+  videoUrl?: string;
+  videoMetadata?: { fileName?: string; size?: number; durationSeconds?: number };
 };
 
 function formatDate(ts: any): string {
@@ -87,6 +89,8 @@ export default function PublicReleasePage() {
           bodyCopy: relData.bodyCopy ?? '',
           status: relData.status ?? '',
           imageUrl: relData.imageUrl ?? undefined,
+          videoUrl: relData.videoUrl ?? undefined,
+          videoMetadata: relData.videoMetadata ?? undefined,
           targetMarket: relData.targetMarket ?? undefined,
           audience: relData.audience ?? undefined,
           createdAt: relData.createdAt ?? null,
@@ -186,6 +190,36 @@ export default function PublicReleasePage() {
             <p key={i} className="mb-5 text-base leading-relaxed">{para}</p>
           ))}
         </div>
+
+        {/* Deliberately a download link, not a player. This page is the canonical
+            press release, and a newsdesk wants the raw MP4 to cut into its own
+            package — the same asset the email points at. */}
+        {release.videoUrl && (
+          <div className="mt-10 rounded-xl border bg-gray-50 px-6 py-5">
+            <p className="text-sm font-medium">Video available</p>
+            <p className="mt-1 text-sm text-gray-500">
+              {[
+                release.videoMetadata?.durationSeconds
+                  ? `${Math.round(release.videoMetadata.durationSeconds)} seconds`
+                  : null,
+                release.videoMetadata?.size
+                  ? `${Math.max(1, Math.round(release.videoMetadata.size / (1024 * 1024)))}MB`
+                  : null,
+                'MP4',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+            <a
+              href={release.videoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-block text-sm font-medium underline"
+            >
+              Download the video
+            </a>
+          </div>
+        )}
 
         {org.boilerplate && (
           <div className="mt-12 border-t pt-8">

@@ -924,6 +924,32 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
       </div>`
     : '';
 
+  // Video is a LINK, never an embed. No mainstream email client plays inline video —
+  // Gmail and Outlook strip <video> entirely, so an embed renders as a blank gap.
+  // A journalist also wants the file itself to cut into their own package, not a
+  // player. So we give them a labelled download link with the duration up front,
+  // which is what a broadcast newsdesk actually acts on.
+  const videoDurationLabel = release.videoMetadata?.durationSeconds
+    ? `${Math.round(release.videoMetadata.durationSeconds)} seconds`
+    : '';
+  const videoSizeLabel = release.videoMetadata?.size
+    ? `${Math.max(1, Math.round(release.videoMetadata.size / (1024 * 1024)))}MB`
+    : '';
+  const videoDetail = [videoDurationLabel, videoSizeLabel, 'MP4']
+    .filter(Boolean)
+    .join(' · ');
+
+  const videoHtml = (release.videoUrl && isValidUrl(release.videoUrl))
+    ? `<div style="margin: 20px 0; padding: 16px; border: 1px solid #e5e7eb; border-left: 3px solid ${colors.primary}; border-radius: 6px; background-color: #fafafa;">
+        <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: bold; color: #1a1a1a;">Video available</p>
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #666;">${escapeHtml(videoDetail)}</p>
+        <a href="${escapeHtml(release.videoUrl)}"
+           style="color: ${colors.primary}; font-size: 14px; font-weight: bold; text-decoration: underline;">
+          Download the video
+        </a>
+      </div>`
+    : '';
+
   const orgLike = { name: org?.name, branding: org?.branding, tier: org?.tier };
 
   return `
@@ -946,6 +972,8 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
         <div style="white-space: pre-wrap; margin-bottom: 20px;">
           ${bodyCopy}
         </div>
+
+        ${videoHtml}
 
         ${boilerplate ? `
           <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; margin-top: 20px; font-size: 14px; color: #666;">
