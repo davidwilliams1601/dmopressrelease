@@ -153,6 +153,22 @@ export type Release = {
     mimeType: string;
     uploadedAt: FirestoreTimestamp;
   };
+  /**
+   * Optional video attached to the release. Journalists get a LINK to this, never
+   * an embed: email clients cannot play video, and a newsroom wants a downloadable
+   * asset it can cut for itself rather than a player it has to screen-record.
+   */
+  videoUrl?: string;
+  videoStoragePath?: string;
+  videoMetadata?: {
+    fileName: string;
+    size: number;
+    mimeType: string;
+    durationSeconds?: number;
+    uploadedAt: FirestoreTimestamp;
+  };
+  /** Submission the video came from, so the consent record behind it stays traceable. */
+  videoSourceSubmissionId?: string;
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   approverId?: string;
   approverName?: string;
@@ -351,6 +367,24 @@ export type PartnerSubmission = {
     mimeType: string;
     uploadedAt: FirestoreTimestamp;
   }>;
+  /** Optional single video clip. MP4 only, capped at 60s / 200MB (see src/lib/storage.ts). */
+  videoUrl?: string | null;
+  videoStoragePath?: string | null;
+  videoMetadata?: {
+    fileName: string;
+    size: number;
+    mimeType: string;
+    durationSeconds: number;
+    uploadedAt: FirestoreTimestamp;
+  } | null;
+  /**
+   * Speech-to-text transcript of the video, produced asynchronously by the
+   * transcribeSubmissionVideo function so the story is triageable (and searchable)
+   * without anyone having to watch the clip.
+   */
+  videoTranscript?: string | null;
+  videoTranscriptStatus?: 'pending' | 'complete' | 'failed' | 'skipped';
+  videoTranscribedAt?: FirestoreTimestamp;
   status: 'submitted' | 'reviewed' | 'used' | 'archived';
   aiThemes?: string[];
   aiThemeAnalysis?: string;

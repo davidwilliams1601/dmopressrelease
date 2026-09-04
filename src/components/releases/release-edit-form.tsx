@@ -49,6 +49,7 @@ import { SocialPostGenerator } from './social-post-generator';
 import { SendReleaseDialog } from './send-release-dialog';
 import { SendJobsCard } from './send-jobs-card';
 import { ImageUpload } from './image-upload';
+import { SubmissionVideoPicker, type PickedVideo } from './submission-video-picker';
 import { ApprovalWorkflowCard } from './approval-workflow-card';
 
 type ReleaseEditFormProps = {
@@ -70,6 +71,12 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
   const [imageUrl, setImageUrl] = useState(release.imageUrl);
   const [imageStoragePath, setImageStoragePath] = useState(release.imageStoragePath);
   const [imageMetadata, setImageMetadata] = useState(release.imageMetadata);
+  const [videoUrl, setVideoUrl] = useState(release.videoUrl);
+  const [videoStoragePath, setVideoStoragePath] = useState(release.videoStoragePath);
+  const [videoMetadata, setVideoMetadata] = useState(release.videoMetadata);
+  const [videoSourceSubmissionId, setVideoSourceSubmissionId] = useState(
+    release.videoSourceSubmissionId
+  );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -98,6 +105,10 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
         imageUrl: imageUrl || null,
         imageStoragePath: imageStoragePath || null,
         imageMetadata: imageMetadata || null,
+        videoUrl: videoUrl || null,
+        videoStoragePath: videoStoragePath || null,
+        videoMetadata: videoMetadata || null,
+        videoSourceSubmissionId: videoSourceSubmissionId || null,
         updatedAt: serverTimestamp(),
       });
 
@@ -163,6 +174,23 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
     setImageUrl(url);
     setImageStoragePath(storagePath);
     setImageMetadata(metadata);
+  };
+
+  const handleVideoPick = (video: PickedVideo) => {
+    setVideoUrl(video.url);
+    setVideoStoragePath(video.storagePath);
+    setVideoMetadata(video.metadata as any);
+    setVideoSourceSubmissionId(video.submissionId);
+  };
+
+  const handleVideoRemove = () => {
+    // Only detaches the video from this release. The file itself stays on the
+    // submission it came from — deleting it here would destroy the partner's
+    // original, which is not what "remove from release" means.
+    setVideoUrl(undefined);
+    setVideoStoragePath(undefined);
+    setVideoMetadata(undefined);
+    setVideoSourceSubmissionId(undefined);
   };
 
   const handleImageDelete = () => {
@@ -310,6 +338,39 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                 onUploadComplete={handleImageUpload}
                 onDelete={handleImageDelete}
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Video</Label>
+              {videoUrl ? (
+                <div className="rounded-lg border p-3 space-y-3">
+                  <video
+                    src={videoUrl}
+                    controls
+                    preload="metadata"
+                    className="w-full max-w-sm rounded-md bg-black aspect-video"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground truncate">
+                      {videoMetadata?.fileName || 'video.mp4'}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleVideoRemove}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <SubmissionVideoPicker orgId={orgId} onPick={handleVideoPick} />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Journalists receive a link to download the clip, not an embedded
+                player — email clients can&rsquo;t play video.
+              </p>
             </div>
 
             <div className="grid gap-2">

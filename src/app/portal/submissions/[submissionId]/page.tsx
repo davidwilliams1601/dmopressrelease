@@ -117,6 +117,54 @@ export default function PartnerSubmissionDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* The school needs to see its own video back — both to confirm the right
+              clip uploaded, and to check the transcript is accurate before anything
+              built on it goes out to journalists. */}
+          {submission.videoUrl && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Video</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <video
+                  src={submission.videoUrl}
+                  controls
+                  preload="metadata"
+                  className="w-full rounded-lg border bg-black aspect-video"
+                />
+
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Transcript</h4>
+
+                  {submission.videoTranscriptStatus === 'pending' && (
+                    <p className="text-sm text-muted-foreground">
+                      We&rsquo;re writing up what&rsquo;s said in this clip. It usually
+                      takes a minute or two.
+                    </p>
+                  )}
+
+                  {submission.videoTranscriptStatus === 'failed' && (
+                    <p className="text-sm text-muted-foreground">
+                      We couldn&rsquo;t write up this clip automatically, but your video
+                      has uploaded fine and the team can still watch it.
+                    </p>
+                  )}
+
+                  {submission.videoTranscriptStatus === 'complete' &&
+                    (submission.videoTranscript ? (
+                      <div className="whitespace-pre-wrap text-sm text-muted-foreground rounded-lg border bg-muted/40 p-3">
+                        {submission.videoTranscript}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        We couldn&rsquo;t hear any speech in this clip.
+                      </p>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">

@@ -924,6 +924,32 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
       </div>`
     : '';
 
+  // Video is a LINK, never an embed. No mainstream email client plays inline video —
+  // Gmail and Outlook strip <video> entirely, so an embed renders as a blank gap.
+  // A journalist also wants the file itself to cut into their own package, not a
+  // player. So we give them a labelled download link with the duration up front,
+  // which is what a broadcast newsdesk actually acts on.
+  const videoDurationLabel = release.videoMetadata?.durationSeconds
+    ? `${Math.round(release.videoMetadata.durationSeconds)} seconds`
+    : '';
+  const videoSizeLabel = release.videoMetadata?.size
+    ? `${Math.max(1, Math.round(release.videoMetadata.size / (1024 * 1024)))}MB`
+    : '';
+  const videoDetail = [videoDurationLabel, videoSizeLabel, 'MP4']
+    .filter(Boolean)
+    .join(' · ');
+
+  const videoHtml = (release.videoUrl && isValidUrl(release.videoUrl))
+    ? `<div style="margin: 20px 0; padding: 16px; border: 1px solid #e5e7eb; border-left: 3px solid ${colors.primary}; border-radius: 6px; background-color: #fafafa;">
+        <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: bold; color: #1a1a1a;">Video available</p>
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #666;">${escapeHtml(videoDetail)}</p>
+        <a href="${escapeHtml(release.videoUrl)}"
+           style="color: ${colors.primary}; font-size: 14px; font-weight: bold; text-decoration: underline;">
+          Download the video
+        </a>
+      </div>`
+    : '';
+
   const orgLike = { name: org?.name, branding: org?.branding, tier: org?.tier };
 
   return `
@@ -946,6 +972,8 @@ function formatEmailHtml(release: any, recipient: any, org?: any): string {
         <div style="white-space: pre-wrap; margin-bottom: 20px;">
           ${bodyCopy}
         </div>
+
+        ${videoHtml}
 
         ${boilerplate ? `
           <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; margin-top: 20px; font-size: 14px; color: #666;">
@@ -1038,8 +1066,50 @@ export const cleanupArchivedSubmissionImages = functions.firestore
         return;
       }
 
-      await Promise.all(files.map((file) => file.delete()));
-      console.log(`Deleted ${files.length} file(s) from ${prefix}`);
+      // Releases can reference a submission's assets directly (the video picker and
+      // the image picker both point a release at the submission's own storage path
+      // rather than copying the file). Archiving is what you do AFTER using a
+      // submission in a release, so a blind prefix wipe would silently break the
+      // download link in a press release that has already gone out to journalists.
+      // Anything still referenced by a release is therefore kept.
+      const referencedPaths = new Set<string>();
+      try {
+        const releasesSnap = await admin
+          .firestore()
+          .collection('orgs')
+          .doc(orgId)
+          .collection('releases')
+          .get();
+
+        releasesSnap.forEach((doc) => {
+          const data = doc.data();
+          if (data.videoStoragePath) referencedPaths.add(data.videoStoragePath);
+          if (data.imageStoragePath) referencedPaths.add(data.imageStoragePath);
+        });
+      } catch (err: any) {
+        // If we cannot establish what is still in use, deleting is the unsafe
+        // choice: keeping an orphaned file costs pennies, breaking a live press
+        // release costs credibility. Bail out and leave everything in place.
+        console.warn(
+          `Could not check release references for ${submissionId}; skipping cleanup:`,
+          err?.message || err
+        );
+        return;
+      }
+
+      const deletable = files.filter((file) => !referencedPaths.has(file.name));
+      const keptCount = files.length - deletable.length;
+
+      if (deletable.length === 0) {
+        console.log(`All ${files.length} file(s) at ${prefix} are still used by releases; nothing deleted`);
+        return;
+      }
+
+      await Promise.all(deletable.map((file) => file.delete()));
+      console.log(
+        `Deleted ${deletable.length} file(s) from ${prefix}` +
+          (keptCount > 0 ? ` (kept ${keptCount} still referenced by a release)` : '')
+      );
     } catch (error: any) {
       // Best-effort: log warning but do not throw
       console.warn(`Failed to clean up images for submission ${submissionId}:`, error?.message || error);
@@ -1055,6 +1125,7 @@ export * from './partner-invites';
 
 // Export submission analysis functions
 export * from './submission-analysis';
+export * from './video-transcription';
 
 // Export media request functions
 export * from './media-requests';

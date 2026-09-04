@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { TagSelector } from '@/components/shared/tag-selector';
 import { MultiImageUpload } from '@/components/portal/multi-image-upload';
+import { VideoUpload, type UploadedVideo } from '@/components/portal/video-upload';
 import { useToast } from '@/hooks/use-toast';
 import { Send, Sparkles, Loader2, Check, X, Info } from 'lucide-react';
 import type { SocialHandles } from '@/lib/types';
@@ -51,6 +52,7 @@ export function SubmissionForm() {
   const [bodyCopy, setBodyCopy] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [images, setImages] = useState<UploadedImage[]>([]);
+  const [video, setVideo] = useState<UploadedVideo | null>(null);
   const [socialHandles, setSocialHandles] = useState<SocialHandles>({});
   const [subjectConsentConfirmed, setSubjectConsentConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,6 +122,12 @@ export function SubmissionForm() {
         imageUrls: images.map((img) => img.url),
         imageStoragePaths: images.map((img) => img.storagePath),
         imageMetadata: images.map((img) => img.metadata),
+        videoUrl: video?.url ?? null,
+        videoStoragePath: video?.storagePath ?? null,
+        videoMetadata: video?.metadata ?? null,
+        // Queue transcription only when there is actually something to transcribe,
+        // so the triage view can distinguish "waiting on the AI" from "no video".
+        videoTranscriptStatus: video ? 'pending' : 'skipped',
         status: 'submitted',
         partnerSocialHandles: cleanHandles,
         subjectConsentConfirmed: photoReleaseText ? subjectConsentConfirmed : null,
@@ -378,6 +386,24 @@ export function SubmissionForm() {
             submissionId={submissionId}
             images={images}
             onImagesChange={setImages}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Video (Optional)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            Add one short clip to bring the story to life. We&rsquo;ll automatically
+            write up what&rsquo;s said in it so the team can review it quickly.
+          </p>
+          <VideoUpload
+            orgId={orgId}
+            submissionId={submissionId}
+            video={video}
+            onVideoChange={setVideo}
           />
         </CardContent>
       </Card>
