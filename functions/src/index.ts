@@ -1066,8 +1066,50 @@ export const cleanupArchivedSubmissionImages = functions.firestore
         return;
       }
 
-      await Promise.all(files.map((file) => file.delete()));
-      console.log(`Deleted ${files.length} file(s) from ${prefix}`);
+      // Releases can reference a submission's assets directly (the video picker and
+      // the image picker both point a release at the submission's own storage path
+      // rather than copying the file). Archiving is what you do AFTER using a
+      // submission in a release, so a blind prefix wipe would silently break the
+      // download link in a press release that has already gone out to journalists.
+      // Anything still referenced by a release is therefore kept.
+      const referencedPaths = new Set<string>();
+      try {
+        const releasesSnap = await admin
+          .firestore()
+          .collection('orgs')
+          .doc(orgId)
+          .collection('releases')
+          .get();
+
+        releasesSnap.forEach((doc) => {
+          const data = doc.data();
+          if (data.videoStoragePath) referencedPaths.add(data.videoStoragePath);
+          if (data.imageStoragePath) referencedPaths.add(data.imageStoragePath);
+        });
+      } catch (err: any) {
+        // If we cannot establish what is still in use, deleting is the unsafe
+        // choice: keeping an orphaned file costs pennies, breaking a live press
+        // release costs credibility. Bail out and leave everything in place.
+        console.warn(
+          `Could not check release references for ${submissionId}; skipping cleanup:`,
+          err?.message || err
+        );
+        return;
+      }
+
+      const deletable = files.filter((file) => !referencedPaths.has(file.name));
+      const keptCount = files.length - deletable.length;
+
+      if (deletable.length === 0) {
+        console.log(`All ${files.length} file(s) at ${prefix} are still used by releases; nothing deleted`);
+        return;
+      }
+
+      await Promise.all(deletable.map((file) => file.delete()));
+      console.log(
+        `Deleted ${deletable.length} file(s) from ${prefix}` +
+          (keptCount > 0 ? ` (kept ${keptCount} still referenced by a release)` : '')
+      );
     } catch (error: any) {
       // Best-effort: log warning but do not throw
       console.warn(`Failed to clean up images for submission ${submissionId}:`, error?.message || error);

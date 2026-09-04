@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, type FileRejection } from 'react-dropzone';
 import { useStorage } from '@/firebase';
 import {
   uploadSubmissionVideo,
   deleteSubmissionVideo,
   validateVideoFile,
-  probeVideoDuration,
   MAX_VIDEO_BYTES,
   MAX_VIDEO_DURATION_SECONDS,
 } from '@/lib/storage';
@@ -66,7 +65,7 @@ export function VideoUpload({
         return;
       }
 
-      const durationSeconds = (await probeVideoDuration(file)) ?? 0;
+      const durationSeconds = validation.durationSeconds ?? 0;
 
       setIsUploading(true);
       setUploadProgress(0);
@@ -125,9 +124,36 @@ export function VideoUpload({
     }
   };
 
+  // Dropzone filters non-matching files out before onDrop ever runs, so without this
+  // an iPhone .mov would be silently swallowed — nothing uploads, no error, the user
+  // just concludes the feature is broken. That is the single most likely first
+  // failure for a school, so it gets an explicit message telling them how to fix it.
+  const onDropRejected = useCallback(
+    (rejections: FileRejection[]) => {
+      const rejection = rejections[0];
+      if (!rejection) return;
+
+      const tooLarge = rejection.errors.some((e) => e.code === 'file-too-large');
+      const tooMany = rejection.errors.some((e) => e.code === 'too-many-files');
+
+      toast({
+        title: 'Video not accepted',
+        description: tooMany
+          ? 'Please add one video at a time.'
+          : tooLarge
+            ? `Video must be smaller than ${MAX_MB}MB.`
+            : 'Video must be an MP4. If this was filmed on an iPhone, open Settings \u2192 Camera \u2192 Formats and choose "Most Compatible", or export the clip as MP4 before uploading.',
+        variant: 'destructive',
+      });
+    },
+    [toast]
+  );
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected,
     accept: { 'video/mp4': ['.mp4'] },
+    maxSize: MAX_VIDEO_BYTES,
     maxFiles: 1,
     multiple: false,
     disabled: isUploading || !!video,

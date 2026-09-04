@@ -73,7 +73,7 @@ export function probeVideoDuration(file: File): Promise<number | null> {
  */
 export async function validateVideoFile(
   file: File
-): Promise<{ valid: boolean; error?: string }> {
+): Promise<{ valid: boolean; error?: string; durationSeconds?: number }> {
   if (!ACCEPTED_VIDEO_MIME_TYPES.includes(file.type)) {
     return {
       valid: false,
@@ -106,7 +106,10 @@ export async function validateVideoFile(
     };
   }
 
-  return { valid: true };
+  // Returned so callers don't have to decode the file a second time just to read
+  // its duration — that means loading a 200MB clip into a second object URL for a
+  // number we already have.
+  return { valid: true, durationSeconds: duration };
 }
 
 /**
