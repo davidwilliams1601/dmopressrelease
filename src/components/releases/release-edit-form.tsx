@@ -28,7 +28,7 @@ import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { Release, Organization } from '@/lib/types';
-import { getVerticalConfig } from '@/lib/verticals';
+import { getVerticalConfig, withCurrentOption } from '@/lib/verticals';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import {
@@ -77,6 +77,14 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
   const [videoSourceSubmissionId, setVideoSourceSubmissionId] = useState(
     release.videoSourceSubmissionId
   );
+
+  // Campaign Type and Audience options come from the org's vertical. The value
+  // already saved on this release is always kept in the list, so an older release
+  // (or one created under a different vertical) still shows and round-trips its
+  // current value rather than blanking the select.
+  const verticalConfig = getVerticalConfig(organization?.vertical);
+  const campaignTypeOptions = withCurrentOption(verticalConfig.campaignTypes, release.campaignType);
+  const audienceOptions = withCurrentOption(verticalConfig.ai.audienceOptions, release.audience);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -258,12 +266,9 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                     <SelectValue placeholder="Select campaign type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Seasonal">Seasonal</SelectItem>
-                    <SelectItem value="Product Launch">Product Launch</SelectItem>
-                    <SelectItem value="Event">Event</SelectItem>
-                    <SelectItem value="Partnership">Partnership</SelectItem>
-                    <SelectItem value="Award">Award</SelectItem>
-                    <SelectItem value="General">General</SelectItem>
+                    {campaignTypeOptions.map((option) => (
+                      <SelectItem key={option} value={option}>{option}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -303,9 +308,9 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                     <SelectValue placeholder="Select audience" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Consumer">Consumer</SelectItem>
-                    <SelectItem value="Travel Trade">Travel Trade</SelectItem>
-                    <SelectItem value="Hybrid">Hybrid</SelectItem>
+                    {audienceOptions.map((option) => (
+                      <SelectItem key={option} value={option}>{option}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
