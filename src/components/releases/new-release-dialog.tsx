@@ -28,6 +28,8 @@ import { collection, serverTimestamp, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { ImageUpload } from './image-upload';
+import { useOrganization } from '@/hooks/use-organization';
+import { getVerticalConfig } from '@/lib/verticals';
 
 type NewReleaseDialogProps = {
   orgId: string;
@@ -39,6 +41,14 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
+
+  // Campaign Type and Audience options come from the org's vertical, not a fixed
+  // DMO list — an Education org should see "Parents & Families", not "Travel Trade".
+  // useOrganization shares the existing org subscription, so no extra read.
+  const { organization } = useOrganization(orgId);
+  const verticalConfig = getVerticalConfig(organization?.vertical);
+  const campaignTypeOptions = verticalConfig.campaignTypes;
+  const audienceOptions = verticalConfig.ai.audienceOptions;
   
   // Generate a release ID upfront for image upload
   const [releaseId] = useState(() => doc(collection(firestore, 'orgs', orgId, 'releases')).id);
@@ -160,12 +170,9 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
                   <SelectValue placeholder="Select campaign type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Seasonal">Seasonal</SelectItem>
-                  <SelectItem value="Product Launch">Product Launch</SelectItem>
-                  <SelectItem value="Event">Event</SelectItem>
-                  <SelectItem value="Partnership">Partnership</SelectItem>
-                  <SelectItem value="Award">Award</SelectItem>
-                  <SelectItem value="General">General</SelectItem>
+                  {campaignTypeOptions.map((option) => (
+                    <SelectItem key={option} value={option}>{option}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -187,9 +194,9 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
                   <SelectValue placeholder="Select audience" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Consumer">Consumer</SelectItem>
-                  <SelectItem value="Travel Trade">Travel Trade</SelectItem>
-                  <SelectItem value="Hybrid">Hybrid</SelectItem>
+                  {audienceOptions.map((option) => (
+                    <SelectItem key={option} value={option}>{option}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -134,7 +134,8 @@ export type Release = {
   orgId: string;
   campaignType: string;
   targetMarket: string;
-  audience: 'Travel Trade' | 'Consumer' | 'Hybrid';
+  /** One of the org's vertical `ai.audienceOptions` (see src/lib/verticals.ts). Typed as string because the list differs per vertical. */
+  audience: string;
   headline: string;
   slug: string;
   bodyCopy?: string;

@@ -61,6 +61,13 @@ export type VerticalConfig = {
   partnerSignup: PartnerSignupText;
   mediaRequest: MediaRequestText;
   partnerCategories: string[];
+  /**
+   * Campaign Type options offered in the release editors. Audience options live
+   * in `ai.audienceOptions` because the AI draft flow also reads them; these are
+   * UI-only. Both lists are per-vertical so a school trust is not asked whether
+   * its results-day story is a "Seasonal" or "Product Launch" campaign.
+   */
+  campaignTypes: string[];
 };
 
 export const VERTICALS: Record<VerticalId, VerticalConfig> = {
@@ -120,6 +127,14 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       'Sport',
       'Other',
     ],
+    campaignTypes: [
+      'Seasonal',
+      'Product Launch',
+      'Event',
+      'Partnership',
+      'Award',
+      'General',
+    ],
   },
 
   charity: {
@@ -174,6 +189,16 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       'Housing & Homelessness',
       'International Aid',
       'Other',
+    ],
+    campaignTypes: [
+      'Campaign Launch',
+      'Fundraising',
+      'Impact & Results',
+      'Event',
+      'Partnership',
+      'Award',
+      'Appeal',
+      'General',
     ],
   },
 
@@ -232,6 +257,15 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       'Consultancy & Advisory',
       'Other',
     ],
+    campaignTypes: [
+      'New Issue / Feature',
+      'Research & Insight',
+      'Event',
+      'Partnership',
+      'Award',
+      'Industry Announcement',
+      'General',
+    ],
   },
 
   'trade-body': {
@@ -287,6 +321,15 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       'Start-up & SME',
       'Enterprise',
       'Other',
+    ],
+    campaignTypes: [
+      'Policy & Advocacy',
+      'Member Achievement',
+      'Research & Insight',
+      'Event',
+      'Partnership',
+      'Award',
+      'General',
     ],
   },
 
@@ -346,6 +389,16 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       'Early Years / Nursery',
       'Other',
     ],
+    campaignTypes: [
+      'Partnership',
+      'Achievement & Results',
+      'Event',
+      'Funding & Sponsorship',
+      'New Programme',
+      'Community',
+      'Award',
+      'General',
+    ],
   },
 };
 
@@ -354,4 +407,15 @@ export const DEFAULT_VERTICAL: VerticalConfig = VERTICALS['dmo'];
 export function getVerticalConfig(id: VerticalId | null | undefined): VerticalConfig {
   if (!id || !(id in VERTICALS)) return DEFAULT_VERTICAL;
   return VERTICALS[id];
+}
+
+/**
+ * Options for a release editor <Select>, guaranteed to include the value already
+ * saved on the release. Without this, opening an old Visit Kent release after the
+ * DMO list changes (or a release whose org has since switched vertical) would show
+ * an empty select and silently overwrite the field on save.
+ */
+export function withCurrentOption(options: string[], current?: string | null): string[] {
+  if (!current || options.includes(current)) return options;
+  return [current, ...options];
 }
