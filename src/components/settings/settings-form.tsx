@@ -81,8 +81,9 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
       await updateDocumentNonBlocking(orgRef, {
         name: formData.get('org-name') as string,
         pressContact: {
-          name: formData.get('press-contact-name') as string,
-          email: formData.get('press-contact-email') as string,
+          name: (formData.get('press-contact-name') as string).trim(),
+          email: (formData.get('press-contact-email') as string).trim(),
+          phone: ((formData.get('press-contact-phone') as string) || '').trim(),
         },
         boilerplate,
         brandToneNotes,
@@ -230,6 +231,20 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
               placeholder="e.g., press@example.com"
               required
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="press-contact-phone">Press Contact Phone</Label>
+            <Input
+              id="press-contact-phone"
+              name="press-contact-phone"
+              type="tel"
+              defaultValue={organization.pressContact?.phone}
+              placeholder="e.g., 07700 900123 (optional)"
+            />
+            <p className="text-xs text-muted-foreground">
+              Your press contact is shown at the bottom of every release you send and on your newsroom, and it&apos;s where journalists&apos; replies are delivered.
+            </p>
           </div>
 
           <div className="grid gap-2">

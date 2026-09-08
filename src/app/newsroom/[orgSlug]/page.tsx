@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, query, where, orderBy, getDocs, limit, doc, getDoc } from 'firebase/firestore';
-import { Book, Calendar, Mail, Newspaper } from 'lucide-react';
+import { Book, Calendar, Mail, Newspaper, Phone } from 'lucide-react';
+import { telHref } from '@/lib/release-sections';
 import { useParams } from 'next/navigation';
 import { resolveOrgColors, getAttribution } from '@/lib/brand-utils';
 
@@ -28,7 +29,7 @@ type OrgData = {
   name: string;
   slug: string;
   boilerplate?: string;
-  pressContact?: { name: string; email: string };
+  pressContact?: { name: string; email: string; phone?: string };
   branding?: { logoUrl?: string; primaryColor?: string; secondaryColor?: string };
   tier?: string;
 };
@@ -243,6 +244,12 @@ export default function NewsroomPage() {
                   <a href={`mailto:${org.pressContact.email}`} className="text-sm hover:underline flex items-center gap-1 mt-1" style={{ color: colors.primary }}>
                     <Mail className="h-3.5 w-3.5" />
                     {org.pressContact.email}
+                  </a>
+                )}
+                {org.pressContact.phone?.trim() && (
+                  <a href={telHref(org.pressContact.phone)} className="text-sm hover:underline flex items-center gap-1 mt-1" style={{ color: colors.primary }}>
+                    <Phone className="h-3.5 w-3.5" />
+                    {org.pressContact.phone.trim()}
                   </a>
                 )}
               </div>

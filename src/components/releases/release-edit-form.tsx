@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -86,6 +87,13 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
   const campaignTypeOptions = withCurrentOption(verticalConfig.campaignTypes, release.campaignType);
   const audienceOptions = withCurrentOption(verticalConfig.ai.audienceOptions, release.audience);
 
+  // Holding-text flag. Sending is blocked while EITHER the saved value or the
+  // unsaved checkbox is ticked, so unticking requires a Save before Send goes
+  // live — the flag exists to stop an accidental send, so it should never be
+  // clearable with a single click.
+  const [hasHoldingText, setHasHoldingText] = useState(release.hasHoldingText === true);
+  const holdingTextBlocked = release.hasHoldingText === true || hasHoldingText;
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSaving(true);
@@ -109,6 +117,8 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
         targetMarket: formData.get('targetMarket') as string,
         audience: formData.get('audience') as string,
         bodyCopy: formData.get('bodyCopy') as string || '',
+        notesToEditors: ((formData.get('notesToEditors') as string) || '').trim() || null,
+        hasHoldingText,
         status: formData.get('status') as string,
         imageUrl: imageUrl || null,
         imageStoragePath: imageStoragePath || null,
@@ -390,6 +400,37 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                 className="min-h-[400px] font-mono text-sm"
               />
             </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="notesToEditors">Notes to Editors</Label>
+              <Textarea
+                id="notesToEditors"
+                name="notesToEditors"
+                defaultValue={release.notesToEditors || ''}
+                placeholder="Background for journalists: about your partners, data sources, interview availability..."
+                className="min-h-[140px] font-mono text-sm"
+              />
+              <p className="text-sm text-muted-foreground">
+                Optional. Appears after the story under &quot;ENDS&quot;, before your boilerplate, in the email and on the public release page.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Checkbox
+                id="hasHoldingText"
+                checked={hasHoldingText}
+                onCheckedChange={(v) => setHasHoldingText(v === true)}
+                className="mt-0.5"
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="hasHoldingText" className="cursor-pointer">
+                  Contains holding text
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Tick if any part is still a placeholder or awaiting sign-off. Sending is blocked until you untick it and save.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -505,6 +546,7 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                 organization?.approvalWorkflowEnabled === true &&
                 release.approvalStatus !== 'approved'
               }
+              holdingTextBlocked={holdingTextBlocked}
             />
             <Button type="submit" disabled={isSaving}>
               <Save />

@@ -56,9 +56,17 @@ export type Organization = {
   vertical?: VerticalId;
   /** Free-text editorial priorities, set in Settings, injected into AI triage scoring. */
   editorialPriorities?: string;
+  /**
+   * The org's media contact. Does three jobs: Reply-To on every org email
+   * (functions/src/sender.ts), the "Media contact" block at the foot of each
+   * release (email + public page), and the contact shown on the newsroom index.
+   * Child orgs are provisioned with empty strings, not undefined — always treat a
+   * blank name/email/phone as "no contact" (see hasPressContact in release-sections.ts).
+   */
   pressContact?: {
     name: string;
     email: string;
+    phone?: string;
   };
   maxPartners?: number;
   maxSubmissionsPerPartner?: number;
@@ -170,6 +178,18 @@ export type Release = {
   };
   /** Submission the video came from, so the consent record behind it stays traceable. */
   videoSourceSubmissionId?: string;
+  /**
+   * Background for journalists — About blocks, data sources, holding lines. Rendered
+   * after the story under an "ENDS" line and a "Notes to editors" heading, before the
+   * org boilerplate. Plain text, same escaping/linkify as bodyCopy. Absent = today's output.
+   */
+  notesToEditors?: string | null;
+  /**
+   * Set by the author when the release still contains placeholder or unapproved text
+   * ("[DATE]", a quote awaiting sign-off). Blocks Send Now and Schedule Send until
+   * cleared, using the same pattern as approvalBlocked in send-release-dialog.tsx.
+   */
+  hasHoldingText?: boolean;
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   approverId?: string;
   approverName?: string;

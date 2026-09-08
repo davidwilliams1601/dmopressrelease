@@ -67,6 +67,11 @@ export default function ReleasesTable({ releases }: ReleasesTableProps) {
                     Awaiting Approval
                   </Badge>
                 )}
+                {release.hasHoldingText === true && (
+                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                    Holding text
+                  </Badge>
+                )}
               </div>
             </TableCell>
             <TableCell className="font-medium">{release.headline}</TableCell>

@@ -3,9 +3,8 @@ import * as admin from 'firebase-admin';
 import sgMail from '@sendgrid/mail';
 import { escapeHtml } from './html-utils';
 import { sendWithRetry } from './sendgrid-retry';
-import { resolveOrgColors } from './brand-utils';
-import { emailFooter } from './email-branding';
 import { orgSender } from './sender';
+import { formatEmailHtml, formatEmailText } from './email-template';
 import { getStorage } from 'firebase-admin/storage';
 
 // QA fix (2026-08-20): admin.initializeApp() must run before ANY module that calls
@@ -49,28 +48,6 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-
-/**
- * Convert bare http/https URLs in already-escaped HTML text into clickable anchor tags.
- * Must be called AFTER escapeHtml so that & in query strings is already &amp; (valid in href).
- */
-function linkifyHtml(escapedText: string, linkColor?: string): string {
-  const color = linkColor || '#2563eb';
-  return escapedText.replace(
-    /https?:\/\/[^\s<>"']+/g,
-    (url) => `<a href="${url}" style="color: ${color};">${url}</a>`
-  );
-}
-
-// Validate that a URL is safe for use in email templates
-function isValidUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
-  } catch {
-    return false;
-  }
-}
 
 /** Normalises a name/email pair into a single lowercase key for identity dedupe.
  *  Must mirror the same helper duplicated in recommendations.ts / send-distribution.ts. */
@@ -877,7 +854,7 @@ async function sendEmail(
     // org's press contact. See ./sender for why `from.email` stays platform-owned.
     ...orgSender(org, fromEmail, { fallbackName: 'Press Release' }),
     subject: release.headline,
-    text: release.bodyCopy || 'No content',
+    text: formatEmailText(release, org),
     html: formatEmailHtml(release, recipient, org),
     customArgs: {
       orgId: orgId,
@@ -898,99 +875,6 @@ async function sendEmail(
 
   await sendWithRetry(msg, 3, logLabel);
   console.log(`Email sent successfully to ${displayTarget}`);
-}
-
-/**
- * Format release content as HTML email
- */
-function formatEmailHtml(release: any, recipient: any, org?: any): string {
-  const colors = resolveOrgColors(org?.branding);
-  const headline = escapeHtml(release.headline || '');
-  const bodyCopy = linkifyHtml(escapeHtml(release.bodyCopy || ''), colors.primary);
-  const recipientName = escapeHtml(recipient.name || '');
-  const recipientEmail = escapeHtml(recipient.email || '');
-  const recipientOutlet = escapeHtml(recipient.outlet || '');
-  const orgName = escapeHtml(org?.name || '');
-  const boilerplate = escapeHtml(org?.boilerplate || '');
-  const logoHtml = org?.branding?.logoUrl
-    ? `<img src="${org.branding.logoUrl}" alt="${orgName}" height="32" style="height:32px;width:auto;margin-bottom:12px;display:block;" />`
-    : '';
-
-  // Only include image if URL is valid
-  const imageHtml = (release.imageUrl && isValidUrl(release.imageUrl))
-    ? `<div style="margin-bottom: 20px;">
-        <img src="${escapeHtml(release.imageUrl)}" alt="${headline}"
-             style="max-width: 100%; height: auto; border-radius: 8px; display: block;" />
-      </div>`
-    : '';
-
-  // Video is a LINK, never an embed. No mainstream email client plays inline video —
-  // Gmail and Outlook strip <video> entirely, so an embed renders as a blank gap.
-  // A journalist also wants the file itself to cut into their own package, not a
-  // player. So we give them a labelled download link with the duration up front,
-  // which is what a broadcast newsdesk actually acts on.
-  const videoDurationLabel = release.videoMetadata?.durationSeconds
-    ? `${Math.round(release.videoMetadata.durationSeconds)} seconds`
-    : '';
-  const videoSizeLabel = release.videoMetadata?.size
-    ? `${Math.max(1, Math.round(release.videoMetadata.size / (1024 * 1024)))}MB`
-    : '';
-  const videoDetail = [videoDurationLabel, videoSizeLabel, 'MP4']
-    .filter(Boolean)
-    .join(' · ');
-
-  const videoHtml = (release.videoUrl && isValidUrl(release.videoUrl))
-    ? `<div style="margin: 20px 0; padding: 16px; border: 1px solid #e5e7eb; border-left: 3px solid ${colors.primary}; border-radius: 6px; background-color: #fafafa;">
-        <p style="margin: 0 0 4px 0; font-size: 14px; font-weight: bold; color: #1a1a1a;">Video available</p>
-        <p style="margin: 0 0 10px 0; font-size: 13px; color: #666;">${escapeHtml(videoDetail)}</p>
-        <a href="${escapeHtml(release.videoUrl)}"
-           style="color: ${colors.primary}; font-size: 14px; font-weight: bold; text-decoration: underline;">
-          Download the video
-        </a>
-      </div>`
-    : '';
-
-  const orgLike = { name: org?.name, branding: org?.branding, tier: org?.tier };
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${headline}</title>
-    </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background-color: ${colors.primaryLight}; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-        ${logoHtml}
-        <h1 style="margin: 0; color: #1a1a1a; font-size: 24px;">${headline}</h1>
-      </div>
-
-      <div style="background-color: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb;">
-        ${imageHtml}
-
-        <div style="white-space: pre-wrap; margin-bottom: 20px;">
-          ${bodyCopy}
-        </div>
-
-        ${videoHtml}
-
-        ${boilerplate ? `
-          <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; margin-top: 20px; font-size: 14px; color: #666;">
-            <strong>About ${orgName}:</strong><br>
-            ${boilerplate}
-          </div>
-        ` : ''}
-      </div>
-
-      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #666; text-align: center;">
-        <p>This email was sent to ${recipientName} (${recipientEmail}) at ${recipientOutlet}.</p>
-        <p>If you no longer wish to receive these emails, please contact us.</p>
-      </div>
-      ${emailFooter(orgLike, { showManageLink: false })}
-    </body>
-    </html>
-  `;
 }
 
 /**
