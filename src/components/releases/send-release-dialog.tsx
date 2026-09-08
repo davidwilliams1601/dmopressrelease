@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -14,12 +14,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Send, Loader2, Lock, Clock, CalendarClock, Sparkles, AlertTriangle } from 'lucide-react';
+import { Send, Loader2, Lock, Clock, CalendarClock, Sparkles, AlertTriangle, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import { useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, getDocs } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import type { Release, OutletList, RecommendationSnapshot, CreditWalletSummary } from '@/lib/types';
+import type { Release, OutletList, Recipient, RecommendationSnapshot, CreditWalletSummary } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
@@ -42,6 +42,15 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
   const [open, setOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [selectedLists, setSelectedLists] = useState<string[]>([]);
+  // --- Per-recipient selection ---
+  // Lists are the unit of sending; within a selected list the sender can untick
+  // individual contacts. Exclusions are keyed by the recipient's full document path
+  // (matches SendJobRecipient.recipientRef) and validated server-side in createSendJob.
+  // They are per send, not per release: the next send starts from the whole list again.
+  const [expandedLists, setExpandedLists] = useState<string[]>([]);
+  const [recipientsByList, setRecipientsByList] = useState<Record<string, Recipient[] | 'loading'>>({});
+  const [excludedRefs, setExcludedRefs] = useState<Set<string>>(() => new Set());
+  const [recipientSearch, setRecipientSearch] = useState<Record<string, string>>({});
   const [sendMode, setSendMode] = useState<'now' | 'scheduled'>('now');
   const [scheduledDate, setScheduledDate] = useState<string>('');
   const [scheduledTime, setScheduledTime] = useState<string>('09:00');
@@ -93,12 +102,93 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
   const walletBalance = wallet?.balance ?? 0;
   const insufficientBalance = includeSmartDistribution && smartDistributionCreditCost > walletBalance;
 
+  const recipientRefPath = useCallback(
+    (listId: string, recipientId: string) => doc(firestore, 'orgs', orgId, 'outletLists', listId, 'recipients', recipientId).path,
+    [firestore, orgId]
+  );
+
   const toggleList = (listId: string) => {
+    const deselecting = selectedLists.includes(listId);
     setSelectedLists((prev) =>
-      prev.includes(listId)
-        ? prev.filter((id) => id !== listId)
-        : [...prev, listId]
+      deselecting ? prev.filter((id) => id !== listId) : [...prev, listId]
     );
+    if (deselecting) {
+      // Dropping a list forgets its exclusions so re-adding it starts from the full list.
+      setExpandedLists((prev) => prev.filter((id) => id !== listId));
+      const prefix = `orgs/${orgId}/outletLists/${listId}/recipients/`;
+      setExcludedRefs((prev) => {
+        const next = new Set(prev);
+        prev.forEach((ref) => {
+          if (ref.startsWith(prefix)) next.delete(ref);
+        });
+        return next;
+      });
+    }
+  };
+
+  const loadRecipients = async (listId: string) => {
+    if (recipientsByList[listId]) return;
+    setRecipientsByList((prev) => ({ ...prev, [listId]: 'loading' }));
+    try {
+      const snapshot = await getDocs(collection(firestore, 'orgs', orgId, 'outletLists', listId, 'recipients'));
+      const rows = snapshot.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Omit<Recipient, 'id'>) }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setRecipientsByList((prev) => ({ ...prev, [listId]: rows }));
+    } catch (error) {
+      console.error('Error loading recipients:', error);
+      setRecipientsByList((prev) => {
+        const next = { ...prev };
+        delete next[listId];
+        return next;
+      });
+      toast({ title: 'Could not load contacts', description: 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const toggleExpanded = (listId: string) => {
+    const expanding = !expandedLists.includes(listId);
+    setExpandedLists((prev) => (expanding ? [...prev, listId] : prev.filter((id) => id !== listId)));
+    if (expanding) void loadRecipients(listId);
+  };
+
+  const setRecipientIncluded = (listId: string, recipientId: string, included: boolean) => {
+    const ref = recipientRefPath(listId, recipientId);
+    setExcludedRefs((prev) => {
+      const next = new Set(prev);
+      if (included) next.delete(ref);
+      else next.add(ref);
+      return next;
+    });
+  };
+
+  const setAllInList = (listId: string, included: boolean) => {
+    const rows = recipientsByList[listId];
+    if (!rows || rows === 'loading') return;
+    setExcludedRefs((prev) => {
+      const next = new Set(prev);
+      rows.forEach((r) => {
+        const ref = recipientRefPath(listId, r.id);
+        if (included) next.delete(ref);
+        else next.add(ref);
+      });
+      return next;
+    });
+  };
+
+  const excludedCountForList = (listId: string) => {
+    const prefix = `orgs/${orgId}/outletLists/${listId}/recipients/`;
+    let n = 0;
+    excludedRefs.forEach((ref) => {
+      if (ref.startsWith(prefix)) n++;
+    });
+    return n;
+  };
+
+  const resetRecipientSelection = () => {
+    setExpandedLists([]);
+    setExcludedRefs(new Set());
+    setRecipientSearch({});
   };
 
   const getScheduledDateTime = (): Date | null => {
@@ -151,18 +241,25 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
           'recipients'
         );
         const snapshot = await getDocs(recipientsRef);
-        totalRecipients += snapshot.size;
+        snapshot.docs.forEach((d) => {
+          if (!excludedRefs.has(d.ref.path)) totalRecipients++;
+        });
       }
 
-      if (totalRecipients === 0) {
+      if (totalRecipients === 0 && !includeSmartDistribution) {
         toast({
           title: 'No recipients',
-          description: 'The selected lists have no recipients. Please add contacts first.',
+          description:
+            excludedRefs.size > 0
+              ? 'Every contact in the selected lists has been unticked. Tick at least one contact to send.'
+              : 'The selected lists have no recipients. Please add contacts first.',
           variant: 'destructive',
         });
         setIsSending(false);
         return;
       }
+
+      const excludedRecipientRefs = Array.from(excludedRefs);
 
       // QA fix (H2 + H4): the sendJob document is no longer written directly from the
       // client (firestore.rules now denies it — see H2 fix comment there). The
@@ -172,10 +269,23 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
       // confirmed written — a thrown error here is caught below and never silently
       // reports success, closing the H4 gap.
       const functionsInstance = getFunctions();
-      const createSendJob = httpsCallable<any, { success: boolean; sendJobId: string; totalRecipients: number }>(
+      const createSendJob = httpsCallable<any, { success: boolean; sendJobId: string; totalRecipients: number; excludedCount?: number }>(
         functionsInstance,
         'createSendJob'
       );
+      // Belt and braces for the window between a frontend deploy and the manual Cloud
+      // Functions deploy: an older createSendJob ignores excludedRecipientRefs and never
+      // returns excludedCount, so the job would go to the whole list. Tell the sender.
+      const warnIfExclusionsIgnored = (data: { excludedCount?: number }) => {
+        if (excludedRecipientRefs.length > 0 && typeof data.excludedCount !== 'number') {
+          toast({
+            title: 'Contact selection not applied',
+            description:
+              'The server did not apply your unticked contacts, so this send goes to the full list. A scheduled send can still be cancelled from Send History.',
+            variant: 'destructive',
+          });
+        }
+      };
 
       if (sendMode === 'scheduled') {
         const scheduledDateTime = getScheduledDateTime()!;
@@ -184,11 +294,13 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
           orgId,
           releaseId: release.id,
           outletListIds: selectedLists,
+          excludedRecipientRefs,
           sendMode: 'scheduled',
           scheduledAt: scheduledDateTime.getTime(),
           includeSmartDistributionRecommendations: includeSmartDistribution,
           confirmedSmartDistributionSelection: smartDistributionConfirmationNeeded,
         });
+        warnIfExclusionsIgnored(result.data);
 
         toast({
           title: 'Release scheduled',
@@ -199,10 +311,12 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
           orgId,
           releaseId: release.id,
           outletListIds: selectedLists,
+          excludedRecipientRefs,
           sendMode: 'now',
           includeSmartDistributionRecommendations: includeSmartDistribution,
           confirmedSmartDistributionSelection: smartDistributionConfirmationNeeded,
         });
+        warnIfExclusionsIgnored(result.data);
 
         toast({
           title: 'Release queued for sending',
@@ -212,6 +326,7 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
 
       setOpen(false);
       setSelectedLists([]);
+      resetRecipientSelection();
       setSendMode('now');
       setScheduledDate('');
       setScheduledTime('09:00');
@@ -229,10 +344,16 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
     }
   };
 
+  const totalExcluded = excludedRefs.size;
   const totalRecipients = selectedLists.reduce((sum, listId) => {
+    const loaded = recipientsByList[listId];
     const list = outletLists.find((l) => l.id === listId);
-    return sum + (list?.recipientCount || 0);
+    const listTotal = loaded && loaded !== 'loading' ? loaded.length : list?.recipientCount || 0;
+    return sum + Math.max(0, listTotal - excludedCountForList(listId));
   }, 0);
+  // Only block on zero when the sender has actively unticked people; lists with an
+  // unknown recipientCount are still validated server-side as before.
+  const everyoneExcluded = selectedLists.length > 0 && totalExcluded > 0 && totalRecipients === 0 && !includeSmartDistribution;
 
   const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -281,6 +402,8 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
           // was opened for this same release.
           setIncludeSmartDistribution(false);
           setConfirmingSmartDistribution(false);
+          // Recipient exclusions are per send: never carry them over between opens.
+          resetRecipientSelection();
         }
       }}
     >
@@ -400,32 +523,131 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
               </Card>
             ) : (
               <div className="space-y-2">
-                {outletLists.map((list) => (
-                  <Card
-                    key={list.id}
-                    className={`cursor-pointer transition-colors ${
-                      selectedLists.includes(list.id)
-                        ? 'border-primary bg-primary/5'
-                        : 'hover:bg-muted/50'
-                    }`}
-                    onClick={() => toggleList(list.id)}
-                  >
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <Checkbox
-                        checked={selectedLists.includes(list.id)}
-                        onCheckedChange={() => toggleList(list.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <div className="flex-1">
-                        <p className="font-medium">{list.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {list.recipientCount || 0} recipient
-                          {list.recipientCount !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                {outletLists.map((list) => {
+                  const isSelected = selectedLists.includes(list.id);
+                  const isExpanded = isSelected && expandedLists.includes(list.id);
+                  const loaded = recipientsByList[list.id];
+                  const rows = loaded && loaded !== 'loading' ? loaded : null;
+                  const listExcluded = excludedCountForList(list.id);
+                  const listTotal = rows ? rows.length : list.recipientCount || 0;
+                  const search = (recipientSearch[list.id] || '').trim().toLowerCase();
+                  const visibleRows = rows
+                    ? rows.filter((r) =>
+                        !search ||
+                        [r.name, r.email, r.outlet].some((v) => (v || '').toLowerCase().includes(search))
+                      )
+                    : [];
+                  return (
+                    <div key={list.id} className="space-y-0">
+                      <Card
+                        className={`cursor-pointer transition-colors ${
+                          isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                        } ${isExpanded ? 'rounded-b-none border-b-0' : ''}`}
+                        onClick={() => toggleList(list.id)}
+                      >
+                        <CardContent className="flex items-center gap-3 p-4">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleList(list.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium">{list.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {listExcluded > 0 ? (
+                                <>
+                                  {listTotal - listExcluded} of {listTotal} recipient{listTotal !== 1 ? 's' : ''} selected
+                                </>
+                              ) : (
+                                <>
+                                  {listTotal} recipient{listTotal !== 1 ? 's' : ''}
+                                </>
+                              )}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpanded(list.id);
+                              }}
+                              aria-expanded={isExpanded}
+                            >
+                              <Users className="h-4 w-4" />
+                              <span>Choose contacts</span>
+                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
+                      {isExpanded && (
+                        <div className="rounded-b-lg border border-t-0 border-primary bg-background p-3 space-y-3">
+                          {loaded === 'loading' || !rows ? (
+                            <div className="text-center py-3">
+                              <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                            </div>
+                          ) : rows.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-2">This list has no contacts yet.</p>
+                          ) : (
+                            <>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Input
+                                  value={recipientSearch[list.id] || ''}
+                                  onChange={(e) =>
+                                    setRecipientSearch((prev) => ({ ...prev, [list.id]: e.target.value }))
+                                  }
+                                  placeholder="Search name, outlet or email"
+                                  className="h-8 flex-1 min-w-[12rem]"
+                                />
+                                <Button type="button" variant="outline" size="sm" onClick={() => setAllInList(list.id, true)}>
+                                  Select all
+                                </Button>
+                                <Button type="button" variant="outline" size="sm" onClick={() => setAllInList(list.id, false)}>
+                                  Select none
+                                </Button>
+                              </div>
+                              <div className="max-h-64 overflow-y-auto rounded-md border divide-y">
+                                {visibleRows.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground text-center py-3">No contacts match your search.</p>
+                                ) : (
+                                  visibleRows.map((r) => {
+                                    const included = !excludedRefs.has(recipientRefPath(list.id, r.id));
+                                    return (
+                                      <label
+                                        key={r.id}
+                                        className={`flex items-start gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-muted/50 ${
+                                          included ? '' : 'opacity-60'
+                                        }`}
+                                      >
+                                        <Checkbox
+                                          className="mt-0.5"
+                                          checked={included}
+                                          onCheckedChange={(checked) => setRecipientIncluded(list.id, r.id, checked === true)}
+                                        />
+                                        <span className="flex-1 min-w-0">
+                                          <span className="font-medium">{r.name || r.email}</span>
+                                          {r.outlet && <span className="text-muted-foreground"> · {r.outlet}</span>}
+                                          <span className="block text-xs text-muted-foreground truncate">{r.email}</span>
+                                        </span>
+                                      </label>
+                                    );
+                                  })
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Unticked contacts are left out of this send only. The list itself is unchanged.
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -561,6 +783,11 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
                     <p className="text-2xl font-bold">{selectedLists.length}</p>
                   </div>
                 </div>
+                {totalExcluded > 0 && (
+                  <p className="text-sm text-muted-foreground mt-3 pt-3 border-t">
+                    {totalExcluded} contact{totalExcluded !== 1 ? 's' : ''} unticked and left out of this send.
+                  </p>
+                )}
                 {includeSmartDistribution && includedRecommendations.length > 0 && (
                   <p className="text-sm text-muted-foreground mt-3 pt-3 border-t">
                     +{includedRecommendations.length} Smart Distribution contact
@@ -593,6 +820,7 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
             disabled={
               isSending ||
               selectedLists.length === 0 ||
+              everyoneExcluded ||
               (sendMode === 'scheduled' && !isScheduleValid())
             }
           >

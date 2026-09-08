@@ -166,6 +166,12 @@ export function SendJobsCard({ orgId, releaseId }: SendJobsCardProps) {
                 <div className="text-sm">
                   <span className="font-medium">{job.totalRecipients}</span>{' '}
                   recipient{job.totalRecipients !== 1 ? 's' : ''}
+                  {(job.excludedCount ?? 0) > 0 && (
+                    <span className="text-muted-foreground">
+                      {' \u2022 '}
+                      {job.excludedCount} left out by sender
+                    </span>
+                  )}
                   {job.status === 'completed' && (
                     <>
                       {' \u2022 '}

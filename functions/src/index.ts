@@ -27,6 +27,7 @@ import {
   releaseSmartDistributionCreditReservation,
 } from './credits';
 import { resolveNetworkContactRef } from './network-contact-refs';
+import { applyExclusions, parseExcludedRecipientRefs } from './send-exclusions';
 
 // Export webhook handlers
 export * from './webhooks';
@@ -130,13 +131,24 @@ async function executeSendJob(
     recipientsSnapshot.docs.forEach((doc) => {
       const data = doc.data();
       recipients.push({ id: doc.id, ...data, recipientRef: doc.ref.path });
-      seenIdentities.add(normaliseIdentity(data.name, data.email));
     });
   }
 
+  // Drop recipients the sender deliberately unticked in the send dialog (see
+  // send-exclusions.ts). Done before identity tracking so an excluded customer contact
+  // doesn't also suppress a matching Smart Distribution recommendation.
+  const { kept: includedRecipients, excluded: excludedRecipients } = applyExclusions(
+    recipients,
+    Array.isArray(sendJob.excludedRecipientRefs) ? sendJob.excludedRecipientRefs : []
+  );
+  if (excludedRecipients.length > 0) {
+    console.log(`Send job ${jobId}: ${excludedRecipients.length} recipient(s) excluded by sender`);
+  }
+  includedRecipients.forEach((r) => seenIdentities.add(normaliseIdentity(r.name, r.email)));
+
   // Filter to valid emails only
-  const validRecipients = recipients.filter((r) => r.email && isValidEmail(r.email));
-  const skippedCount = recipients.length - validRecipients.length;
+  const validRecipients = includedRecipients.filter((r) => r.email && isValidEmail(r.email));
+  const skippedCount = includedRecipients.length - validRecipients.length;
   if (skippedCount > 0) {
     console.warn(`Skipped ${skippedCount} recipients with invalid emails`);
   }
@@ -693,7 +705,7 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('unauthenticated', 'Must be signed in to send a release.');
   }
 
-  const { orgId, releaseId, outletListIds, sendMode, scheduledAt, includeSmartDistributionRecommendations, confirmedSmartDistributionSelection } = data || {};
+  const { orgId, releaseId, outletListIds, sendMode, scheduledAt, includeSmartDistributionRecommendations, confirmedSmartDistributionSelection, excludedRecipientRefs } = data || {};
 
   // --- Shape validation ---
   if (!orgId || typeof orgId !== 'string') {
@@ -707,6 +719,10 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
   }
   if (sendMode !== 'now' && sendMode !== 'scheduled') {
     throw new functions.https.HttpsError('invalid-argument', "sendMode must be 'now' or 'scheduled'.");
+  }
+  const exclusions = parseExcludedRecipientRefs(excludedRecipientRefs, orgId, outletListIds);
+  if (!exclusions.ok) {
+    throw new functions.https.HttpsError('invalid-argument', exclusions.error);
   }
   let scheduledDate: Date | null = null;
   if (sendMode === 'scheduled') {
@@ -764,8 +780,11 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
     }
   }
 
-  // --- Count recipients server-side; never trust a client-supplied total ---
+  // --- Count recipients server-side; never trust a client-supplied total. Excluded
+  //     recipients are only counted out if they actually exist in a selected list. ---
   let totalRecipients = 0;
+  let excludedCount = 0;
+  const excludedSet = new Set(exclusions.refs);
   for (const listId of outletListIds) {
     const recipientsSnap = await db
       .collection('orgs')
@@ -774,10 +793,19 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
       .doc(listId)
       .collection('recipients')
       .get();
-    totalRecipients += recipientsSnap.size;
+    for (const recipientDoc of recipientsSnap.docs) {
+      if (excludedSet.has(recipientDoc.ref.path)) excludedCount++;
+      else totalRecipients++;
+    }
   }
-  if (totalRecipients === 0) {
+  if (totalRecipients === 0 && excludedCount === 0) {
     throw new functions.https.HttpsError('failed-precondition', 'The selected lists have no recipients.');
+  }
+  if (totalRecipients === 0 && !wantsSmartDistribution) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Every recipient in the selected lists has been excluded. Tick at least one contact to send.'
+    );
   }
 
   const status = sendMode === 'scheduled' ? 'scheduled' : 'pending';
@@ -793,6 +821,10 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
     createdBy: context.auth.uid,
     includeSmartDistributionRecommendations: wantsSmartDistribution,
   };
+  if (exclusions.refs.length > 0) {
+    jobData.excludedRecipientRefs = exclusions.refs;
+    jobData.excludedCount = excludedCount;
+  }
   if (sendMode === 'scheduled') {
     jobData.scheduledAt = admin.firestore.Timestamp.fromDate(scheduledDate!);
   }
@@ -809,9 +841,9 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
     });
   }
 
-  console.log(`Send job ${jobRef.id} created by ${context.auth.uid} for release ${releaseId} (${totalRecipients} recipients, mode=${sendMode})`);
+  console.log(`Send job ${jobRef.id} created by ${context.auth.uid} for release ${releaseId} (${totalRecipients} recipients, ${excludedCount} excluded, mode=${sendMode})`);
 
-  return { success: true, sendJobId: jobRef.id, totalRecipients };
+  return { success: true, sendJobId: jobRef.id, totalRecipients, excludedCount };
 });
 
 /**

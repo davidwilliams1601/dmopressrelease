@@ -316,6 +316,14 @@ export type SendJob = {
   error?: string;
   scheduledAt?: FirestoreTimestamp;
 
+  /** Full Firestore document paths of recipients inside `outletListIds` that the
+   *  sender unticked in the send dialog. Absent when the whole list was sent. Stored
+   *  per send job (not per release) so a later send starts from the full list again. */
+  excludedRecipientRefs?: string[];
+  /** Server-computed at creation: how many of `excludedRecipientRefs` actually existed
+   *  in the selected lists. `totalRecipients` already has these taken off. */
+  excludedCount?: number;
+
   // --- Smart Distribution additions (Phase 4; all optional, additive) ---
   /** Set by the client at creation: whether this send should also include the
    *  release's currently-`included` recommendationSnapshots. Absent/false on jobs
