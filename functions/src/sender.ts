@@ -44,7 +44,7 @@ export function getFromEmail(): string | null {
  */
 type OrgSenderLike = {
   name?: string | null;
-  pressContact?: { name?: string | null; email?: string | null } | null;
+  pressContact?: { name?: string | null; email?: string | null; phone?: string | null } | null;
 };
 
 export type SenderFields = {

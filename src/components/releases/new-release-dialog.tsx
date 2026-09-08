@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -49,6 +50,10 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
   const verticalConfig = getVerticalConfig(organization?.vertical);
   const campaignTypeOptions = verticalConfig.campaignTypes;
   const audienceOptions = verticalConfig.ai.audienceOptions;
+
+  // Controlled rather than read from FormData: the Radix checkbox only posts a
+  // hidden "on" when ticked, and we want an explicit false written to Firestore.
+  const [hasHoldingText, setHasHoldingText] = useState(false);
   
   // Generate a release ID upfront for image upload
   const [releaseId] = useState(() => doc(collection(firestore, 'orgs', orgId, 'releases')).id);
@@ -91,6 +96,8 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
         targetMarket: formData.get('targetMarket') as string,
         audience: formData.get('audience') as string,
         bodyCopy: formData.get('bodyCopy') as string || '',
+        notesToEditors: ((formData.get('notesToEditors') as string) || '').trim() || null,
+        hasHoldingText,
         status: 'Draft',
         createdAt: serverTimestamp(),
         sends: 0,
@@ -224,6 +231,36 @@ export function NewReleaseDialog({ orgId }: NewReleaseDialogProps) {
               <p className="text-sm text-muted-foreground">
                 Optional: Add your press release content now or later.
               </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="notesToEditors">Notes to Editors</Label>
+              <Textarea
+                id="notesToEditors"
+                name="notesToEditors"
+                placeholder="Background for journalists: about your partners, data sources, interview availability..."
+                className="min-h-[100px]"
+              />
+              <p className="text-sm text-muted-foreground">
+                Optional. Appears after the story under &quot;ENDS&quot;, before your boilerplate.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Checkbox
+                id="hasHoldingText"
+                checked={hasHoldingText}
+                onCheckedChange={(v) => setHasHoldingText(v === true)}
+                className="mt-0.5"
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="hasHoldingText" className="cursor-pointer">
+                  Contains holding text
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Tick if any part is still a placeholder or awaiting sign-off. Sending is blocked until you untick it.
+                </p>
+              </div>
             </div>
           </div>
           <DialogFooter>

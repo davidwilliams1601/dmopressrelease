@@ -8,6 +8,13 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { Book, Calendar, ArrowLeft } from 'lucide-react';
 import { resolveOrgColors, getAttribution } from '@/lib/brand-utils';
+import {
+  hasPressContact,
+  notesToEditorsText,
+  pressContactParts,
+  shouldRenderEnds,
+  telHref,
+} from '@/lib/release-sections';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEQji1lRBsREmY7Vt5l8_XDyTY0Pp_Oqc",
@@ -27,11 +34,13 @@ type OrgData = {
   id: string; name: string; slug: string; boilerplate?: string;
   branding?: { logoUrl?: string; primaryColor?: string; secondaryColor?: string };
   tier?: string;
+  pressContact?: { name?: string; email?: string; phone?: string };
 };
 type ReleaseData = {
   id: string; headline: string; slug: string; bodyCopy?: string;
   status: string; imageUrl?: string; targetMarket?: string;
   audience?: string; createdAt?: any;
+  notesToEditors?: string | null;
   videoUrl?: string;
   videoMetadata?: { fileName?: string; size?: number; durationSeconds?: number };
 };
@@ -68,6 +77,7 @@ export default function PublicReleasePage() {
           boilerplate: orgData.boilerplate ?? '',
           branding: orgData.branding ?? undefined,
           tier: orgData.tier ?? undefined,
+          pressContact: orgData.pressContact ?? undefined,
         };
         setOrg(orgObj);
 
@@ -93,6 +103,7 @@ export default function PublicReleasePage() {
           videoMetadata: relData.videoMetadata ?? undefined,
           targetMarket: relData.targetMarket ?? undefined,
           audience: relData.audience ?? undefined,
+          notesToEditors: relData.notesToEditors ?? null,
           createdAt: relData.createdAt ?? null,
         };
 
@@ -135,6 +146,15 @@ export default function PublicReleasePage() {
     .split(/\n{2,}/)
     .map((p) => p.trim())
     .filter(Boolean);
+
+  // Same section order as the journalist email (functions/src/index.ts formatEmailHtml):
+  // body → video → ENDS → Notes to editors → About {org} → Media contact.
+  const notesParagraphs = notesToEditorsText(release)
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const contact = pressContactParts(org.pressContact);
+  const showContact = hasPressContact(org.pressContact);
 
   const colors = resolveOrgColors(org.branding);
   const attribution = getAttribution(org.tier);
@@ -221,12 +241,52 @@ export default function PublicReleasePage() {
           </div>
         )}
 
+        {shouldRenderEnds(release) && (
+          <p className="mt-12 text-center text-sm font-bold tracking-[0.2em] text-gray-400">ENDS</p>
+        )}
+
+        {notesParagraphs.length > 0 && (
+          <div className="mt-8 border-t pt-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
+              Notes to editors
+            </h2>
+            {notesParagraphs.map((para, i) => (
+              <p key={i} className="mb-3 text-sm text-gray-500 leading-relaxed whitespace-pre-line">{para}</p>
+            ))}
+          </div>
+        )}
+
         {org.boilerplate && (
           <div className="mt-12 border-t pt-8">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
               About {org.name}
             </h2>
             <p className="text-sm text-gray-500 leading-relaxed">{org.boilerplate}</p>
+          </div>
+        )}
+
+        {showContact && (
+          <div className="mt-12 border-t pt-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
+              Media contact
+            </h2>
+            <div className="text-sm text-gray-500 leading-relaxed">
+              {contact.name && <p>{contact.name}</p>}
+              {contact.email && (
+                <p>
+                  <a href={`mailto:${contact.email}`} className="underline underline-offset-4 hover:no-underline" style={{ color: colors.primary }}>
+                    {contact.email}
+                  </a>
+                </p>
+              )}
+              {contact.phone && (
+                <p>
+                  <a href={telHref(contact.phone)} className="underline underline-offset-4 hover:no-underline" style={{ color: colors.primary }}>
+                    {contact.phone}
+                  </a>
+                </p>
+              )}
+            </div>
           </div>
         )}
 

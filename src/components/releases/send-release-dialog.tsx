@@ -24,14 +24,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
+import { useOrganization } from '@/hooks/use-organization';
+import { hasPressContact, notesToEditorsText, pressContactParts, shouldRenderEnds } from '@/lib/release-sections';
 
 type SendReleaseDialogProps = {
   release: Release;
   orgId: string;
   approvalBlocked?: boolean;
+  /** True while the release is flagged as containing holding text (see Release.hasHoldingText). */
+  holdingTextBlocked?: boolean;
 };
 
-export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendReleaseDialogProps) {
+export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingTextBlocked }: SendReleaseDialogProps) {
+  // Org is needed so the preview shows the same trailing sections the journalist
+  // will get (About + Media contact). Shares the existing subscription.
+  const { organization } = useOrganization(orgId);
   const [open, setOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [selectedLists, setSelectedLists] = useState<string[]>([]);
@@ -238,6 +245,19 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
     );
   }
 
+  if (holdingTextBlocked) {
+    return (
+      <Button disabled title="Untick 'Contains holding text' and save before this release can be sent.">
+        <Lock />
+        <span>Clear holding text to send</span>
+      </Button>
+    );
+  }
+
+  const previewNotes = notesToEditorsText(release);
+  const previewContact = pressContactParts(organization?.pressContact);
+  const previewShowContact = hasPressContact(organization?.pressContact);
+
   // QA fix (H3): explicit final confirmation naming recipient counts and credit
   // cost before a billable Smart Distribution send is actually created.
   const smartDistributionConfirmationNeeded = includeSmartDistribution && smartDistributionNetworkCount > 0;
@@ -332,8 +352,32 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked }: SendRelea
               <Separator />
               <div>
                 <p className="text-xs text-muted-foreground mb-2">Body:</p>
-                <div className="text-sm whitespace-pre-wrap max-h-[200px] overflow-y-auto border rounded-md p-3 bg-muted/30">
-                  {release.bodyCopy || 'No content yet'}
+                {/* Same order as formatEmailHtml: body → ENDS → Notes → About → Media contact */}
+                <div className="text-sm whitespace-pre-wrap max-h-[260px] overflow-y-auto border rounded-md p-3 bg-muted/30 space-y-3">
+                  <div>{release.bodyCopy || 'No content yet'}</div>
+                  {shouldRenderEnds(release) && (
+                    <p className="text-center font-semibold tracking-[0.2em] text-muted-foreground">ENDS</p>
+                  )}
+                  {previewNotes && (
+                    <div className="border-t pt-3 text-muted-foreground">
+                      <p className="font-semibold">Notes to editors</p>
+                      <div>{previewNotes}</div>
+                    </div>
+                  )}
+                  {organization?.boilerplate && (
+                    <div className="border-t pt-3 text-muted-foreground">
+                      <p className="font-semibold">About {organization.name}</p>
+                      <div>{organization.boilerplate}</div>
+                    </div>
+                  )}
+                  {previewShowContact && (
+                    <div className="border-t pt-3 text-muted-foreground">
+                      <p className="font-semibold">Media contact</p>
+                      {previewContact.name && <div>{previewContact.name}</div>}
+                      {previewContact.email && <div>{previewContact.email}</div>}
+                      {previewContact.phone && <div>{previewContact.phone}</div>}
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
