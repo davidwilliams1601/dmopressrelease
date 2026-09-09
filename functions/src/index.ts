@@ -765,8 +765,19 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
   //     dialog) — this cannot be inferred from the checkbox state alone, since a
   //     malicious or buggy client could otherwise send that flag without the user ever
   //     seeing the confirmation step. ---
+  //
+  // Approval is an optional, org-level review step (see approvalWorkflowEnabled in
+  // Settings) — mirrors the same org-level gate used in recommendations.ts and in the
+  // frontend's SendReleaseDialog/RecommendationList. Orgs that haven't enabled it should
+  // not be blocked here: previously this checked release.approvalStatus unconditionally,
+  // so any org without the approval workflow turned on (whose releases never get an
+  // approvalStatus at all) had every Smart Distribution send rejected server-side with
+  // no warning in the UI, since the client's approvalBlocked gate was already scoped to
+  // approvalWorkflowEnabled and never caught this case.
   if (wantsSmartDistribution) {
-    if (release.approvalStatus !== 'approved') {
+    const orgSnap = await db.collection('orgs').doc(orgId).get();
+    const approvalRequired = orgSnap.exists && orgSnap.data()?.approvalWorkflowEnabled === true;
+    if (approvalRequired && release.approvalStatus !== 'approved') {
       throw new functions.https.HttpsError(
         'failed-precondition',
         'This release must be approved before Press Pilot network recipients can be included.'

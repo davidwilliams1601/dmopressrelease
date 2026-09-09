@@ -332,11 +332,15 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
       setScheduledTime('09:00');
       setIncludeSmartDistribution(false);
       setConfirmingSmartDistribution(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending release:', error);
+      // Surface the actual reason from createSendJob's HttpsError (e.g. "This release
+      // must be approved before Press Pilot network recipients can be included.")
+      // instead of a generic message that hides why the send was rejected — matches
+      // the error.message || fallback pattern used elsewhere in the app.
       toast({
         title: 'Error sending release',
-        description: 'There was a problem queuing your release. Please try again.',
+        description: error?.message || 'There was a problem queuing your release. Please try again.',
         variant: 'destructive',
       });
     } finally {
