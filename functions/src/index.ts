@@ -783,7 +783,26 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
         'This release must be approved before Press Pilot network recipients can be included.'
       );
     }
-    if (confirmedSmartDistributionSelection !== true) {
+    // Confirmation is only required when the send would actually include a billable
+    // Press Pilot network contact — mirrors the same networkCount > 0 condition that
+    // gates the frontend's confirmation step (smartDistributionConfirmationNeeded in
+    // send-release-dialog.tsx). Previously this was enforced whenever ANY Smart
+    // Distribution contacts were requested, including sends made up entirely of free,
+    // customer-owned recommendations (source: 'customer_contact') — the client never
+    // shows a confirmation step (and so never sets this flag) when there is nothing
+    // billable to confirm, so those sends were always rejected here.
+    const recommendationsSnap = await db
+      .collection('orgs')
+      .doc(orgId)
+      .collection('recommendationSnapshots')
+      .where('storyId', '==', releaseId)
+      .where('decision', '==', 'included')
+      .get();
+    const networkContactCount = recommendationsSnap.docs.filter(
+      (d) => d.data().source === 'network_contact'
+    ).length;
+
+    if (networkContactCount > 0 && confirmedSmartDistributionSelection !== true) {
       throw new functions.https.HttpsError(
         'failed-precondition',
         'Press Pilot network recipients must be explicitly confirmed before sending.'
