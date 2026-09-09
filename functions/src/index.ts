@@ -431,6 +431,29 @@ async function executeSendJob(
     completedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
+  // Bug fix (2026-09-09): for an immediate send, the callable that creates the
+  // sendJob (sendRelease) already sets release.status = 'Sent' and increments
+  // release.sends *before* this function ever runs. But for a "send later" job,
+  // that callable only sets status = 'Scheduled' and deliberately skips the sends
+  // increment (the real recipient count isn't known yet, and totalRecipients may
+  // still change once Smart Distribution merging/exclusions run in here). Nothing
+  // downstream of that ever revisited the release doc once the scheduled job
+  // actually executed and completed — so scheduled releases stayed stuck showing
+  // status "Scheduled" with Sends permanently at 0 on both the release page and
+  // the dashboard aggregate (which only sums releases where status === 'Sent'),
+  // even though Send History correctly showed the job as completed and Opens/
+  // Clicks kept incrementing fine via the SendGrid webhook (which updates the
+  // release doc directly, independent of status). Guard on sendJob.scheduledAt
+  // (only ever set for the scheduled-send path) so this never double-counts the
+  // sends already applied at creation time for immediate sends.
+  if (sendJob.scheduledAt) {
+    await releaseDoc.ref.update({
+      status: 'Sent',
+      sends: admin.firestore.FieldValue.increment(sentCount),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
   console.log(`Send job ${jobId} completed: ${sentCount} sent, ${failedCount} failed`);
 
   // Notify org admins if any emails failed
