@@ -14,6 +14,13 @@
  * all its completed sendJobs (only takes effect if that's greater than the
  * release's current sends, so it's safe to re-run).
  *
+ * Iterates orgs first and queries each org's own `releases` subcollection
+ * directly, rather than a collectionGroup query across all orgs — a
+ * collectionGroup query with a filter needs a Firestore composite index to
+ * exist first, while a single-field equality filter on a single collection
+ * is auto-indexed and needs no setup. With only a handful of orgs, iterating
+ * them is cheap.
+ *
  * Uses firebase-admin from the functions directory, same pattern as
  * scripts/set-super-admin.js.
  *
@@ -38,55 +45,59 @@ const APPLY = process.argv.includes('--apply');
 async function main() {
   console.log(APPLY ? 'Running in APPLY mode — writes will be made.' : 'Running in DRY RUN mode — no writes will be made (pass --apply to write).');
 
-  const stuckReleasesSnap = await db
-    .collectionGroup('releases')
-    .where('status', '==', 'Scheduled')
-    .get();
-
-  console.log(`Found ${stuckReleasesSnap.size} release(s) with status 'Scheduled'.`);
+  const orgsSnap = await db.collection('orgs').get();
+  console.log(`Scanning ${orgsSnap.size} org(s) for releases stuck on status 'Scheduled'...`);
 
   let fixedCount = 0;
 
-  for (const releaseDoc of stuckReleasesSnap.docs) {
-    const orgRef = releaseDoc.ref.parent.parent;
-    const orgId = orgRef ? orgRef.id : null;
-    const releaseData = releaseDoc.data();
+  for (const orgDoc of orgsSnap.docs) {
+    const orgId = orgDoc.id;
 
-    if (!orgId) {
-      console.warn(`  Skipping ${releaseDoc.ref.path} — could not resolve parent org.`);
-      continue;
-    }
-
-    const sendJobsSnap = await db
+    const stuckReleasesSnap = await db
       .collection('orgs')
       .doc(orgId)
-      .collection('sendJobs')
-      .where('releaseId', '==', releaseDoc.id)
-      .where('status', '==', 'completed')
+      .collection('releases')
+      .where('status', '==', 'Scheduled')
       .get();
 
-    if (sendJobsSnap.empty) {
-      // Still genuinely scheduled / not yet sent — leave alone.
-      continue;
-    }
+    if (stuckReleasesSnap.empty) continue;
 
-    const totalSent = sendJobsSnap.docs.reduce((sum, d) => sum + (d.data().sentCount || 0), 0);
-    const currentSends = releaseData.sends || 0;
+    console.log(`  Org ${orgId}: ${stuckReleasesSnap.size} release(s) with status 'Scheduled'.`);
 
-    if (totalSent <= currentSends) {
-      console.log(`  Skipping ${orgId}/${releaseDoc.id} ("${releaseData.headline || 'untitled'}") — completed sentCount (${totalSent}) already <= current sends (${currentSends}).`);
-      continue;
-    }
+    for (const releaseDoc of stuckReleasesSnap.docs) {
+      const releaseData = releaseDoc.data();
 
-    console.log(`  Fixing ${orgId}/${releaseDoc.id} ("${releaseData.headline || 'untitled'}"): status Scheduled -> Sent, sends ${currentSends} -> ${totalSent} (from ${sendJobsSnap.size} completed job(s)).`);
-    fixedCount++;
+      const sendJobsSnap = await db
+        .collection('orgs')
+        .doc(orgId)
+        .collection('sendJobs')
+        .where('releaseId', '==', releaseDoc.id)
+        .where('status', '==', 'completed')
+        .get();
 
-    if (APPLY) {
-      await releaseDoc.ref.update({
-        status: 'Sent',
-        sends: totalSent,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      if (sendJobsSnap.empty) {
+        // Still genuinely scheduled / not yet sent — leave alone.
+        continue;
+      }
+
+      const totalSent = sendJobsSnap.docs.reduce((sum, d) => sum + (d.data().sentCount || 0), 0);
+      const currentSends = releaseData.sends || 0;
+
+      if (totalSent <= currentSends) {
+        console.log(`    Skipping ${orgId}/${releaseDoc.id} ("${releaseData.headline || 'untitled'}") — completed sentCount (${totalSent}) already <= current sends (${currentSends}).`);
+        continue;
+      }
+
+      console.log(`    Fixing ${orgId}/${releaseDoc.id} ("${releaseData.headline || 'untitled'}"): status Scheduled -> Sent, sends ${currentSends} -> ${totalSent} (from ${sendJobsSnap.size} completed job(s)).`);
+      fixedCount++;
+
+      if (APPLY) {
+        await releaseDoc.ref.update({
+          status: 'Sent',
+          sends: totalSent,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
     }
   }
 
