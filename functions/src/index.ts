@@ -1130,3 +1130,4 @@ export * from './demo';
 // Export password reset functions
 export * from './password-reset';
 export * from './support';
+export * from './page-views';
