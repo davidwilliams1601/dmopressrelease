@@ -1,11 +1,12 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Book, Calendar, ArrowLeft } from 'lucide-react';
 import { resolveOrgColors, getAttribution } from '@/lib/brand-utils';
 import {
@@ -59,6 +60,7 @@ export default function PublicReleasePage() {
   const [release, setRelease] = useState<ReleaseData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const viewRecordedRef = useRef(false);
 
   useEffect(() => {
     async function loadData() {
@@ -122,6 +124,21 @@ export default function PublicReleasePage() {
     }
     loadData();
   }, [orgSlug, releaseSlug]);
+
+  // Best-effort public page-view count for the dashboard's "Page Views" stat.
+  // Fires once per successful load, after the release/org data is confirmed
+  // to exist and be publicly visible — never blocks or affects rendering if
+  // it fails (e.g. functions cold start, offline visitor).
+  useEffect(() => {
+    if (!org || !release || viewRecordedRef.current) return;
+    viewRecordedRef.current = true;
+
+    const functionsInstance = getFunctions();
+    const recordPageView = httpsCallable(functionsInstance, 'recordReleasePageView');
+    recordPageView({ orgId: org.id, releaseId: release.id }).catch((err) => {
+      console.error('[public-release] Failed to record page view:', err);
+    });
+  }, [org, release]);
 
   if (isLoading) {
     return (
