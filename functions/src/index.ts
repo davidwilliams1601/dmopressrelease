@@ -1109,6 +1109,11 @@ export * from './media-network';
 export * from './credits';
 export * from './recommendations';
 
+// Export Media Opportunities (intelligence layer) functions.
+// Read-only and recommendation-only by design: nothing in this module sends anything.
+// See docs/media-opportunities-mvp.md.
+export * from './media-opportunities';
+
 // Export super-admin functions
 export * from './super-admin';
 

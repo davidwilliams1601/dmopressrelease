@@ -9,6 +9,7 @@ import NewsroomLinkCard from '@/components/settings/newsroom-link-card';
 import NotificationPrefsCard from '@/components/settings/notification-prefs-card';
 import ContentTypesCard from '@/components/settings/content-types-card';
 import BrandingCard from '@/components/settings/branding-card';
+import { OpportunitySettingsCard } from '@/components/opportunities/opportunity-settings-card';
 import { useUserData } from '@/hooks/use-user-data';
 import { useOrganization } from '@/hooks/use-organization';
 import Link from 'next/link';
@@ -64,6 +65,7 @@ export default function SettingsPage() {
       <ContentTypesCard organization={organization} />
       <NewsroomLinkCard orgSlug={organization.slug} />
       <MediaEnquiryLinkCard orgSlug={organization.slug} />
+      <OpportunitySettingsCard orgId={orgId!} />
       <UserProfileCard />
       <NotificationPrefsCard />
       <ChangePasswordCard />
