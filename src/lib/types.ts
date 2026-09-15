@@ -934,3 +934,120 @@ export type MediaOpportunityFeedback = {
   createdByUid: string;
   createdByName?: string;
 };
+
+// ---------------------------------------------------------------------------
+// Destination Media Opportunity Briefs
+//
+// A brief is a manually commissioned, retrospective replay of a prospect's sector
+// coverage: what moved, where they were named, and where a theme ran without them.
+// It is a sales artefact AND the first manual version of the Media Opportunities
+// experience, which is why it is built from the same ingested item pool rather than
+// from separate research. See docs/destination-briefs.md.
+// ---------------------------------------------------------------------------
+
+/**
+ * A prospect a brief can be produced for. Platform-level and superadmin-only: this is
+ * Press Pilot's own commercial pipeline data, not tenant data, and no customer should
+ * ever be able to read it.
+ */
+export type MediaProspect = {
+  id: string;
+  name: string;
+  /** Free text, e.g. 'National tourist board', 'Regional DMO', 'Trade body'. */
+  organisationType?: string;
+  country?: string;
+  /** Which source set to read for them. */
+  vertical: VerticalId;
+  /** Their own named assets — destination, flagship events, venues, notable members.
+   *  This is what makes 'where you appeared' a checkable fact rather than an inference. */
+  watchTerms: string[];
+  /** Controlled-taxonomy topic labels. Empty means every topic present in the window. */
+  priorityTopics?: string[];
+  /** Controlled-taxonomy geography labels. Empty means no geography filter. */
+  priorityGeographies?: string[];
+  /** Internal sales context. Never rendered on a printed brief. */
+  notes?: string;
+  contactName?: string;
+  contactRole?: string;
+  /** Free-text campaign tag, e.g. 'WTM 2026', so a slate can be filtered. */
+  campaign?: string;
+  archived?: boolean;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
+  createdByUid?: string;
+  lastBriefAt?: FirestoreTimestamp;
+  briefCount?: number;
+};
+
+/** One source row on a brief. A snapshot: what was printed must stay what was printed. */
+export type DestinationBriefEvidence = {
+  mediaItemId: string;
+  sourceName: string;
+  title: string;
+  url: string;
+  /** Epoch millis. Stored as a number, not a Timestamp, so the whole brief content object
+   *  is a single self-contained value that renders identically wherever it is read. */
+  publishedAtMs: number;
+  namesProspect: boolean;
+};
+
+export type DestinationBriefTheme = {
+  key: string;
+  label: string;
+  kind: 'topic' | 'watch_term';
+  itemCount: number;
+  distinctSourceCount: number;
+  sourceNames: string[];
+  firstSeenMs: number;
+  lastSeenMs: number;
+  spanDays: number;
+  /** Hours from the first item to the first item from a different outlet. */
+  responseWindowHours: number | null;
+  mentionCount: number;
+  route: 'you_were_in_it' | 'ran_without_you';
+  evidence: DestinationBriefEvidence[];
+};
+
+export type DestinationBriefTotals = {
+  itemsScanned: number;
+  itemsMatched: number;
+  sourcesRepresented: number;
+  themesFound: number;
+  themesWithMention: number;
+  themesWithoutMention: number;
+  appearanceCount: number;
+};
+
+/** The entire renderable body of a brief, computed once and stored. */
+export type DestinationBriefContent = {
+  windowDays: number;
+  windowStartMs: number;
+  windowEndMs: number;
+  totals: DestinationBriefTotals;
+  appearances: DestinationBriefEvidence[];
+  themes: DestinationBriefTheme[];
+  /** What this brief does not establish. Always populated, always printed. */
+  gaps: string[];
+  sourcesUsed: Array<{ name: string; siteUrl?: string | null }>;
+};
+
+export type DestinationBrief = {
+  id: string;
+  prospectId: string;
+  prospectName: string;
+  /** Frozen copy of the terms used, so a brief can be reproduced and explained later
+   *  even after the prospect record is edited. */
+  watchTermsUsed: string[];
+  priorityTopicsUsed: string[];
+  content: DestinationBriefContent;
+  /** Optional human framing added by whoever is taking it to the meeting. Never
+   *  auto-generated: the analysis is the machine's, the pitch is a person's. */
+  headline?: string;
+  openingNote?: string;
+  closingNote?: string;
+  generatorVersion: string;
+  generatedAt: FirestoreTimestamp;
+  generatedByUid?: string;
+  /** Superadmin workflow state for a slate of briefs. */
+  status: 'draft' | 'final';
+};

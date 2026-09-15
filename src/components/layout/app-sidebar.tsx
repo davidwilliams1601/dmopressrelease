@@ -139,6 +139,18 @@ export default function AppSidebar() {
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/dashboard/admin/briefs')}
+                  tooltip={{ children: 'Destination Briefs' }}
+                >
+                  <a href="/dashboard/admin/briefs">
+                    <FileText />
+                    <span>Destination Briefs</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </>
         )}

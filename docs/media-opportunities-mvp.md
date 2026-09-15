@@ -106,3 +106,121 @@ own matched opportunity, its own saves, dismissals and feedback.
   overlapping feed windows cannot create duplicates.
 - The feature is dark by default. An org sees nothing until
   `mediaOpportunitySettings/config.enabled` is true.
+
+---
+
+## Destination Briefs (prospect-facing, superadmin-only)
+
+A **Destination Media Opportunity Brief** is a retrospective 30-day replay of a *prospect's*
+sector coverage, produced on demand and printed. It exists for three reasons at once: it is a
+sales artefact for trade shows, it is the first manual version of the Media Opportunities
+experience, and it is the cheapest honest test of whether the ingested source set actually
+finds anything worth paying for.
+
+### Why the rules differ from an opportunity
+
+A customer has an inventory of approved releases, so an opportunity can be gated on
+"do you have a credible contribution to make?". A prospect has no inventory at all. Guessing
+what they *could* have said would be exactly the kind of unfalsifiable claim this feature is
+designed not to make.
+
+So the gate is replaced with a different, deterministic, checkable fact:
+
+> **Was this organisation named in the coverage, or did the theme run without it?**
+
+That is a fact the prospect can verify in thirty seconds by clicking the links, which is the
+whole point. It produces the only two routes a brief ever asserts:
+
+| Route | Means |
+|---|---|
+| `ran_without_you` | No item in the theme named the organisation or any of its watch terms |
+| `you_were_in_it` | At least one item did |
+
+A single naming item anywhere in the theme flips the route. Telling a DMO it was absent from
+coverage it was actually in would end the conversation, so the test is deliberately
+asymmetric in the prospect's favour.
+
+### Evidence thresholds
+
+Same spirit as opportunities, tuned for a printed page:
+
+| Constant | Value | Why |
+|---|---|---|
+| `BRIEF_WINDOW_DAYS` | 30 | Long enough to show a pattern, recent enough to be current |
+| `BRIEF_MIN_ITEMS` | 3 | Two items is a coincidence |
+| `BRIEF_MIN_SOURCES` | 2 | One outlet publishing repeatedly is not the agenda moving |
+| `BRIEF_MAX_THEMES` | 6 | A brief that lists everything asserts nothing |
+| `BRIEF_MAX_EVIDENCE_PER_THEME` | 6 | Enough to be checkable, short enough to be read |
+| `BRIEF_MAX_APPEARANCES` | 10 | — |
+
+A brief where **no** theme clears the bar is still generated, stored and shown, and it says so
+plainly on the page. A quiet window is a real finding about the source set; suppressing it
+would hide the single case an operator most needs to see before walking into a meeting.
+
+### The response window
+
+The most useful number on the brief, because it is a fact about time rather than a claim about
+value: **hours from the first item in a theme to the first item from a *different* outlet.**
+
+The same outlet publishing twice does not count. This is the observed window in which a
+response would have been timely — it requires no prediction and no future-state claim.
+
+### Ranking
+
+Themes that ran **without** the prospect rank first, then by distinct outlets, then item count,
+then recency. Breadth of coverage beats volume: five outlets carrying a theme is a stronger
+signal than one outlet carrying twelve items.
+
+### What is computed vs. what a human writes
+
+| On the brief | Origin |
+|---|---|
+| Every count, date, span, route, response window, evidence row, source list | Computed in `destination-brief-engine.ts`. Pure, no model, no network |
+| `gaps` — "what this brief does not tell you" | Generated from the brief's own contents, never boilerplate. Never empty |
+| Method statement, future-state paragraph | Fixed constants in `src/lib/destination-briefs.ts` |
+| `headline`, `openingNote`, `closingNote` | Typed by a person. The only free prose on the document |
+
+The stored `content` snapshot is **not client-writable**. If the analysis is wrong the brief is
+regenerated. A document whose evidence could be hand-edited is worthless as a record, and the
+entire feature is an argument about trustworthiness.
+
+The printed page keeps measured findings and future-state claims in separate, labelled
+sections. Blurring those two is the one failure mode that would discredit the document.
+
+### Data model
+
+```
+/mediaProspects/{prospectId}                  superadmin read, no client write
+/mediaProspects/{prospectId}/briefs/{briefId} superadmin read, no client write
+```
+
+Prospect records are Press Pilot's own commercial pipeline — internal notes, named contacts —
+and no tenant may read them under any circumstances.
+
+### Functions
+
+| Function | Type | Purpose |
+|---|---|---|
+| `upsertMediaProspect` | callable | Create/edit a prospect. Watch terms under 3 characters are dropped |
+| `generateDestinationBrief` | callable | Reads the already-ingested `mediaItems` window, assembles and stores a brief |
+| `updateDestinationBrief` | callable | Saves human framing and draft/final status only |
+| `deleteDestinationBrief` | callable | Removes a brief |
+
+Nothing here fetches a feed. A brief can only ever see what `ingestMediaSources` has already
+collected, so producing one can never quietly widen what the platform reads.
+
+### UI
+
+- `/dashboard/admin/briefs` — prospect registry, one-click build, slate overview
+- `/dashboard/admin/briefs/[prospectId]/[briefId]` — the printable brief (`window.print()`,
+  following the existing `print-report` pattern; no PDF library is added)
+
+### Deploy
+
+```
+firebase deploy --only functions:upsertMediaProspect
+firebase deploy --only functions:generateDestinationBrief
+firebase deploy --only functions:updateDestinationBrief
+firebase deploy --only functions:deleteDestinationBrief
+firebase deploy --only firestore:rules,firestore:indexes
+```
