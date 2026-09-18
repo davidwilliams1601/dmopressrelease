@@ -68,7 +68,12 @@ export default function AdminBriefsPage() {
         : null,
     [firestore, isSuperAdmin]
   );
-  const { data: briefs } = useCollection<DestinationBrief>(briefsQuery);
+  // The error is read deliberately. A collection-group query can fail for reasons that are
+  // not permission-denied — most often a missing collection-group index, which the hook
+  // handles locally rather than globally. Ignoring it renders an empty list that is
+  // indistinguishable from "no briefs exist", which is exactly the wrong thing to show
+  // straight after a build reported six themes.
+  const { data: briefs, error: briefsError } = useCollection<DestinationBrief>(briefsQuery);
 
   const latestByProspect = useMemo(() => {
     const map = new Map<string, DestinationBrief>();
@@ -252,7 +257,21 @@ export default function AdminBriefsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!briefs?.length ? (
+          {briefsError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4">
+              <p className="text-sm font-medium text-destructive">
+                Could not load the brief list.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Briefs that have already been generated are stored safely — this is a read
+                failure, not a data loss. If this mentions an index, it is still building;
+                give it a few minutes and refresh.
+              </p>
+              <p className="mt-2 font-mono text-xs text-muted-foreground">
+                {briefsError.message}
+              </p>
+            </div>
+          ) : !briefs?.length ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               No briefs generated yet.
             </p>
