@@ -113,16 +113,6 @@
       ]
     },
     {
-      "collectionGroup": "recipients",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        {
-          "fieldPath": "orgId",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "recommendationSnapshots",
       "queryScope": "COLLECTION",
       "fields": [
@@ -193,5 +183,24 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "recipients",
+      "fieldPath": "orgId",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    }
+  ]
 }
