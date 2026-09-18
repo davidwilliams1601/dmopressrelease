@@ -754,3 +754,183 @@ export type SendJobRecipient = {
   createdAt: FirestoreTimestamp;
   updatedAt?: FirestoreTimestamp;
 };
+
+// ---------------------------------------------------------------------------
+// Media Opportunities (intelligence layer MVP)
+//
+// Platform-level collections hold shared, source-attributed external coverage.
+// Tenant-scoped collections hold everything organisation-specific: which themes an
+// org watches, what it was shown, what it saved, dismissed or acted on. One external
+// article can be relevant to many destinations; no destination can see another's
+// matched opportunities, decisions or feedback. See docs/media-opportunities-mvp.md.
+// ---------------------------------------------------------------------------
+
+/**
+ * A single monitored feed in the platform-owned source registry, managed by Press Pilot
+ * superadmins. Only RSS/Atom and official feeds — the MVP deliberately starts with
+ * sources that want to be syndicated rather than sources that have to be fought.
+ */
+export type MediaSource = {
+  id: string;
+  /** Display name as it appears on an opportunity card's evidence list, e.g. 'TravelMole'. */
+  name: string;
+  feedUrl: string;
+  /** Homepage, for the admin console only — never fetched. */
+  siteUrl?: string;
+  format: 'rss' | 'atom';
+  /** Which vertical source set this belongs to. An org only ever matches against its own. */
+  verticals: VerticalId[];
+  /** Controlled-taxonomy outlet type (src/lib/media-taxonomy.ts OUTLET_TYPE_VALUE_BY_LABEL). */
+  outletType?: string;
+  /** Controlled-taxonomy geography labels this source predominantly covers. */
+  geographies?: string[];
+  /** Default controlled-taxonomy topic labels applied to every item from this feed,
+   *  before per-item tagging runs. A trade title's whole output is on-topic by definition. */
+  defaultTopics?: string[];
+  enabled: boolean;
+  /** Ingestion health, written only by ingestMediaSources. */
+  lastCheckedAt?: FirestoreTimestamp;
+  lastSuccessAt?: FirestoreTimestamp;
+  lastItemCount?: number;
+  /** Consecutive failed fetches. A source is auto-quarantined (not deleted) past a threshold. */
+  consecutiveFailures?: number;
+  lastError?: string | null;
+  createdAt: FirestoreTimestamp;
+  updatedAt?: FirestoreTimestamp;
+  createdByUid?: string;
+};
+
+/**
+ * A normalised item from a monitored feed. Stores provenance and the feed-supplied
+ * summary only — never full article text (see docs/media-opportunities-mvp.md).
+ * Document ID is a hash of the canonical URL, which is what makes ingestion idempotent
+ * across overlapping feed windows and re-runs.
+ */
+export type MediaItem = {
+  id: string;
+  sourceId: string;
+  /** Denormalised so an evidence list renders without a second read per item. */
+  sourceName: string;
+  title: string;
+  url: string;
+  /** Feed-supplied description/summary, truncated. Absent when the feed gives none. */
+  summary?: string;
+  /** Byline, only where the feed itself supplies one. Never inferred or looked up. */
+  author?: string;
+  publishedAt: FirestoreTimestamp;
+  ingestedAt: FirestoreTimestamp;
+  /** Controlled-taxonomy topic labels matched deterministically from title + summary. */
+  topicTags: string[];
+  /** Controlled-taxonomy geography labels, from the source's own coverage plus text matches. */
+  geographyTags: string[];
+  /** The literal terms that caused each tag, so a human can see why an item was tagged. */
+  matchTrail?: Array<{ tag: string; matchedTerm: string; field: 'title' | 'summary' | 'source' }>;
+  verticals: VerticalId[];
+  /** Set when the item hit the sensitive-subject list. Excluded from opportunity
+   *  generation by default — newsjacking a tragedy is the fastest way to lose trust. */
+  sensitive?: boolean;
+  sensitiveReason?: string;
+};
+
+/** Per-organisation configuration for the intelligence layer. Dark until `enabled`. */
+export type MediaOpportunitySettings = {
+  orgId: string;
+  enabled: boolean;
+  /** Controlled-taxonomy topic labels this org wants watched. Empty = fall back to
+   *  the tags on its own approved releases, so a new org is not silent by default. */
+  priorityTopics: string[];
+  /** Controlled-taxonomy geography labels. Empty = the org's `region` only. */
+  priorityGeographies: string[];
+  /** Free-text terms the org wants flagged (destination name, flagship events, members). */
+  watchlistTerms?: string[];
+  /** Topics never to surface for this org, whatever the momentum. */
+  mutedTopics?: string[];
+  updatedAt?: FirestoreTimestamp;
+  updatedByUid?: string;
+};
+
+/**
+ * One evidence item on an opportunity card. A snapshot, not a live reference: what the
+ * customer was shown must stay exactly as shown even if the platform item is later
+ * re-tagged or purged.
+ */
+export type MediaOpportunityEvidence = {
+  mediaItemId: string;
+  sourceName: string;
+  title: string;
+  url: string;
+  publishedAt: FirestoreTimestamp;
+};
+
+/**
+ * A matched, evidence-backed opportunity shown to one organisation.
+ *
+ * Deterministic facts (`itemCount`, `distinctSourceCount`, `momentum`, `matchedTopics`)
+ * are computed in code. `summary` and `rationale` are the interpretive layer and are
+ * always rendered alongside the evidence they derive from, never instead of it.
+ */
+export type MediaOpportunity = {
+  id: string;
+  orgId: string;
+  status: MediaOpportunityStatusValue;
+  title: string;
+  summary: string;
+  /** Why this org specifically — matched topics, geography and its own approved stories. */
+  rationale: string[];
+  suggestedAction: MediaOpportunityActionValue;
+  urgency: 'today' | 'this_week' | 'plan_ahead';
+  confidence: 'high' | 'medium';
+  momentum: 'developing_theme' | 'emerging_opportunity';
+  /** Deterministic counts behind the momentum call. */
+  itemCount: number;
+  distinctSourceCount: number;
+  windowDays: number;
+  topicTags: string[];
+  geographyTags: string[];
+  /** The intersection of the theme's tags and the org's priorities/release tags. */
+  matchedTopics: string[];
+  /** At least two, enforced at generation time. No evidence, no opportunity. */
+  evidence: MediaOpportunityEvidence[];
+  /** Approved (Ready/Sent) releases whose smartDistribution tags matched this theme. */
+  matchedReleaseIds: string[];
+  matchedReleaseHeadlines?: string[];
+  /** Plain-language honesty note, e.g. what this does NOT establish. */
+  caveat: string;
+  /** Stable key for the theme + window, so the same theme is not re-raised each run. */
+  dedupeKey: string;
+  generatedAt: FirestoreTimestamp;
+  expiresAt?: FirestoreTimestamp;
+  /** Which generator produced it, for reproducibility when the rules change. */
+  generatorVersion: string;
+  resolvedAt?: FirestoreTimestamp;
+  resolvedByUid?: string;
+};
+
+export type MediaOpportunityStatusValue = 'new' | 'saved' | 'dismissed' | 'acted_on' | 'expired';
+
+export type MediaOpportunityActionValue =
+  | 'prepare_comment'
+  | 'create_release'
+  | 'build_case_study'
+  | 'offer_spokesperson'
+  | 'targeted_pitch'
+  | 'monitor'
+  | 'no_action';
+
+/** A customer's judgement on a card. Product discovery first, ranking data later. */
+export type MediaOpportunityFeedback = {
+  id: string;
+  orgId: string;
+  opportunityId: string;
+  reason:
+    | 'relevant'
+    | 'not_relevant'
+    | 'too_late'
+    | 'no_angle'
+    | 'wrong_geography'
+    | 'sensitive_subject';
+  note?: string;
+  createdAt: FirestoreTimestamp;
+  createdByUid: string;
+  createdByName?: string;
+};

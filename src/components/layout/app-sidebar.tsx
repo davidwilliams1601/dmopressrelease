@@ -26,6 +26,7 @@ import {
   BarChart3,
   Network,
   Radio,
+  Radar,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
@@ -52,6 +53,9 @@ export default function AppSidebar() {
     { href: '/dashboard/content', icon: Globe, label: config.nav.content },
     { href: '/dashboard/submissions', icon: Inbox, label: config.nav.submissions },
     { href: '/dashboard/media-requests', icon: Newspaper, label: config.nav.mediaRequests },
+    // Always visible: the page itself explains the add-on when it is not enabled, which is
+    // a better discovery route than hiding it and is how Reports/Network behave too.
+    { href: '/dashboard/opportunities', icon: Radar, label: 'Opportunities' },
     { href: '/dashboard/outlets', icon: Users, label: config.nav.outlets },
     { href: '/dashboard/settings/team', icon: UserCog, label: 'Team' },
     { href: '/dashboard/reports', icon: BarChart3, label: 'Reports', adminOnly: true },
@@ -120,6 +124,18 @@ export default function AppSidebar() {
                   <a href="/dashboard/admin/media-network">
                     <Radio />
                     <span>Media Network</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/dashboard/admin/media-opportunities')}
+                  tooltip={{ children: 'Media Sources' }}
+                >
+                  <a href="/dashboard/admin/media-opportunities">
+                    <Radar />
+                    <span>Media Sources</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>

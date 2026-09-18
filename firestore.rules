@@ -263,6 +263,75 @@ service cloud.firestore {
     }
 
     /**
+     * @description Press Pilot's curated Media Opportunities source registry.
+     * @path /mediaSources/{sourceId}
+     * @principle Platform-owned, superadmin-managed. Any signed-in user may READ, because
+     *            an opportunity card names the sources behind it and the customer must be
+     *            able to see which feeds Press Pilot monitors — that transparency is the
+     *            product. Nothing here is confidential: every entry is a public feed URL.
+     *            All writes go through upsertMediaSource / seedMediaSources / the ingestion
+     *            scheduler using the Admin SDK, so `allow write: if false` is the backstop.
+     */
+    match /mediaSources/{sourceId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    /**
+     * @description Normalised items collected from the monitored feeds.
+     * @path /mediaItems/{itemId}
+     * @principle Platform-level and shared — one article can be evidence for several
+     *            organisations. Read-only for signed-in users (the evidence drawer on an
+     *            opportunity card reads these); written only by ingestMediaSources.
+     *            Stores source, headline, URL, date and the feed-supplied summary only,
+     *            never full article text.
+     */
+    match /mediaItems/{itemId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    /**
+     * @description An organisation's Media Opportunities watch configuration.
+     * @path /orgs/{orgId}/mediaOpportunitySettings/{docId}
+     * @principle Team members read; only updateMediaOpportunitySettings (Admin-gated)
+     *            writes. Client writes are denied so `enabled` — which is what turns a
+     *            paid add-on on — cannot be set from the browser.
+     */
+    match /orgs/{orgId}/mediaOpportunitySettings/{docId} {
+      allow read: if isTeamMember(orgId);
+      allow write: if false;
+    }
+
+    /**
+     * @description Matched, evidence-backed opportunities shown to one organisation.
+     * @path /orgs/{orgId}/mediaOpportunities/{opportunityId}
+     * @principle Tenant-scoped: an organisation sees only its own matches, saves,
+     *            dismissals and outcomes — never another customer's. Written exclusively
+     *            by Cloud Functions (generateMediaOpportunities, setMediaOpportunityStatus,
+     *            submitMediaOpportunityFeedback), so the record of what a customer was
+     *            shown and what they decided is an audit trail, not editable UI state.
+     */
+    match /orgs/{orgId}/mediaOpportunities/{opportunityId} {
+      allow get: if isTeamMember(orgId);
+      allow list: if isTeamMember(orgId);
+      allow write: if false;
+    }
+
+    /**
+     * @description A customer's judgement on an opportunity card.
+     * @path /orgs/{orgId}/mediaOpportunityFeedback/{feedbackId}
+     * @principle Team members read their own org's feedback. Writes go through
+     *            submitMediaOpportunityFeedback so every entry is attributable and the
+     *            card's status change happens in the same trusted step.
+     */
+    match /orgs/{orgId}/mediaOpportunityFeedback/{feedbackId} {
+      allow get: if isTeamMember(orgId);
+      allow list: if isTeamMember(orgId);
+      allow write: if false;
+    }
+
+    /**
      * @description Superadmin accountability trail for raw network-identity reads and
      *              credit-ledger mutations.
      * @path /auditLogs/{actorUid}/entries/{logId}
