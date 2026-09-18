@@ -263,6 +263,31 @@ service cloud.firestore {
     }
 
     /**
+     * @description Press Pilot's own sales pipeline for Destination Briefs.
+     * @path /mediaProspects/{prospectId}
+     * @principle Superadmin-only READ — unlike /mediaSources, this is commercial data
+     *            about organisations that are NOT customers, including internal notes and
+     *            named contacts. No tenant may see it under any circumstances. All writes
+     *            go through upsertMediaProspect.
+     */
+    match /mediaProspects/{prospectId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+
+      /**
+       * @description Generated Destination Media Opportunity Briefs.
+       * @path /mediaProspects/{prospectId}/briefs/{briefId}
+       * @principle Superadmin-only. The stored `content` is a snapshot of what was printed
+       *            and is never client-writable: a document whose evidence could be
+       *            hand-edited would be worthless as a record. Regenerate instead.
+       */
+      match /briefs/{briefId} {
+        allow read: if isSuperAdmin();
+        allow write: if false;
+      }
+    }
+
+    /**
      * @description Press Pilot's curated Media Opportunities source registry.
      * @path /mediaSources/{sourceId}
      * @principle Platform-owned, superadmin-managed. Any signed-in user may READ, because
