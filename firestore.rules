@@ -288,6 +288,26 @@ service cloud.firestore {
     }
 
     /**
+     * @description Collection-group access for Destination Briefs.
+     * @path /{path=**}/briefs/{briefId}
+     * @principle Required because the admin console runs collectionGroup('briefs') to show
+     *            the latest brief per prospect without one listener per row, and a nested
+     *            `match /mediaProspects/{id}/briefs/{id}` does NOT authorise a
+     *            collection-group query — Firestore evaluates those against rules whose
+     *            path pattern matches at any depth. Same precedent as
+     *            /{path=**}/recipients/{recipientId} below.
+     *
+     *            Grants nothing beyond the nested rule above: the condition is still
+     *            isSuperAdmin(), and `briefs` exists nowhere else in the database. Read
+     *            only, deliberately — Firestore unions all matching match blocks, so the
+     *            nested rule remains the sole authority on writes and continues to deny
+     *            every client write.
+     */
+    match /{path=**}/briefs/{briefId} {
+      allow get, list: if isSuperAdmin();
+    }
+
+    /**
      * @description Press Pilot's curated Media Opportunities source registry.
      * @path /mediaSources/{sourceId}
      * @principle Platform-owned, superadmin-managed. Any signed-in user may READ, because
