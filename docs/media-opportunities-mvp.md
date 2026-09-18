@@ -157,6 +157,18 @@ A brief where **no** theme clears the bar is still generated, stored and shown, 
 plainly on the page. A quiet window is a real finding about the source set; suppressing it
 would hide the single case an operator most needs to see before walking into a meeting.
 
+### Which items are shown as evidence
+
+`selectThemeEvidence` picks the rows, in this priority: items naming the prospect, then the
+first item in the theme, then the first item from a **different** outlet, then the most recent
+item, then the remaining slots spread evenly across the window. Rows print chronologically and
+carry a `role` so the page can label them.
+
+This replaced a most-recent-six selection that produced briefs where a theme described as
+running for sixteen days was evidenced entirely by items from its final day, while the document
+asserted "a second outlet followed 1 day later" with nothing behind it. The `first` and
+`second_outlet` rows exist specifically so the response-window claim is checkable on the page.
+
 ### The response window
 
 The most useful number on the brief, because it is a fact about time rather than a claim about
@@ -164,6 +176,31 @@ value: **hours from the first item in a theme to the first item from a *differen
 
 The same outlet publishing twice does not count. This is the observed window in which a
 response would have been timely — it requires no prediction and no future-state claim.
+
+### The requested window vs. the window the data covers
+
+`windowDays` is what was asked for. `dataStartMs`, `dataEndMs` and `dataSpanDays` are what the
+items actually cover, and **every period printed on a brief comes from the latter**. A 30-day
+brief generated a fortnight after ingestion started covers a fortnight; printing "30-day replay"
+over it overstates the document's reach, which is the easiest claim on the page for a prospect
+to disprove. When the shortfall exceeds a fifth of the requested window, `windowUnderfilled` is
+set and the gaps section states it outright.
+
+### Source default topics are a fallback, not an addition
+
+Under `mo-mvp-1`, a source's `defaultTopics` were applied to every item alongside keyword
+matching. Hospitality Net declares `['Tourism & travel', 'Food & drink']`, so a hotel-revenue
+article was tagged food-and-drink and appeared as evidence under a theme it had nothing to do
+with; theme item counts summed to more than the number of items reviewed. From `mo-mvp-2`,
+`TOPIC_TERMS` matching runs first and `defaultTopics` applies **only when nothing matched** — its
+honest use, recorded in `matchTrail` as `source default (no term matched)`.
+
+Geography is not treated this way: a source's declared coverage area is a stable fact about the
+outlet rather than a claim about the item, so it always applies.
+
+Ingestion is write-once, so this fix reaches only future items. `retagMediaItems` re-derives
+tags for the stored pool from each item's own title and summary — superadmin-only, `dryRun` by
+default, and it never refetches a feed.
 
 ### Ranking
 
@@ -205,6 +242,7 @@ and no tenant may read them under any circumstances.
 | `generateDestinationBrief` | callable | Reads the already-ingested `mediaItems` window, assembles and stores a brief |
 | `updateDestinationBrief` | callable | Saves human framing and draft/final status only |
 | `deleteDestinationBrief` | callable | Removes a brief |
+| `retagMediaItems` | callable | Re-runs tagging over already-stored `mediaItems`. `{dryRun: true}` by default; pass `{dryRun: false}` to write |
 
 Nothing here fetches a feed. A brief can only ever see what `ingestMediaSources` has already
 collected, so producing one can never quietly widen what the platform reads.
@@ -222,5 +260,6 @@ firebase deploy --only functions:upsertMediaProspect
 firebase deploy --only functions:generateDestinationBrief
 firebase deploy --only functions:updateDestinationBrief
 firebase deploy --only functions:deleteDestinationBrief
+firebase deploy --only functions:retagMediaItems
 firebase deploy --only firestore:rules,firestore:indexes
 ```

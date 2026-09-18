@@ -25,6 +25,7 @@ import {
   itemNamesProspect,
   rankBriefThemes,
   responseWindowHours,
+  selectThemeEvidence,
   summariseTheme,
 } from '../destination-brief-engine';
 
@@ -312,7 +313,7 @@ test('sourcesUsed is deduplicated and alphabetical', () => {
 
 test('the gaps section is never empty and always states the source-set limit', () => {
   const gaps = buildBriefGaps({
-    content: { windowDays: 30, totals: { itemsScanned: 100, itemsMatched: 50, sourcesRepresented: 10, themesFound: 3, themesWithMention: 1, themesWithoutMention: 2, appearanceCount: 4 } },
+    content: { windowDays: 30, dataSpanDays: 28, windowUnderfilled: false, totals: { itemsScanned: 100, itemsMatched: 50, sourcesRepresented: 10, themesFound: 3, themesWithMention: 1, themesWithoutMention: 2, appearanceCount: 4 } },
     sourceCount: 10,
     hasWatchTerms: true,
   });
@@ -323,9 +324,127 @@ test('the gaps section is never empty and always states the source-set limit', (
 
 test('a missing watch-term list is called out as a limitation', () => {
   const gaps = buildBriefGaps({
-    content: { windowDays: 30, totals: { itemsScanned: 10, itemsMatched: 10, sourcesRepresented: 3, themesFound: 1, themesWithMention: 0, themesWithoutMention: 1, appearanceCount: 0 } },
+    content: { windowDays: 30, dataSpanDays: 27, windowUnderfilled: false, totals: { itemsScanned: 10, itemsMatched: 10, sourcesRepresented: 3, themesFound: 1, themesWithMention: 0, themesWithoutMention: 1, appearanceCount: 0 } },
     sourceCount: 3,
     hasWatchTerms: false,
   });
   assert.ok(gaps.some((g) => g.includes('No watch terms were set')));
+});
+
+// --- Evidence selection ---------------------------------------------------
+
+test('evidence spans the theme instead of clustering on the most recent day', () => {
+  // The bug this pins down: a theme running for 16 days was evidenced entirely by six items
+  // from its final day, while the document claimed "a second outlet followed 1 day later".
+  const items = [
+    it({ sourceId: 'a', daysAgo: 16, id: 'oldest' }),
+    it({ sourceId: 'b', daysAgo: 15, id: 'second-outlet' }),
+    it({ sourceId: 'a', daysAgo: 12, id: 'mid1' }),
+    it({ sourceId: 'c', daysAgo: 8, id: 'mid2' }),
+    it({ sourceId: 'b', daysAgo: 4, id: 'mid3' }),
+    it({ sourceId: 'c', hoursAgo: 5, id: 'recent1' }),
+    it({ sourceId: 'a', hoursAgo: 4, id: 'recent2' }),
+    it({ sourceId: 'b', hoursAgo: 3, id: 'recent3' }),
+    it({ sourceId: 'c', hoursAgo: 2, id: 'newest' }),
+  ];
+  const evidence = selectThemeEvidence(items, []);
+
+  assert.equal(evidence.length, 6);
+  const ids = evidence.map((e) => e.mediaItemId);
+  assert.ok(ids.includes('oldest'), 'the first item in the theme must be shown');
+  assert.ok(ids.includes('second-outlet'), 'the row the response window is measured to');
+  assert.ok(ids.includes('newest'), 'whether the theme is still live');
+
+  // Rows are chronological, which is how the claim reads on the page.
+  const times = evidence.map((e) => e.publishedAtMs);
+  assert.deepEqual(times, [...times].sort((a, b) => a - b));
+
+  // And the point of the whole change: not every row is from the last day.
+  const lastDayRows = evidence.filter((e) => e.publishedAtMs > NOW - DAY_MS).length;
+  assert.ok(lastDayRows < evidence.length, 'evidence must not be entirely from the final day');
+});
+
+test('evidence rows carry the role that explains why they are there', () => {
+  const items = [
+    it({ sourceId: 'a', daysAgo: 10, id: 'first' }),
+    it({ sourceId: 'b', daysAgo: 9, id: 'second' }),
+    it({ sourceId: 'a', daysAgo: 2, id: 'last' }),
+  ];
+  const byId = new Map(selectThemeEvidence(items, []).map((e) => [e.mediaItemId, e.role]));
+  assert.equal(byId.get('first'), 'first');
+  assert.equal(byId.get('second'), 'second_outlet');
+  assert.equal(byId.get('last'), 'latest');
+});
+
+test('an item naming the prospect still outranks every structural row', () => {
+  const items = [
+    it({ sourceId: 'a', daysAgo: 10 }),
+    it({ sourceId: 'b', daysAgo: 9 }),
+    it({ sourceId: 'c', daysAgo: 5, id: 'named', title: 'Visit Kent launches autumn campaign' }),
+    it({ sourceId: 'a', daysAgo: 1 }),
+  ];
+  const evidence = selectThemeEvidence(items, ['Visit Kent']);
+  const named = evidence.find((e) => e.mediaItemId === 'named');
+  assert.ok(named, 'the naming item must always be shown');
+  assert.equal(named?.role, 'names_you');
+  assert.equal(named?.namesProspect, true);
+});
+
+test('a theme smaller than the evidence cap shows every item exactly once', () => {
+  const items = [
+    it({ sourceId: 'a', daysAgo: 5 }),
+    it({ sourceId: 'b', daysAgo: 3 }),
+    it({ sourceId: 'c', daysAgo: 1 }),
+  ];
+  const evidence = selectThemeEvidence(items, []);
+  assert.equal(evidence.length, 3);
+  assert.equal(new Set(evidence.map((e) => e.mediaItemId)).size, 3);
+});
+
+// --- The window the data actually covers ----------------------------------
+
+test('a brief reports the window its data covers, not the one requested', () => {
+  // Ingestion started a fortnight ago; a 30-day brief covers a fortnight and must say so.
+  const brief = assembleBrief({
+    items: [
+      it({ sourceId: 'a', daysAgo: 14 }),
+      it({ sourceId: 'b', daysAgo: 13 }),
+      it({ sourceId: 'c', daysAgo: 1 }),
+    ],
+    windowDays: 30,
+    nowMs: NOW,
+  });
+
+  assert.equal(brief.windowDays, 30, 'the request is still recorded');
+  assert.equal(brief.dataSpanDays, 13, 'but the data covers 13 days');
+  assert.equal(brief.dataStartMs, NOW - 14 * DAY_MS);
+  assert.equal(brief.dataEndMs, NOW - 1 * DAY_MS);
+  assert.equal(brief.windowUnderfilled, true);
+  assert.ok(
+    brief.gaps.some((g) => g.includes('30-day window was requested')),
+    'the shortfall is disclosed in the gaps section, not smoothed over'
+  );
+});
+
+test('a fully covered window is not flagged as underfilled', () => {
+  const brief = assembleBrief({
+    items: [
+      it({ sourceId: 'a', daysAgo: 29 }),
+      it({ sourceId: 'b', daysAgo: 20 }),
+      it({ sourceId: 'c', hoursAgo: 2 }),
+    ],
+    windowDays: 30,
+    nowMs: NOW,
+  });
+  assert.equal(brief.windowUnderfilled, false);
+  assert.ok(!brief.gaps.some((g) => g.includes('window was requested')));
+});
+
+test('an empty window reports null spans and says there is nothing to conclude from', () => {
+  const brief = assembleBrief({ items: [], windowDays: 30, nowMs: NOW });
+  assert.equal(brief.dataStartMs, null);
+  assert.equal(brief.dataEndMs, null);
+  assert.equal(brief.dataSpanDays, null);
+  assert.equal(brief.windowUnderfilled, true);
+  assert.ok(brief.gaps.some((g) => g.includes('no published items fell inside it')));
 });

@@ -15,7 +15,7 @@
  */
 
 /** Bump when tagging, thresholds or matching change, so old cards stay explainable. */
-export const GENERATOR_VERSION = 'mo-mvp-1';
+export const GENERATOR_VERSION = 'mo-mvp-2';
 
 // ---------------------------------------------------------------------------
 // Momentum thresholds
@@ -470,6 +470,50 @@ export const SEED_SOURCES: SeedSource[] = [
     geographies: ['International'],
     defaultTopics: ['Tourism & travel'],
   },
+
+  // -------------------------------------------------------------------------
+  // Regional / local (South East). Added because a destination brief built only from
+  // international trade press cannot honestly report whether a DMO was named: none of
+  // the trade titles above cover a single English county, so "never named" was a fact
+  // about the source set rather than about the organisation. These three are where a
+  // Kent DMO, its attractions and its members are actually written about.
+  //
+  // General regional news carries a high proportion of crime and court reporting, which
+  // SENSITIVE_TERMS excludes from generation. That is intended: the yield per feed is
+  // lower here than for a trade title, and the items that survive are the visitor-economy
+  // ones we want.
+  // -------------------------------------------------------------------------
+  {
+    id: 'bbc-kent',
+    name: 'BBC News — Kent',
+    feedUrl: 'https://feeds.bbci.co.uk/news/england/kent/rss.xml',
+    siteUrl: 'https://www.bbc.co.uk/news/england/kent',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body', 'education'],
+    outletType: 'local-news',
+    geographies: ['Regional', 'Local'],
+  },
+  {
+    id: 'kent-live-news',
+    name: 'Kent Live',
+    feedUrl: 'https://www.kentlive.news/news/?service=rss',
+    siteUrl: 'https://www.kentlive.news',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body', 'education'],
+    outletType: 'local-news',
+    geographies: ['Regional', 'Local'],
+  },
+  {
+    id: 'kent-live-whats-on',
+    name: 'Kent Live — What’s On',
+    feedUrl: 'https://www.kentlive.news/whats-on/?service=rss',
+    siteUrl: 'https://www.kentlive.news/whats-on',
+    format: 'rss',
+    verticals: ['dmo', 'trade-body'],
+    outletType: 'local-news',
+    geographies: ['Regional', 'Local'],
+    defaultTopics: ['Arts & culture'],
+  },
 ];
 
 /**
@@ -484,4 +528,17 @@ export const SEED_SOURCES: SeedSource[] = [
  *   The Caterer        — rate-limits automated readers, no stable feed path
  *   Museums Association— /feed/ is a valid but permanently empty RSS document
  *   VisitBritain corp  — no feed; the GOV.UK VisitBritain Atom feed is used instead
+ *
+ * Regional / South East candidates checked while adding the Kent feeds:
+ *
+ *   KentOnline         — /rss/ returns 410 Gone; /feed/ is a valid but empty document
+ *   Kent County Council— no feed at /news/rss
+ *   Visit Kent         — no feed on visitkent.co.uk (and a prospect's own site would
+ *                        not be evidence of earned coverage anyway)
+ *   Canterbury Cathedral — no feed at /feed/ or /news/feed/
+ *   BBC South East     — no such regional feed; Kent is the closest BBC region
+ *   Tourism South East — site has no feed
+ *   The Argus          — a working feed, but Sussex rather than Kent; left out to keep
+ *                        the Visit Kent brief's source set honest to its geography
+ *   ALVA, Tourism Society, Group Leisure, VisitBritain news — no reachable feed
  */

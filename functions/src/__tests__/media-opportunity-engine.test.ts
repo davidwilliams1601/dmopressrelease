@@ -132,6 +132,48 @@ test('tags on word boundaries and records why', () => {
   assert.equal(tagged.sensitive, false);
 });
 
+test('a source default topic is not applied when the item itself matched a term', () => {
+  // The mo-mvp-1 bug: Hospitality Net declares ['Tourism & travel', 'Food & drink'], so an
+  // article about hotel revenue was tagged Food & drink and turned up as evidence under a
+  // food-and-drink theme it had nothing to do with. Content must win over the outlet.
+  const tagged = tagItem({
+    title: 'RevPAR streak ends after 21 weeks',
+    summary: 'Hotel revenue per available room fell across the tourism sector.',
+    sourceDefaultTopics: ['Tourism & travel', 'Food & drink'],
+  });
+
+  assert.ok(tagged.topicTags.includes('Tourism & travel'), 'matched on its own words');
+  assert.equal(
+    tagged.topicTags.includes('Food & drink'),
+    false,
+    'the outlet default must not add a topic the item never mentioned'
+  );
+});
+
+test('a source default topic IS applied when nothing in the item matched', () => {
+  // The honest use of a default: we know what the outlet covers, this item told us nothing.
+  const tagged = tagItem({
+    title: 'Order Me a Room',
+    sourceDefaultTopics: ['Tourism & travel'],
+  });
+
+  assert.deepEqual(tagged.topicTags, ['Tourism & travel']);
+  // ...and the trail says it came from the outlet, not from the item's words.
+  const entry = tagged.matchTrail.find((t) => t.tag === 'Tourism & travel');
+  assert.equal(entry?.field, 'source');
+  assert.ok(entry?.matchedTerm.includes('no term matched'));
+});
+
+test('source geography always applies, unlike topics', () => {
+  // A source's coverage area is a fact about the outlet, not a claim about the item.
+  const tagged = tagItem({
+    title: 'Coastal accommodation reports record occupancy',
+    sourceGeographies: ['Regional'],
+    sourceDefaultTopics: ['Tourism & travel'],
+  });
+  assert.ok(tagged.geographyTags.includes('Regional'));
+});
+
 test('does not match a term inside a longer word', () => {
   // 'court' must not fire on 'courtyard' — a false sensitivity flag silently removes a
   // legitimate opportunity, so the boundary behaviour is worth pinning down.

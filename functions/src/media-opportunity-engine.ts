@@ -173,6 +173,27 @@ export function containsTerm(haystack: string, term: string): boolean {
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(haystack);
 }
 
+/**
+ * Tags one item from its title and feed summary.
+ *
+ * Order matters, and it was wrong in mo-mvp-1. A source's `defaultTopics` used to be
+ * applied unconditionally alongside keyword matching, so every Hospitality Net item became
+ * both 'Tourism & travel' and 'Food & drink' regardless of what it said, and every Blooloop
+ * item became 'Tourism & travel' and 'Arts & culture'. Because themes are built by
+ * intersecting `topicTags`, one hotel-revenue story turned up as evidence under three
+ * unrelated themes and theme item counts summed to more than the number of items reviewed.
+ * A comms lead spots that immediately, and it is the kind of error that discredits every
+ * other number on the page.
+ *
+ * So content wins. `defaultTopics` is now a fallback, applied only when nothing in
+ * TOPIC_TERMS matched the title or summary — which is its honest use: "we know what this
+ * outlet is about, but this particular item told us nothing". `matchTrail` records which
+ * path assigned each tag (`field: 'source'` for the fallback, `'title'` / `'summary'` for a
+ * keyword hit), so the provenance of any tag on any item stays answerable.
+ *
+ * Geography is not treated this way. A source's declared coverage area is a stable fact
+ * about the outlet rather than a claim about the item, so it always applies.
+ */
 export function tagItem(input: {
   title: string;
   summary?: string;
@@ -191,10 +212,6 @@ export function tagItem(input: {
   const topics = new Set<string>();
   const geographies = new Set<string>();
 
-  for (const topic of input.sourceDefaultTopics || []) {
-    topics.add(topic);
-    trail.push({ tag: topic, matchedTerm: 'source default', field: 'source' });
-  }
   for (const geo of input.sourceGeographies || []) {
     geographies.add(geo);
     trail.push({ tag: geo, matchedTerm: 'source coverage', field: 'source' });
@@ -222,6 +239,15 @@ export function tagItem(input: {
         trail.push({ tag: geo, matchedTerm: term, field: containsTerm(title, term) ? 'title' : 'summary' });
         break;
       }
+    }
+  }
+
+  // Source defaults are the fallback, not an addition: they apply only when the item's own
+  // words yielded nothing. See the doc comment above for why this is not the other way round.
+  if (topics.size === 0) {
+    for (const topic of input.sourceDefaultTopics || []) {
+      topics.add(topic);
+      trail.push({ tag: topic, matchedTerm: 'source default (no term matched)', field: 'source' });
     }
   }
 

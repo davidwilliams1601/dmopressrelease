@@ -40,7 +40,9 @@ import {
   BRIEF_FUTURE_STATE_NOTE,
   BRIEF_METHODOLOGY_NOTE,
   BRIEF_ROUTE_EXPLANATIONS,
+  BRIEF_EVIDENCE_ROLE_LABELS,
   BRIEF_ROUTE_LABELS,
+  briefCoveredDays,
   BRIEF_THEME_KIND_LABELS,
   describeBriefHeadline,
   describeBriefTheme,
@@ -128,7 +130,15 @@ export default function BriefPage() {
     themesWithoutMention: c.totals.themesWithoutMention,
     sourcesRepresented: c.totals.sourcesRepresented,
     windowDays: c.windowDays,
+    dataSpanDays: c.dataSpanDays,
   });
+
+  // Every period shown on this page is the one the data covers, not the one that was
+  // requested. Briefs stored before dataStartMs existed fall back to the requested window.
+  const coveredDays = briefCoveredDays(c);
+  const coverStartMs = c.dataStartMs ?? c.windowStartMs;
+  const coverEndMs = c.dataEndMs ?? c.windowEndMs;
+  const coverRange = `${formatDate(coverStartMs)} – ${formatDate(coverEndMs)}`;
 
   return (
     <div className="print-report flex flex-col gap-8">
@@ -137,8 +147,7 @@ export default function BriefPage() {
         <p className="text-xs uppercase tracking-widest">Press Pilot</p>
         <h1 className="text-2xl font-bold">Media Opportunity Brief — {brief.prospectName}</h1>
         <p className="text-xs">
-          {formatDate(c.windowStartMs)} – {formatDate(c.windowEndMs)} · Prepared{' '}
-          {new Date().toLocaleDateString('en-GB')}
+          {coverRange} · Prepared {new Date().toLocaleDateString('en-GB')}
         </p>
       </div>
 
@@ -153,7 +162,8 @@ export default function BriefPage() {
           </Button>
           <h1 className="text-2xl font-bold tracking-tight">{brief.prospectName}</h1>
           <p className="text-sm text-muted-foreground">
-            {c.windowDays}-day replay · {formatDate(c.windowStartMs)} – {formatDate(c.windowEndMs)}
+            {coveredDays}-day replay · {coverRange}
+            {c.windowUnderfilled && ` · ${c.windowDays}-day window requested`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -220,7 +230,7 @@ export default function BriefPage() {
       <Card>
         <CardHeader>
           <CardDescription className="text-xs uppercase tracking-widest">
-            What happened in the last {c.windowDays} days
+            What happened in {coveredDays === 1 ? 'a single day' : `${coveredDays} days`} of coverage
           </CardDescription>
           <CardTitle className="text-xl leading-snug">{headline || autoHeadline}</CardTitle>
         </CardHeader>
@@ -248,7 +258,7 @@ export default function BriefPage() {
           <CardHeader>
             <CardTitle className="text-base">No theme cleared the evidence bar</CardTitle>
             <CardDescription>
-              Across {c.totals.sourcesRepresented} sources in {c.windowDays} days, nothing reached
+              Across {c.totals.sourcesRepresented} sources in {coveredDays} days, nothing reached
               three items from at least two outlets. That is a genuine finding about this window,
               not a gap in the analysis — a quiet period is a quiet period.
             </CardDescription>
@@ -304,6 +314,11 @@ export default function BriefPage() {
                           <div className="text-xs text-muted-foreground">
                             {ev.sourceName} · {formatDate(ev.publishedAtMs)}
                             {ev.namesProspect && ' · names you'}
+                            {ev.role && BRIEF_EVIDENCE_ROLE_LABELS[ev.role] && !ev.namesProspect && (
+                              <span className="ml-1 font-medium text-foreground">
+                                · {BRIEF_EVIDENCE_ROLE_LABELS[ev.role]}
+                              </span>
+                            )}
                           </div>
                         </li>
                       ))}
@@ -322,8 +337,8 @@ export default function BriefPage() {
           <CardHeader>
             <CardTitle className="text-base">Where you were named</CardTitle>
             <CardDescription>
-              Every item in the window that mentioned {brief.prospectName} or one of its named
-              assets.
+              Every item in the {coveredDays} days of coverage that mentioned {brief.prospectName} or
+              one of its named assets.
             </CardDescription>
           </CardHeader>
           <CardContent>

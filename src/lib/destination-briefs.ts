@@ -30,6 +30,22 @@ export const BRIEF_THEME_KIND_LABELS: Record<DestinationBriefTheme['kind'], stri
 };
 
 /**
+ * Why each evidence row is on the page.
+ *
+ * These labels exist to make the response-window claim checkable. A brief that says "a
+ * second outlet followed 18 hours later" and then lists six items from the final day is
+ * asking to be taken on trust; one that marks which row was first and which was the second
+ * outlet has shown its working. `span` rows are deliberately unlabelled in the UI — they
+ * are the ordinary middle of the theme and need no explanation.
+ */
+export const BRIEF_EVIDENCE_ROLE_LABELS: Record<string, string> = {
+  names_you: 'Named you',
+  first: 'First in this theme',
+  second_outlet: 'Second outlet picked it up',
+  latest: 'Most recent',
+};
+
+/**
  * The methodology statement printed on every brief.
  *
  * Deliberately near-identical in substance to OPPORTUNITY_METHODOLOGY_NOTE in
@@ -80,19 +96,37 @@ export function describeResponseWindow(theme: DestinationBriefTheme): string | n
   return `A second outlet followed ${days} ${days === 1 ? 'day' : 'days'} later — that was the window to respond.`;
 }
 
+/**
+ * How to describe the period a brief covers.
+ *
+ * Always the days the data actually spans, never the window that was requested. A brief
+ * generated over a 30-day window two weeks after ingestion started covers two weeks, and
+ * saying otherwise is the single easiest claim on the page for a prospect to disprove.
+ * Falls back to the requested window only for briefs stored before dataSpanDays existed.
+ */
+export function briefCoveredDays(content: {
+  windowDays: number;
+  dataSpanDays?: number | null;
+}): number {
+  return typeof content.dataSpanDays === 'number' ? content.dataSpanDays : content.windowDays;
+}
+
 /** One-line summary of the whole brief for the cover, from stored totals only. */
 export function describeBriefHeadline(totals: {
   themesFound: number;
   themesWithoutMention: number;
   sourcesRepresented: number;
   windowDays: number;
+  dataSpanDays?: number | null;
 }): string {
-  const { themesFound, themesWithoutMention, sourcesRepresented, windowDays } = totals;
+  const { themesFound, themesWithoutMention, sourcesRepresented } = totals;
+  const days = briefCoveredDays(totals);
+  const period = days === 1 ? 'a single day' : `${days} days`;
   if (themesFound === 0) {
-    return `No theme reached the evidence threshold across ${sourcesRepresented} sources in the last ${windowDays} days.`;
+    return `No theme reached the evidence threshold across ${sourcesRepresented} sources in ${period} of coverage.`;
   }
   return (
-    `${themesFound} ${themesFound === 1 ? 'theme' : 'themes'} moved across ${sourcesRepresented} sources in the last ${windowDays} days. ` +
+    `${themesFound} ${themesFound === 1 ? 'theme' : 'themes'} moved across ${sourcesRepresented} sources in ${period} of coverage. ` +
     `${themesWithoutMention} of ${themesFound} ran without you named in ${themesWithoutMention === 1 ? 'it' : 'them'}.`
   );
 }

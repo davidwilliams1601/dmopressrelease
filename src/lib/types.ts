@@ -989,6 +989,10 @@ export type DestinationBriefEvidence = {
    *  is a single self-contained value that renders identically wherever it is read. */
   publishedAtMs: number;
   namesProspect: boolean;
+  /** Why this row was chosen as evidence. `first` and `second_outlet` are the two rows
+   *  that evidence the theme's response-window claim. Absent on briefs generated before
+   *  this field existed, which is why every reader of it must tolerate undefined. */
+  role?: 'names_you' | 'first' | 'second_outlet' | 'latest' | 'span';
 };
 
 export type DestinationBriefTheme = {
@@ -1023,6 +1027,14 @@ export type DestinationBriefContent = {
   windowDays: number;
   windowStartMs: number;
   windowEndMs: number;
+  /** The window the data actually covers — first and last item the brief could see. Never
+   *  the same thing as the requested window, and never to be printed as if it were.
+   *  Absent on briefs generated before these fields existed. */
+  dataStartMs?: number | null;
+  dataEndMs?: number | null;
+  dataSpanDays?: number | null;
+  /** True when the data covers materially less than the requested window. */
+  windowUnderfilled?: boolean;
   totals: DestinationBriefTotals;
   appearances: DestinationBriefEvidence[];
   themes: DestinationBriefTheme[];

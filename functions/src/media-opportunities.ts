@@ -867,3 +867,103 @@ export const submitMediaOpportunityFeedback = functions.https.onCall(async (data
 
   return { ok: true };
 });
+
+/**
+ * Re-runs tagItem over already-stored mediaItems and writes back the corrected tags.
+ *
+ * Ingestion is deliberately write-once (`if (existing[idx].exists) return`), so an item keeps
+ * whatever tags it was given on the day it arrived. That is the right default — it means a
+ * brief printed last week can still be explained — but it also means a fix to the tagging
+ * rules reaches only future items, and the pool built under mo-mvp-1 keeps its errors
+ * indefinitely. Deleting and re-ingesting is not an option: the feeds only carry their most
+ * recent two dozen items, so it would destroy the back window rather than rebuild it.
+ *
+ * This is the escape hatch. Superadmin only, idempotent, and dryRun by default so the blast
+ * radius can be read before anything is written. It re-derives topicTags, geographyTags,
+ * matchTrail and sensitive from each item's own stored title and summary — it never refetches
+ * anything, so no publisher is touched and no item's identity, URL or date changes.
+ */
+export const retagMediaItems = functions
+  .runWith({ timeoutSeconds: 540, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    requireSuperAdmin(context);
+
+    // Writes only happen when explicitly asked for. A silent mass update of the evidence
+    // pool behind a brief is exactly the kind of thing that should require intent.
+    const dryRun = data?.dryRun !== false;
+
+    const sourceSnap = await db.collection('mediaSources').get();
+    const sourceById = new Map(
+      sourceSnap.docs.map((d) => [
+        d.id,
+        {
+          geographies: (d.data().geographies as string[]) || [],
+          defaultTopics: (d.data().defaultTopics as string[]) || [],
+        },
+      ])
+    );
+
+    const summary = {
+      dryRun,
+      itemsRead: 0,
+      itemsChanged: 0,
+      topicsRemoved: 0,
+      topicsAdded: 0,
+      sensitivityChanged: 0,
+      generatorVersion: GENERATOR_VERSION,
+    };
+
+    const pending: Array<{ ref: admin.firestore.DocumentReference; update: Record<string, unknown> }> = [];
+    const snap = await db.collection('mediaItems').get();
+
+    for (const doc of snap.docs) {
+      const item = doc.data() as any;
+      summary.itemsRead += 1;
+
+      const source = sourceById.get(item.sourceId);
+      const tagged = tagItem({
+        title: item.title || '',
+        summary: item.summary,
+        sourceGeographies: source?.geographies || [],
+        sourceDefaultTopics: source?.defaultTopics || [],
+      });
+
+      const before: string[] = item.topicTags || [];
+      const after = tagged.topicTags;
+      const removed = before.filter((t) => !after.includes(t));
+      const added = after.filter((t) => !before.includes(t));
+      const sensitivityMoved = Boolean(item.sensitive) !== tagged.sensitive;
+
+      if (!removed.length && !added.length && !sensitivityMoved) continue;
+
+      summary.itemsChanged += 1;
+      summary.topicsRemoved += removed.length;
+      summary.topicsAdded += added.length;
+      if (sensitivityMoved) summary.sensitivityChanged += 1;
+
+      pending.push({
+        ref: doc.ref,
+        update: {
+          topicTags: tagged.topicTags,
+          geographyTags: tagged.geographyTags,
+          matchTrail: tagged.matchTrail,
+          retaggedAt: admin.firestore.FieldValue.serverTimestamp(),
+          retaggedVersion: GENERATOR_VERSION,
+          ...(tagged.sensitive
+            ? { sensitive: true, sensitiveReason: tagged.sensitiveReason || null }
+            : { sensitive: false, sensitiveReason: null }),
+        },
+      });
+    }
+
+    if (!dryRun && pending.length) {
+      for (let i = 0; i < pending.length; i += 400) {
+        const batch = db.batch();
+        for (const { ref, update } of pending.slice(i, i + 400)) batch.update(ref, update);
+        await batch.commit();
+      }
+    }
+
+    console.log('[media-opportunities] Retag complete', summary);
+    return summary;
+  });

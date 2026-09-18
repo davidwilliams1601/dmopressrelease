@@ -56,6 +56,21 @@ export type BriefInputItem = {
   geographyTags: string[];
 };
 
+/**
+ * Why this row is in the brief.
+ *
+ * `first` and `second_outlet` are the two rows that evidence the responseWindowHours claim
+ * — without them the document asserts "a second outlet followed in N hours" and then shows
+ * six unrelated items from the final day, which is an invitation to disbelieve it.
+ * Undefined on briefs generated before this field existed.
+ */
+export type BriefEvidenceRole =
+  | 'names_you'
+  | 'first'
+  | 'second_outlet'
+  | 'latest'
+  | 'span';
+
 export type BriefEvidence = {
   mediaItemId: string;
   sourceName: string;
@@ -64,6 +79,8 @@ export type BriefEvidence = {
   publishedAtMs: number;
   /** True when one of the prospect's own watch terms appears in this item. */
   namesProspect: boolean;
+  /** What this row is doing in the brief. See BriefEvidenceRole. */
+  role?: BriefEvidenceRole;
 };
 
 export type BriefTheme = {
@@ -100,6 +117,21 @@ export type BriefContent = {
   windowDays: number;
   windowStartMs: number;
   windowEndMs: number;
+  /**
+   * The window the data actually covers: the first and last item the brief could see.
+   *
+   * This is not the same as windowStartMs/windowEndMs and must never be presented as if it
+   * were. A brief requested over thirty days when ingestion has only been running a
+   * fortnight covers a fortnight, and printing "30-day replay, 19 Aug – 18 Sept" over
+   * fourteen days of data overstates the document's own reach — the easiest kind of error
+   * for a prospect to catch and the most damaging to find. Null when no items matched.
+   */
+  dataStartMs: number | null;
+  dataEndMs: number | null;
+  /** Calendar days actually covered by the items. Null when no items matched. */
+  dataSpanDays: number | null;
+  /** True when the data covers materially less than the window that was requested. */
+  windowUnderfilled: boolean;
   totals: BriefTotals;
   /** Every item in the window that named the prospect, most recent first. */
   appearances: BriefEvidence[];
@@ -115,7 +147,11 @@ export function itemNamesProspect(item: BriefInputItem, watchTerms: string[]): b
   return watchTerms.some((term) => term.length >= 3 && containsTerm(haystack, term));
 }
 
-function toEvidence(item: BriefInputItem, watchTerms: string[]): BriefEvidence {
+function toEvidence(
+  item: BriefInputItem,
+  watchTerms: string[],
+  role?: BriefEvidenceRole
+): BriefEvidence {
   return {
     mediaItemId: item.id,
     sourceName: item.sourceName,
@@ -123,7 +159,79 @@ function toEvidence(item: BriefInputItem, watchTerms: string[]): BriefEvidence {
     url: item.url,
     publishedAtMs: item.publishedAtMs,
     namesProspect: itemNamesProspect(item, watchTerms),
+    ...(role ? { role } : {}),
   };
+}
+
+/**
+ * Chooses which items in a theme are shown as evidence.
+ *
+ * The first version of this took the most recent N, which produced briefs where a theme
+ * described as running for sixteen days was evidenced entirely by items from its last day,
+ * and where the "a second outlet followed N hours later" line had nothing behind it. The
+ * rows have to carry the theme's shape, not just its tail.
+ *
+ * Priority, highest first:
+ *   1. Items naming the prospect. If the destination is in the coverage, that is the row it
+ *      needs to see before anything else.
+ *   2. The first item in the window — where the theme started.
+ *   3. The first item from a DIFFERENT outlet — the one responseWindowHours is measured to.
+ *      These two together are the evidence for the central timing claim.
+ *   4. The most recent item — whether this is still live.
+ *   5. Remaining slots spread evenly across the rest of the window by publication date,
+ *      so the middle of the theme is represented rather than a single day of it.
+ *
+ * Rows come back in chronological order, because that is how the claim reads on the page.
+ */
+export function selectThemeEvidence(
+  items: BriefInputItem[],
+  watchTerms: string[],
+  limit: number = BRIEF_MAX_EVIDENCE_PER_THEME
+): BriefEvidence[] {
+  if (!items.length || limit <= 0) return [];
+
+  const chrono = [...items].sort((a, b) => a.publishedAtMs - b.publishedAtMs);
+  const picked = new Map<string, BriefEvidenceRole>();
+
+  const take = (item: BriefInputItem | undefined, role: BriefEvidenceRole) => {
+    if (!item || picked.size >= limit || picked.has(item.id)) return;
+    picked.set(item.id, role);
+  };
+
+  // 1. Namings, most recent first.
+  const namings = [...chrono]
+    .reverse()
+    .filter((i) => itemNamesProspect(i, watchTerms));
+  for (const item of namings) take(item, 'names_you');
+
+  // 2-4. The rows that evidence the theme's shape and its timing claim.
+  const first = chrono[0];
+  take(first, 'first');
+  take(
+    chrono.find((i) => i.sourceId !== first.sourceId),
+    'second_outlet'
+  );
+  take(chrono[chrono.length - 1], 'latest');
+
+  // 5. Spread the remainder across the window instead of clustering on one date.
+  const remaining = chrono.filter((i) => !picked.has(i.id));
+  const slots = limit - picked.size;
+  if (slots > 0 && remaining.length) {
+    if (remaining.length <= slots) {
+      for (const item of remaining) take(item, 'span');
+    } else {
+      const step = remaining.length / (slots + 1);
+      for (let n = 1; n <= slots; n += 1) {
+        take(remaining[Math.min(remaining.length - 1, Math.round(step * n))], 'span');
+      }
+      // Rounding can collide on short lists; backfill so a slot is never wasted.
+      for (const item of remaining) take(item, 'span');
+    }
+  }
+
+  return chrono
+    .filter((i) => picked.has(i.id))
+    .map((i) => toEvidence(i, watchTerms, picked.get(i.id)));
 }
 
 /**
@@ -210,17 +318,7 @@ export function summariseTheme(
   const firstSeenMs = items[items.length - 1].publishedAtMs;
   const lastSeenMs = items[0].publishedAtMs;
 
-  // Evidence prefers items that name the prospect — if the destination is in the coverage,
-  // that is the row it needs to see first — then falls back to most recent.
-  const evidence = [...items]
-    .sort((a, b) => {
-      const aNames = itemNamesProspect(a, watchTerms) ? 1 : 0;
-      const bNames = itemNamesProspect(b, watchTerms) ? 1 : 0;
-      if (aNames !== bNames) return bNames - aNames;
-      return b.publishedAtMs - a.publishedAtMs;
-    })
-    .slice(0, BRIEF_MAX_EVIDENCE_PER_THEME)
-    .map((i) => toEvidence(i, watchTerms));
+  const evidence = selectThemeEvidence(items, watchTerms, BRIEF_MAX_EVIDENCE_PER_THEME);
 
   return {
     key: group.key,
@@ -267,17 +365,27 @@ export function rankBriefThemes(themes: BriefTheme[]): BriefTheme[] {
  * empty and it is never hidden in small print.
  */
 export function buildBriefGaps(input: {
-  content: Pick<BriefContent, 'totals' | 'windowDays'>;
+  content: Pick<BriefContent, 'totals' | 'windowDays' | 'dataSpanDays' | 'windowUnderfilled'>;
   sourceCount: number;
   hasWatchTerms: boolean;
 }): string[] {
   const { content, sourceCount, hasWatchTerms } = input;
+  // The opening line describes the window the data covers, not the one that was requested.
+  const coveredDays = content.dataSpanDays ?? 0;
   const gaps: string[] = [
-    `This brief reads ${sourceCount} permitted ${sourceCount === 1 ? 'feed' : 'feeds'} over ${content.windowDays} days. It is not the whole news agenda: paywalled titles, broadcast, most regional print and any publisher that blocks automated readers are not in it.`,
+    `This brief reads ${sourceCount} permitted ${sourceCount === 1 ? 'feed' : 'feeds'} over ${coveredDays} ${coveredDays === 1 ? 'day' : 'days'} of published items. It is not the whole news agenda: paywalled titles, broadcast, most regional print and any publisher that blocks automated readers are not in it.`,
     'Coverage you secured through outlets outside this source set will not appear here. Absence from this brief is not absence from the media.',
     'We cannot see your own story pipeline, your embargoes or your members\u2019 plans. Themes marked as having run without you may well be ones you chose not to join.',
     'Nothing here predicts coverage. It records what was published, when, and by whom.',
   ];
+
+  if (content.windowUnderfilled) {
+    gaps.push(
+      content.dataSpanDays === null
+        ? `A ${content.windowDays}-day window was requested, but no published items fell inside it. There is nothing here to draw a conclusion from.`
+        : `A ${content.windowDays}-day window was requested; the sources only carried items across ${content.dataSpanDays} ${content.dataSpanDays === 1 ? 'day' : 'days'} of it. Read every figure below as covering that shorter period.`
+    );
+  }
 
   if (!hasWatchTerms) {
     gaps.push(
@@ -327,6 +435,19 @@ export function assembleBrief(input: {
     ...new Map(items.map((i) => [i.sourceId, { name: i.sourceName, siteUrl: i.sourceSiteUrl ?? null }])).values(),
   ].sort((a, b) => a.name.localeCompare(b.name));
 
+  // What the data actually covers, as opposed to what was asked for.
+  const publishedTimes = items.map((i) => i.publishedAtMs);
+  const dataStartMs = publishedTimes.length ? Math.min(...publishedTimes) : null;
+  const dataEndMs = publishedTimes.length ? Math.max(...publishedTimes) : null;
+  const dataSpanDays =
+    dataStartMs !== null && dataEndMs !== null
+      ? Math.max(0, Math.round((dataEndMs - dataStartMs) / DAY_MS))
+      : null;
+  // A fifth of the requested window missing is the point at which the headline figure stops
+  // being a fair description of the document, so it gets disclosed rather than smoothed over.
+  const windowUnderfilled =
+    dataSpanDays === null || dataSpanDays < Math.floor(windowDays * 0.8);
+
   const totals: BriefTotals = {
     itemsScanned: input.itemsScanned ?? items.length,
     itemsMatched: items.length,
@@ -341,11 +462,15 @@ export function assembleBrief(input: {
     windowDays,
     windowStartMs,
     windowEndMs: nowMs,
+    dataStartMs,
+    dataEndMs,
+    dataSpanDays,
+    windowUnderfilled,
     totals,
     appearances,
     themes,
     gaps: buildBriefGaps({
-      content: { totals, windowDays },
+      content: { totals, windowDays, dataSpanDays, windowUnderfilled },
       sourceCount: sourcesUsed.length,
       hasWatchTerms: watchTerms.length > 0,
     }),

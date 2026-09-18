@@ -38,7 +38,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, Download, Play, Radar, RefreshCw, TestTube2 } from 'lucide-react';
+import { AlertTriangle, Download, Play, Radar, RefreshCw, Tags, TestTube2 } from 'lucide-react';
 import type { MediaSource } from '@/lib/types';
 
 type FeedTest = {
@@ -181,6 +181,48 @@ export default function MediaOpportunitiesAdminPage() {
         >
           <Play className="mr-1.5 h-4 w-4" />
           Run generation now
+        </Button>
+        {/*
+          Ingestion is write-once, so a tagging fix reaches only future items. These two re-derive
+          tags for the stored pool from each item's own title and summary. Preview first: it
+          reports what would change without writing, which is the only safe way to look at a mass
+          update of the evidence pool sitting behind an already-printed brief.
+        */}
+        <Button
+          variant="outline"
+          disabled={busy !== null}
+          onClick={() =>
+            run(
+              'retag-dry',
+              async () =>
+                (await httpsCallable(getFunctions(), 'retagMediaItems')({ dryRun: true })).data,
+              'Retag preview — nothing was written'
+            )
+          }
+        >
+          <Tags className="mr-1.5 h-4 w-4" />
+          Preview retag
+        </Button>
+        <Button
+          variant="outline"
+          disabled={busy !== null}
+          onClick={() => {
+            if (
+              !window.confirm(
+                'Retag every stored item using the current tagging rules?\n\nThis rewrites topicTags and matchTrail on existing items. Titles, URLs and dates are untouched and no feed is fetched. Run “Preview retag” first if you have not.'
+              )
+            )
+              return;
+            run(
+              'retag',
+              async () =>
+                (await httpsCallable(getFunctions(), 'retagMediaItems')({ dryRun: false })).data,
+              'Stored items retagged'
+            );
+          }}
+        >
+          <Tags className="mr-1.5 h-4 w-4" />
+          Retag stored items
         </Button>
       </div>
 
