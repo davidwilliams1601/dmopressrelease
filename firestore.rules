@@ -288,6 +288,19 @@ service cloud.firestore {
     }
 
     /**
+     * @description Stored runs of the aggregate coverage benchmark (marketing statistics).
+     * @path /coverageBenchmarks/{benchmarkId}
+     * @principle Superadmin read, function-only write. Contains no organisation names and no
+     *            prospect data by construction — it is outlet-level aggregate over the public
+     *            item pool — but it is stored rather than recomputed so a figure that has been
+     *            posted publicly can be reproduced later with the sample size behind it.
+     */
+    match /coverageBenchmarks/{benchmarkId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    /**
      * @description Tokenised public share links for Destination Briefs.
      * @path /briefShareLinks/{token}
      * @principle No client access at all, in either direction. A link holder reads the brief

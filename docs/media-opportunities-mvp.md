@@ -272,6 +272,45 @@ The gate is screen-only. A prospect sees the findings and the gaps; they never s
 test of whether the findings were worth their time. Briefs generated before the gate existed have
 no `sendability` block and are treated as unassessed rather than retro-judged.
 
+### Coverage benchmark (aggregate, publishable)
+
+A brief is one organisation's mirror and can only ever be shown to them, which makes it useless
+as marketing. The same measurements taken across the whole ingested pool are publishable, and
+answer a question every destination marketer has and nobody can currently answer with a number:
+once a story starts in this region, how long before a second outlet has it?
+
+`generateCoverageBenchmark` (superadmin) reads the same pool a brief reads and produces
+outlet-level aggregates plus ready-to-post sentences. Snapshots are stored at
+`/coverageBenchmarks/{id}` so a figure that has been posted publicly can be reproduced later with
+the sample size behind it — a published statistic that cannot be reproduced is a liability.
+
+Computed by `coverage-benchmark-engine.ts` using the brief's own `groupBriefThemes`,
+`summariseTheme` and `responseWindowHours`. Not a second implementation: if the published median
+and the number on a prospect's own brief could disagree, the benchmark would undermine the thing
+it exists to support.
+
+What makes it safe to post:
+
+- **Nothing identifies anyone.** The input is the public item pool; the engine never reads
+  `/mediaProspects`, watch terms, or whether anyone was named in anything. A published benchmark
+  cannot leak who we are talking to.
+- **No outlet league table.** Aggregates only, never "outlet A trailed outlet B by 14 hours". The
+  figures describe how a region's media moves, not a ranking of newsrooms we need on side.
+- **Suppression over caveats.** Any figure with fewer than 5 observations is withheld and the
+  reason is recorded; the whole benchmark is marked provisional below 4 outlets. A median of two
+  numbers is an anecdote with a decimal point.
+- **Every sentence carries its own sample size, window and method**, including "no paywalled or
+  print-only coverage". Publishing nothing is a valid outcome and better than a soft number.
+
+One statistic needs its derivation stated, because it looks wrong otherwise: the single-outlet
+share is counted over **candidate clusters**, not themes. `summariseTheme` requires two outlets
+before it calls something a theme, so every theme has spread by definition; the interesting
+population is the one the brief bar excludes — a topic carried three or more times by a single
+outlet.
+
+Screen: `/dashboard/admin/benchmark`, which shows the publishable lines first, the working
+underneath, and what was withheld as prominently as what was measured.
+
 ### Share links
 
 A brief sent as a PDF goes dark the moment it leaves: no way to know whether it was opened,
@@ -322,6 +361,7 @@ and no tenant may read them under any circumstances.
 |---|---|---|
 | `upsertMediaProspect` | callable | Create/edit a prospect. Watch terms under 3 characters are dropped |
 | `generateDestinationBrief` | callable | Reads the already-ingested `mediaItems` window, assembles and stores a brief |
+| `generateCoverageBenchmark` | callable | Superadmin. Aggregate, anonymised coverage statistics written to be published |
 | `createBriefShareLink` | callable | Superadmin. Issues a tokenised public URL for a `final` brief |
 | `revokeBriefShareLink` | callable | Superadmin. Flags a link as withdrawn, keeping its view history |
 | `listBriefShareLinks` | callable | Superadmin. Links for one brief with opens and distinct readers |
