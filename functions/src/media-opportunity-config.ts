@@ -237,7 +237,17 @@ export const GEOGRAPHY_TERMS: Record<string, string[]> = {
     'gulf',
     'middle east',
   ],
-  Regional: ['region', 'regional', 'county', 'countywide', 'south east', 'north west', 'midlands'],
+  Regional: [
+    'region',
+    'regional',
+    'county',
+    'countywide',
+    'south east',
+    'south west',
+    'west of england',
+    'north west',
+    'midlands',
+  ],
   Local: ['borough', 'council', 'town', 'village', 'parish', 'high street'],
 };
 
@@ -514,6 +524,104 @@ export const SEED_SOURCES: SeedSource[] = [
     geographies: ['Regional', 'Local'],
     defaultTopics: ['Arts & culture'],
   },
+
+  // -------------------------------------------------------------------------
+  // Regional / local (West of England). Added for the Visit West destination brief, on the
+  // same reasoning as the Kent set: a brief cannot honestly answer "was this organisation
+  // named, or did the theme run without it?" unless the source set actually covers the
+  // ground the organisation sits on. Visit West covers Bristol, Bath and the wider West of
+  // England, so the set pairs each city with at least two independent outlets — the
+  // two-distinct-source momentum bar cannot be cleared by one title repeating itself.
+  //
+  // Visit West's own sites (visitwest.co.uk, visitbristol.co.uk, visitbath.co.uk) are
+  // deliberately absent: they return 403 to a declared reader, and a prospect's own
+  // channels are not evidence of earned coverage in any case.
+  //
+  // As with Kent, general local news carries a lot of crime and court reporting that
+  // SENSITIVE_TERMS excludes from generation. Lower yield per feed is the expected cost.
+  // -------------------------------------------------------------------------
+  {
+    id: 'bbc-bristol',
+    name: 'BBC News — Bristol',
+    feedUrl: 'https://feeds.bbci.co.uk/news/england/bristol/rss.xml',
+    siteUrl: 'https://www.bbc.co.uk/news/england/bristol',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body', 'education'],
+    outletType: 'local-news',
+    geographies: ['Regional', 'Local'],
+  },
+  {
+    id: 'bbc-somerset',
+    name: 'BBC News — Somerset',
+    feedUrl: 'https://feeds.bbci.co.uk/news/england/somerset/rss.xml',
+    siteUrl: 'https://www.bbc.co.uk/news/england/somerset',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body', 'education'],
+    outletType: 'local-news',
+    geographies: ['Regional', 'Local'],
+  },
+  {
+    id: 'bristol-live-news',
+    name: 'BristolLive',
+    feedUrl: 'https://www.bristolpost.co.uk/news/?service=rss',
+    siteUrl: 'https://www.bristolpost.co.uk',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body', 'education'],
+    outletType: 'local-news',
+    geographies: ['Regional', 'Local'],
+  },
+  {
+    id: 'bristol-live-whats-on',
+    name: 'BristolLive — What’s On',
+    feedUrl: 'https://www.bristolpost.co.uk/whats-on/?service=rss',
+    siteUrl: 'https://www.bristolpost.co.uk/whats-on',
+    format: 'rss',
+    verticals: ['dmo', 'trade-body'],
+    outletType: 'local-news',
+    geographies: ['Regional', 'Local'],
+    defaultTopics: ['Arts & culture'],
+  },
+  {
+    id: 'bristol-247',
+    name: 'Bristol24/7',
+    feedUrl: 'https://www.bristol247.com/feed/',
+    siteUrl: 'https://www.bristol247.com',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body'],
+    outletType: 'local-news',
+    geographies: ['Local'],
+    defaultTopics: ['Arts & culture'],
+  },
+  {
+    id: 'bristol-cable',
+    name: 'The Bristol Cable',
+    feedUrl: 'https://www.thebristolcable.org/feed/',
+    siteUrl: 'https://www.thebristolcable.org',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body'],
+    outletType: 'local-news',
+    geographies: ['Local'],
+  },
+  {
+    id: 'somerset-live-news',
+    name: 'SomersetLive',
+    feedUrl: 'https://www.somersetlive.co.uk/news/?service=rss',
+    siteUrl: 'https://www.somersetlive.co.uk',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body', 'education'],
+    outletType: 'local-news',
+    geographies: ['Regional', 'Local'],
+  },
+  {
+    id: 'bath-echo',
+    name: 'Bath Echo',
+    feedUrl: 'https://www.bathecho.co.uk/feed/',
+    siteUrl: 'https://www.bathecho.co.uk',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body', 'education'],
+    outletType: 'local-news',
+    geographies: ['Local'],
+  },
 ];
 
 /**
@@ -541,4 +649,23 @@ export const SEED_SOURCES: SeedSource[] = [
  *   The Argus          — a working feed, but Sussex rather than Kent; left out to keep
  *                        the Visit Kent brief's source set honest to its geography
  *   ALVA, Tourism Society, Group Leisure, VisitBritain news — no reachable feed
+ *
+ * West of England candidates checked while adding the Bristol / Bath feeds
+ * (all checked 22 September 2026 with the declared USER_AGENT above):
+ *
+ *   Visit West / Visit Bristol / Visit Bath — 403 to a declared reader, and a prospect's
+ *                        own channels are not evidence of earned coverage anyway
+ *   Bath Chronicle      — /news/?service=rss serves the HTML site; its reporting appears
+ *                        on SomersetLive, which is included instead
+ *   West of England CA  — /feed/ is a valid but permanently empty RSS document
+ *   Bristol City Council newsroom — no feed at /feed or /rss
+ *   Insider Media South West — /rss/south-west serves HTML, no feed document
+ *   Bath Newseum        — a working, fresh feed, but only ~5 items; held back to keep the
+ *                        set tight. Add it if Bath themes repeatedly fail the
+ *                        two-distinct-outlet bar
+ *   Gazette Series (South Gloucestershire) — a working feed, but Yate/Thornbury rather
+ *                        than the Bristol/Bath core; add only if Visit West's brief needs
+ *                        wider West of England reach
+ *   Bristol Business News, BusinessLive South West — could not be reached from the check
+ *                        environment (DNS), so neither confirmed nor ruled out
  */

@@ -95,6 +95,23 @@ own matched opportunity, its own saves, dismissals and feedback.
 | 7 | later | Create-a-response-brief drafting, spokesperson/story inventory, digests |
 | 8 | later | Outcome capture and reporting, superadmin quality review |
 
+## Source-set geography
+
+The registry is curated per destination brief, not globally: a brief can only report whether an
+organisation was named in coverage if the set actually covers its patch. Regional/local coverage
+is currently:
+
+| Area | Feeds | Added for |
+|---|---|---|
+| Kent / South East | BBC Kent, Kent Live, Kent Live What's On | Visit Kent |
+| West of England | BBC Bristol, BBC Somerset, BristolLive, BristolLive What's On, Bristol24/7, The Bristol Cable, SomersetLive, Bath Echo | Visit West |
+
+Each city has at least two independent outlets, so the two-distinct-source momentum bar cannot be
+cleared by one title repeating itself. Before briefing a prospect in a new area, add its regional
+feeds first and let `ingestMediaSources` run for long enough to fill the window — a brief
+generated the day feeds are added will correctly report `windowUnderfilled`, which is not a
+document to send.
+
 ## Operational notes
 
 - Cloud Functions are **not** deployed by Vercel. After merge, deploy individually from a local
