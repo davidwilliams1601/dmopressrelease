@@ -148,3 +148,14 @@ export function describeBriefHeadline(totals: {
     `${themesWithoutMention} of ${themesFound} ran without you named in ${themesWithoutMention === 1 ? 'it' : 'them'}.`
   );
 }
+
+/**
+ * Screen-only copy for the share-link panel. Like the sending gate, this is internal: a
+ * prospect opening the link sees the brief, not our note to ourselves about why it is a link
+ * rather than an attachment.
+ */
+export const BRIEF_SHARE_LINK_EXPLANATION =
+  'A read-only link to this exact brief. An attachment goes dark the moment it is sent; a link ' +
+  'shows when it was opened and how many separate people opened it, which is how you find out it ' +
+  'was forwarded to whoever actually makes the decision. No names, locations or devices are ' +
+  'recorded — only opens and a count of distinct readers.';

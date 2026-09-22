@@ -1061,6 +1061,24 @@ export type DestinationBriefSendability = {
   failures: string[];
 };
 
+/**
+ * A tokenised public share link for a brief. Stored at /briefShareLinks/{token}, closed to
+ * clients in both directions, and read in the console through listBriefShareLinks.
+ */
+export type BriefShareLink = {
+  token: string;
+  url: string;
+  createdAtMs: number | null;
+  expiresAtMs: number | null;
+  revoked: boolean;
+  viewCount: number;
+  /** Counted with an opaque id the reader's browser keeps for itself — never an IP,
+   *  user agent or email, so it distinguishes readers without identifying anyone. */
+  distinctViewerCount: number;
+  firstViewedAtMs: number | null;
+  lastViewedAtMs: number | null;
+};
+
 export type DestinationBrief = {
   id: string;
   prospectId: string;

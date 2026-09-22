@@ -1117,6 +1117,7 @@ export * from './media-opportunities';
 // Export Destination Brief functions (superadmin sales artefact built from the same
 // ingested pool as Media Opportunities). See docs/destination-briefs.md.
 export * from './destination-briefs';
+export * from './brief-sharing';
 
 // Export super-admin functions
 export * from './super-admin';
