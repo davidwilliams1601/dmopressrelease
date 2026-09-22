@@ -43,6 +43,25 @@ export const BRIEF_MAX_THEMES = 6;
 export const BRIEF_MAX_EVIDENCE_PER_THEME = 6;
 export const BRIEF_MAX_APPEARANCES = 10;
 
+/**
+ * Sendability thresholds.
+ *
+ * Separate from the evidence thresholds above, and deliberately stricter. Those decide
+ * whether a finding is *true enough to record*; these decide whether a brief is *strong
+ * enough to put in front of a prospect*. A brief that clears the first bar and fails the
+ * second is a correct document and a bad piece of outreach, and the honest response to it
+ * is more ingestion time or more outlets — never softer prose over thinner evidence.
+ *
+ * The gate never changes what a brief says. It only blocks `status: 'final'`.
+ */
+export const SENDABLE_MIN_THEMES = 3;
+/** At least one theme must have run without the prospect — that is the document's point. */
+export const SENDABLE_MIN_ABSENT_THEMES = 1;
+/** ...and that theme must be broad, not two outlets that happened to agree. */
+export const SENDABLE_MIN_OUTLETS_ON_ABSENT_THEME = 3;
+/** Outlets across the whole brief. A brief drawn from three feeds is a sample, not a view. */
+export const SENDABLE_MIN_SOURCES_REPRESENTED = 4;
+
 export type BriefInputItem = {
   id: string;
   sourceId: string;
@@ -139,7 +158,100 @@ export type BriefContent = {
   /** Explicit statement of what this brief does NOT establish. Always populated. */
   gaps: string[];
   sourcesUsed: Array<{ name: string; siteUrl?: string | null }>;
+  /** Whether this brief is strong enough to send. Computed, never written by a client. */
+  sendability: BriefSendability;
 };
+
+export type BriefSendabilityCheckId =
+  | 'window_filled'
+  | 'theme_count'
+  | 'absent_theme_breadth'
+  | 'response_window'
+  | 'source_breadth';
+
+export type BriefSendabilityCheck = {
+  id: BriefSendabilityCheckId;
+  /** What is being tested, in the operator's language. */
+  label: string;
+  passed: boolean;
+  /** The observed value that decided it. Always states the number, pass or fail. */
+  detail: string;
+};
+
+export type BriefSendability = {
+  sendable: boolean;
+  checks: BriefSendabilityCheck[];
+  /** Labels of the failed checks, for a one-line summary. Empty when sendable. */
+  failures: string[];
+};
+
+/**
+ * Scores a brief against the sending bar.
+ *
+ * Pure, deterministic and computed from the brief's own stored content, so the reason a
+ * brief was held back is as checkable as the findings in it. Every check reports its
+ * observed value whether it passed or failed — "3 themes found, 3 required" is useful when
+ * deciding whether to wait a week; "failed" on its own is not.
+ */
+export function assessBriefSendability(
+  content: Pick<BriefContent, 'totals' | 'themes' | 'windowUnderfilled' | 'windowDays' | 'dataSpanDays'>
+): BriefSendability {
+  const absentThemes = content.themes.filter((t) => t.route === 'ran_without_you');
+  const broadestAbsent = absentThemes.reduce(
+    (max, t) => Math.max(max, t.distinctSourceCount),
+    0
+  );
+  const withResponseWindow = content.themes.filter((t) => t.responseWindowHours !== null).length;
+
+  const checks: BriefSendabilityCheck[] = [
+    {
+      id: 'window_filled',
+      label: 'The window is filled',
+      passed: !content.windowUnderfilled,
+      detail: content.windowUnderfilled
+        ? `Data covers ${content.dataSpanDays ?? 0} of the ${content.windowDays} days requested. Anything sent now would carry the underfilled caveat.`
+        : `Data covers ${content.dataSpanDays ?? 0} of the ${content.windowDays} days requested.`,
+    },
+    {
+      // Counted from the themes actually on the document rather than from the totals line,
+      // so the gate can never pass a brief on a number that disagrees with its own body.
+      id: 'theme_count',
+      label: 'Enough themes to show a pattern',
+      passed: content.themes.length >= SENDABLE_MIN_THEMES,
+      detail: `${content.themes.length} ${content.themes.length === 1 ? 'theme' : 'themes'} cleared the evidence bar; ${SENDABLE_MIN_THEMES} needed to send.`,
+    },
+    {
+      id: 'absent_theme_breadth',
+      label: 'A theme that ran without them, across several outlets',
+      passed:
+        absentThemes.length >= SENDABLE_MIN_ABSENT_THEMES &&
+        broadestAbsent >= SENDABLE_MIN_OUTLETS_ON_ABSENT_THEME,
+      detail: absentThemes.length
+        ? `${absentThemes.length} ${absentThemes.length === 1 ? 'theme' : 'themes'} ran without them; the broadest was carried by ${broadestAbsent} ${broadestAbsent === 1 ? 'outlet' : 'outlets'}, and ${SENDABLE_MIN_OUTLETS_ON_ABSENT_THEME} are needed.`
+        : 'No theme ran without them. That is a good finding about their comms and a weak basis for outreach.',
+    },
+    {
+      id: 'response_window',
+      label: 'At least one measurable response window',
+      passed: withResponseWindow > 0,
+      detail: withResponseWindow
+        ? `${withResponseWindow} ${withResponseWindow === 1 ? 'theme carries' : 'themes carry'} a first-to-second-outlet window.`
+        : 'No theme has a second outlet, so the brief cannot show the window to respond — the most useful number on the page.',
+    },
+    {
+      id: 'source_breadth',
+      label: 'Enough outlets behind the brief',
+      passed: content.totals.sourcesRepresented >= SENDABLE_MIN_SOURCES_REPRESENTED,
+      detail: `${content.totals.sourcesRepresented} ${content.totals.sourcesRepresented === 1 ? 'outlet' : 'outlets'} represented; ${SENDABLE_MIN_SOURCES_REPRESENTED} needed to send.`,
+    },
+  ];
+
+  return {
+    sendable: checks.every((c) => c.passed),
+    checks,
+    failures: checks.filter((c) => !c.passed).map((c) => c.label),
+  };
+}
 
 /** Does any watch term appear in this item's headline or feed summary? */
 export function itemNamesProspect(item: BriefInputItem, watchTerms: string[]): boolean {
@@ -475,5 +587,12 @@ export function assembleBrief(input: {
       hasWatchTerms: watchTerms.length > 0,
     }),
     sourcesUsed,
+    sendability: assessBriefSendability({
+      totals,
+      themes,
+      windowUnderfilled,
+      windowDays,
+      dataSpanDays,
+    }),
   };
 }

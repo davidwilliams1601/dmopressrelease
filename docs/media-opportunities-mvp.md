@@ -241,6 +241,37 @@ entire feature is an argument about trustworthiness.
 The printed page keeps measured findings and future-state claims in separate, labelled
 sections. Blurring those two is the one failure mode that would discredit the document.
 
+### The sending gate
+
+The evidence thresholds decide whether a finding is true enough to record. They do not decide
+whether a brief is strong enough to put in front of a communications director, and those are
+different questions: a brief that honestly reports three days of data across two outlets is a
+correct document and bad outreach.
+
+`assessBriefSendability` scores every brief at generation and stores the result on `content`.
+Five checks, all computed, each reporting its observed value whether it passed or failed:
+
+| Check | Passes when |
+|---|---|
+| The window is filled | `windowUnderfilled` is false |
+| Enough themes to show a pattern | `themes.length` >= `SENDABLE_MIN_THEMES` (3) |
+| A theme that ran without them, across several outlets | a `ran_without_you` theme has >= 3 distinct outlets |
+| At least one measurable response window | some theme has a non-null `responseWindowHours` |
+| Enough outlets behind the brief | `sourcesRepresented` >= 4 |
+
+The gate changes nothing about what a brief says. It blocks `status: 'final'` — the state that
+means "this goes to a prospect" — and `updateDestinationBrief` enforces it server-side rather
+than trusting whoever is in a hurry the night before a trade show. When a check fails the fix is
+more ingestion time or more outlets, never softer prose over thinner evidence.
+
+Overriding is allowed, because there are briefs whose weak numbers are the point of the
+conversation, but it requires a written reason of at least fifteen characters and is recorded as
+`gateOverride` on the brief. The slate shows which briefs went out below the bar and why.
+
+The gate is screen-only. A prospect sees the findings and the gaps; they never see our internal
+test of whether the findings were worth their time. Briefs generated before the gate existed have
+no `sendability` block and are treated as unassessed rather than retro-judged.
+
 ### Data model
 
 ```
@@ -257,7 +288,7 @@ and no tenant may read them under any circumstances.
 |---|---|---|
 | `upsertMediaProspect` | callable | Create/edit a prospect. Watch terms under 3 characters are dropped |
 | `generateDestinationBrief` | callable | Reads the already-ingested `mediaItems` window, assembles and stores a brief |
-| `updateDestinationBrief` | callable | Saves human framing and draft/final status only |
+| `updateDestinationBrief` | callable | Saves human framing and draft/final status only. `final` is gated on `content.sendability`; override requires `{override: true, overrideReason}` of 15+ characters |
 | `deleteDestinationBrief` | callable | Removes a brief |
 | `retagMediaItems` | callable | Re-runs tagging over already-stored `mediaItems`. `{dryRun: true}` by default; pass `{dryRun: false}` to write |
 
