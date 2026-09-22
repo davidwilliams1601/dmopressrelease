@@ -1118,6 +1118,7 @@ export * from './media-opportunities';
 // ingested pool as Media Opportunities). See docs/destination-briefs.md.
 export * from './destination-briefs';
 export * from './brief-sharing';
+export * from './coverage-benchmark';
 
 // Export super-admin functions
 export * from './super-admin';

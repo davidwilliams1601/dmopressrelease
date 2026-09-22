@@ -151,6 +151,18 @@ export default function AppSidebar() {
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/dashboard/admin/benchmark')}
+                  tooltip={{ children: 'Coverage Benchmark' }}
+                >
+                  <a href="/dashboard/admin/benchmark">
+                    <BarChart3 />
+                    <span>Coverage Benchmark</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </>
         )}
