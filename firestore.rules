@@ -288,6 +288,21 @@ service cloud.firestore {
     }
 
     /**
+     * @description Tokenised public share links for Destination Briefs.
+     * @path /briefShareLinks/{token}
+     * @principle No client access at all, in either direction. A link holder reads the brief
+     *            through the public getSharedBrief callable, which validates the token, checks
+     *            the brief is still final, records the view and returns an allow-listed payload.
+     *            Opening a read rule here instead would hand anyone holding a token the raw
+     *            link document — prospect id, brief id, creator uid and viewer history — and
+     *            let them enumerate the collection. Views are counted by the function with the
+     *            Admin SDK, so `allow write: if false` also keeps the counters honest.
+     */
+    match /briefShareLinks/{token} {
+      allow read, write: if false;
+    }
+
+    /**
      * @description Collection-group access for Destination Briefs.
      * @path /{path=**}/briefs/{briefId}
      * @principle Required because the admin console runs collectionGroup('briefs') to show
