@@ -121,6 +121,13 @@ document to send.
   `firebase deploy --only firestore:indexes`.
 - Ingestion is idempotent: items are keyed by a hash of the canonical URL, so re-runs and
   overlapping feed windows cannot create duplicates.
+- **Ingestion runs every three hours** (`0 */3 * * *`, Europe/London), not twice daily as
+  originally built. Cadence is set by the narrowest feed, not by how fast opportunities move:
+  BristolLive and Bristol24/7 expose only about a day of items each, so anything that scrolled off
+  the end between two runs is permanently missing rather than merely late — and the brief's central
+  claim is a count of what ran. Roughly one item per hour on those feeds means a three-hour gap
+  keeps a comfortable margin. Because items are written once by URL hash, the more frequent run
+  cannot inflate the pool; it only reduces what the pool never sees.
 - The feature is dark by default. An org sees nothing until
   `mediaOpportunitySettings/config.enabled` is true.
 

@@ -248,13 +248,28 @@ async function runIngestion(): Promise<IngestSummary> {
 }
 
 /**
- * Scheduled ingestion. Twice a day is the right cadence for the MVP: the opportunity
- * windows are measured in days, and a curated feed set does not reward minute-by-minute
- * polling — it just costs money and irritates publishers.
+ * Scheduled ingestion, every three hours.
+ *
+ * This started at twice a day on the reasoning that opportunity windows are measured in days,
+ * which was right about the windows and wrong about the feeds. Measured against the live source
+ * set: BristolLive's feed holds roughly 26 items, about one day of publishing; Bristol24/7 about
+ * the same. A feed that only exposes its most recent items does not wait for us — anything
+ * published and pushed off the end between two runs is not late, it is permanently missing, and
+ * the brief's central claim is a count of what ran. Missing items understate coverage and
+ * silently weaken the one number the document lives on.
+ *
+ * Three hours is chosen against the narrowest feed rather than as a round number: ~26 items over
+ * ~24 hours is about one item per hour, so a three-hour gap leaves a comfortable margin before
+ * any local daily could roll over an entire feed's worth of items between runs. It is still
+ * polite polling — eight conditional requests a day per feed, with the declared user agent —
+ * and well short of the minute-by-minute churn that costs money and irritates publishers.
+ *
+ * Items are deduplicated by canonical URL hash and written once, so a more frequent run does not
+ * inflate the pool: it only reduces what the pool never sees.
  */
 export const ingestMediaSources = functions
   .runWith({ timeoutSeconds: 540, memory: '512MB' })
-  .pubsub.schedule('0 6,18 * * *')
+  .pubsub.schedule('0 */3 * * *')
   .timeZone('Europe/London')
   .onRun(async () => {
     await runIngestion();
