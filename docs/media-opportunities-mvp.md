@@ -272,6 +272,40 @@ The gate is screen-only. A prospect sees the findings and the gaps; they never s
 test of whether the findings were worth their time. Briefs generated before the gate existed have
 no `sendability` block and are treated as unassessed rather than retro-judged.
 
+### Share links
+
+A brief sent as a PDF goes dark the moment it leaves: no way to know whether it was opened,
+whether it reached the person who signs things, or whether it was read again the week before a
+meeting. Those are the only facts that say a brief worked.
+
+`createBriefShareLink` issues a random 32-hex-character URL (`/brief/{token}`) that renders the
+same document read-only. Rules:
+
+- **Final briefs only.** `final` already means "this goes to a prospect" and is gated on
+  sendability, so sharing inherits that bar instead of inventing a second one. A brief pulled
+  back to draft stops opening immediately, even on a link created while it was final.
+- **Read through a function, never through Firestore.** `/briefShareLinks/{token}` is
+  `allow read, write: if false`. `getSharedBrief` is a public callable — no `context.auth`, same
+  precedent as `recordReleasePageView` — that validates the token, checks the brief is still
+  final, records the view, and returns an allow-listed payload built in
+  `brief-sharing-core.ts`. Building it by allow-list means a field added to a brief later is
+  private by default rather than published by accident.
+- **`content.sendability` is stripped.** The gate is our internal judgement about whether the
+  brief was worth their time. It is not a finding about their coverage and never leaves the
+  console.
+- **One rendering.** Both the print page and the public page render
+  `src/components/briefs/brief-document.tsx`, so "this is the brief I sent you" stays literally
+  true.
+- **Opens, not people.** View counting records a timestamp, a count, and an opaque random id the
+  reader's browser keeps for itself. No IP address, user agent, location or email. That is enough
+  to tell a forward from a reread and not enough to identify anyone.
+- **Revoked, not deleted.** `revokeBriefShareLink` flags the link so the view history of a link
+  that was pulled survives the pulling of it.
+- **Expiry** defaults to 90 days, clamped to 1–365.
+
+The token is the credential: anyone holding it can read the brief, which is the intent — a
+prospect should be able to forward it to a colleague without being asked to log in.
+
 ### Data model
 
 ```
@@ -288,6 +322,10 @@ and no tenant may read them under any circumstances.
 |---|---|---|
 | `upsertMediaProspect` | callable | Create/edit a prospect. Watch terms under 3 characters are dropped |
 | `generateDestinationBrief` | callable | Reads the already-ingested `mediaItems` window, assembles and stores a brief |
+| `createBriefShareLink` | callable | Superadmin. Issues a tokenised public URL for a `final` brief |
+| `revokeBriefShareLink` | callable | Superadmin. Flags a link as withdrawn, keeping its view history |
+| `listBriefShareLinks` | callable | Superadmin. Links for one brief with opens and distinct readers |
+| `getSharedBrief` | callable | **Public, no auth.** Validates a token, records the view, returns an allow-listed payload |
 | `updateDestinationBrief` | callable | Saves human framing and draft/final status only. `final` is gated on `content.sendability`; override requires `{override: true, overrideReason}` of 15+ characters |
 | `deleteDestinationBrief` | callable | Removes a brief |
 | `retagMediaItems` | callable | Re-runs tagging over already-stored `mediaItems`. `{dryRun: true}` by default; pass `{dryRun: false}` to write |
