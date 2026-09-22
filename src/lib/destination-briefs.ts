@@ -69,6 +69,24 @@ export const BRIEF_FUTURE_STATE_NOTE =
   'when a theme is moving and one of your members has a story that belongs in it. It recommends a route ' +
   'and drafts the brief; your team decides whether to act. It never contacts a journalist on your behalf.';
 
+/**
+ * Standing copy for the sending gate.
+ *
+ * Screen-only — none of this is ever printed on a brief. The gate is an internal
+ * discipline, not a disclosure to the prospect: a brief that clears the bar should not
+ * advertise that a bar exists, and one that fails it should not be sent at all.
+ */
+export const BRIEF_GATE_EXPLANATION =
+  'A brief that records a thin window honestly is still a weak thing to send. These checks are ' +
+  'stricter than the evidence thresholds: they ask whether there is enough here to be worth a ' +
+  'communications director’s attention. When one fails, the fix is more ingestion time or more ' +
+  'outlets — never softer wording over thinner evidence.';
+
+export const BRIEF_GATE_OVERRIDE_HINT =
+  'Overriding is legitimate when the weak numbers are the point of the conversation — a quiet ' +
+  'window you intend to discuss, or a brief built for one specific theme. The reason is stored ' +
+  'on the brief so the slate stays honest about what went out below the bar.';
+
 /** Human sentence for a theme's deterministic facts. Built from stored counts, never generated. */
 export function describeBriefTheme(theme: DestinationBriefTheme): string {
   const items = `${theme.itemCount} ${theme.itemCount === 1 ? 'item' : 'items'}`;

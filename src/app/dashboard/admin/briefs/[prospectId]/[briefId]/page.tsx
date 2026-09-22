@@ -38,6 +38,8 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import {
   BRIEF_FUTURE_STATE_NOTE,
+  BRIEF_GATE_EXPLANATION,
+  BRIEF_GATE_OVERRIDE_HINT,
   BRIEF_METHODOLOGY_NOTE,
   BRIEF_ROUTE_EXPLANATIONS,
   BRIEF_EVIDENCE_ROLE_LABELS,
@@ -48,7 +50,7 @@ import {
   describeBriefTheme,
   describeResponseWindow,
 } from '@/lib/destination-briefs';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { ArrowLeft, Check, Printer, X } from 'lucide-react';
 import type { DestinationBrief } from '@/lib/types';
 
 function formatDate(ms: number) {
@@ -88,6 +90,7 @@ export default function BriefPage() {
   const [closingNote, setClosingNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [loadedFraming, setLoadedFraming] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
 
   useEffect(() => {
     if (brief && !loadedFraming) {
@@ -98,11 +101,19 @@ export default function BriefPage() {
     }
   }, [brief, loadedFraming]);
 
-  async function saveFraming(status: 'draft' | 'final') {
+  async function saveFraming(status: 'draft' | 'final', override = false) {
     setIsSaving(true);
     try {
       const call = httpsCallable(getFunctions(), 'updateDestinationBrief');
-      await call({ prospectId, briefId, headline, openingNote, closingNote, status });
+      await call({
+        prospectId,
+        briefId,
+        headline,
+        openingNote,
+        closingNote,
+        status,
+        ...(override ? { override: true, overrideReason } : {}),
+      });
       toast({ title: status === 'final' ? 'Marked final' : 'Saved' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Could not save', description: err?.message });
@@ -140,6 +151,11 @@ export default function BriefPage() {
   const coverEndMs = c.dataEndMs ?? c.windowEndMs;
   const coverRange = `${formatDate(coverStartMs)} – ${formatDate(coverEndMs)}`;
 
+  // Briefs generated before the gate existed carry no sendability block. They are shown as
+  // unassessed rather than judged against thresholds they were never measured on.
+  const gate = c.sendability;
+  const blocked = gate ? !gate.sendable : false;
+
   return (
     <div className="print-report flex flex-col gap-8">
       {/* Print-only masthead. */}
@@ -170,7 +186,12 @@ export default function BriefPage() {
           <Button variant="outline" onClick={() => saveFraming('draft')} disabled={isSaving}>
             Save notes
           </Button>
-          <Button variant="outline" onClick={() => saveFraming('final')} disabled={isSaving}>
+          <Button
+            variant="outline"
+            onClick={() => saveFraming('final')}
+            disabled={isSaving || blocked}
+            title={blocked ? 'Below the sending bar — see the checks below' : undefined}
+          >
             Mark final
           </Button>
           <Button onClick={() => window.print()}>
@@ -179,6 +200,69 @@ export default function BriefPage() {
           </Button>
         </div>
       </div>
+
+      {/* Screen-only sending gate. Never printed: the prospect sees the findings, not our
+          internal bar for whether the findings were worth their time. */}
+      {gate && (
+        <Card
+          className={`no-print ${blocked ? 'border-destructive/40 bg-destructive/5' : 'border-emerald-600/30'}`}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              {blocked ? 'Below the sending bar' : 'Clears the sending bar'}
+              <Badge variant={blocked ? 'destructive' : 'default'}>
+                {gate.checks.filter((chk) => chk.passed).length}/{gate.checks.length} checks
+              </Badge>
+            </CardTitle>
+            <CardDescription>{BRIEF_GATE_EXPLANATION}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ul className="space-y-2">
+              {gate.checks.map((chk) => (
+                <li key={chk.id} className="flex gap-2 text-sm">
+                  {chk.passed ? (
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  ) : (
+                    <X className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  )}
+                  <span>
+                    <span className={chk.passed ? '' : 'font-medium'}>{chk.label}</span>
+                    <span className="block text-xs text-muted-foreground">{chk.detail}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {blocked && (
+              <div className="space-y-2 border-t pt-3">
+                <Label htmlFor="override">Override reason</Label>
+                <Textarea
+                  id="override"
+                  rows={2}
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  placeholder="Why this brief is worth sending despite the failed checks."
+                />
+                <p className="text-xs text-muted-foreground">{BRIEF_GATE_OVERRIDE_HINT}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSaving || overrideReason.trim().length < 15}
+                  onClick={() => saveFraming('final', true)}
+                >
+                  Override and mark final
+                </Button>
+              </div>
+            )}
+
+            {brief.gateOverride && (
+              <p className="border-t pt-3 text-xs text-muted-foreground">
+                Marked final below the bar. Stated reason: “{brief.gateOverride.reason}”
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Screen-only framing editor. The analysis is the machine's; the pitch is a person's. */}
       <Card className="no-print">

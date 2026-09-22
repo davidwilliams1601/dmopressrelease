@@ -20,6 +20,7 @@ import {
   BRIEF_MAX_THEMES,
   BriefInputItem,
   assembleBrief,
+  assessBriefSendability,
   buildBriefGaps,
   groupBriefThemes,
   itemNamesProspect,
@@ -447,4 +448,161 @@ test('an empty window reports null spans and says there is nothing to conclude f
   assert.equal(brief.dataSpanDays, null);
   assert.equal(brief.windowUnderfilled, true);
   assert.ok(brief.gaps.some((g) => g.includes('no published items fell inside it')));
+});
+
+// --- Sending gate ---------------------------------------------------------
+//
+// The gate decides whether a brief goes to a prospect, so the thing worth testing is that
+// it fails for the reasons that actually make a brief weak, and that it never quietly
+// passes a thin one. It must also never alter the findings — a blocked brief and a sendable
+// brief describe the same coverage identically.
+
+test('a full, broad window with an absent theme clears the sending bar', () => {
+  // Four outlets, a theme spanning the window, no watch-term mention anywhere: this is the
+  // document the whole feature exists to produce.
+  const brief = assembleBrief({
+    items: [
+      it({ sourceId: 'a', daysAgo: 29, topicTags: ['Tourism & travel'] }),
+      it({ sourceId: 'b', daysAgo: 28, topicTags: ['Tourism & travel'] }),
+      it({ sourceId: 'c', daysAgo: 20, topicTags: ['Tourism & travel'] }),
+      it({ sourceId: 'a', daysAgo: 18, topicTags: ['Food & drink'] }),
+      it({ sourceId: 'b', daysAgo: 16, topicTags: ['Food & drink'] }),
+      it({ sourceId: 'd', daysAgo: 14, topicTags: ['Food & drink'] }),
+      it({ sourceId: 'b', daysAgo: 9, topicTags: ['Arts & culture'] }),
+      it({ sourceId: 'c', daysAgo: 6, topicTags: ['Arts & culture'] }),
+      it({ sourceId: 'd', hoursAgo: 5, topicTags: ['Arts & culture'] }),
+    ],
+    watchTerms: ['Visit West'],
+    windowDays: 30,
+    nowMs: NOW,
+  });
+
+  assert.equal(brief.sendability.sendable, true);
+  assert.deepEqual(brief.sendability.failures, []);
+  // Every check reports its observed value, pass or fail, so waiting-vs-sending is a
+  // decision made on numbers rather than on a red cross.
+  assert.ok(brief.sendability.checks.every((c) => c.detail.length > 0));
+});
+
+test('an underfilled window is blocked even though the brief itself is honest about it', () => {
+  const brief = assembleBrief({
+    items: [
+      it({ sourceId: 'a', hoursAgo: 30 }),
+      it({ sourceId: 'b', hoursAgo: 20 }),
+      it({ sourceId: 'c', hoursAgo: 10 }),
+      it({ sourceId: 'd', hoursAgo: 2 }),
+    ],
+    windowDays: 30,
+    nowMs: NOW,
+  });
+
+  assert.equal(brief.windowUnderfilled, true);
+  assert.equal(brief.sendability.sendable, false);
+  assert.ok(brief.sendability.failures.includes('The window is filled'));
+  // The gate blocks sending; it does not soften or suppress the finding.
+  assert.ok(brief.gaps.some((g) => g.includes('window was requested')));
+});
+
+test('a brief where the prospect was named in everything is blocked, not dressed up', () => {
+  // Nothing ran without them. A true and pleasant finding, and a weak basis for outreach.
+  const named = (sourceId: string, daysAgo: number, topicTags: string[]) =>
+    it({ sourceId, daysAgo, topicTags, title: 'Visit West reports a strong season' });
+  const brief = assembleBrief({
+    items: [
+      named('a', 29, ['Tourism & travel']),
+      named('b', 25, ['Tourism & travel']),
+      named('c', 20, ['Tourism & travel']),
+      named('a', 15, ['Food & drink']),
+      named('b', 10, ['Food & drink']),
+      named('d', 5, ['Food & drink']),
+      named('c', 3, ['Arts & culture']),
+      named('d', 2, ['Arts & culture']),
+      named('b', 1, ['Arts & culture']),
+    ],
+    watchTerms: ['Visit West'],
+    windowDays: 30,
+    nowMs: NOW,
+  });
+
+  assert.equal(brief.totals.themesWithoutMention, 0);
+  assert.equal(brief.sendability.sendable, false);
+  assert.ok(
+    brief.sendability.failures.includes('A theme that ran without them, across several outlets')
+  );
+});
+
+test('an absent theme carried by only two outlets does not clear the breadth check', () => {
+  const brief = assembleBrief({
+    items: [
+      it({ sourceId: 'a', daysAgo: 29, topicTags: ['Tourism & travel'] }),
+      it({ sourceId: 'b', daysAgo: 22, topicTags: ['Tourism & travel'] }),
+      it({ sourceId: 'a', daysAgo: 15, topicTags: ['Tourism & travel'] }),
+      it({ sourceId: 'b', daysAgo: 12, topicTags: ['Food & drink'] }),
+      it({ sourceId: 'c', daysAgo: 8, topicTags: ['Food & drink'] }),
+      it({ sourceId: 'b', daysAgo: 6, topicTags: ['Food & drink'] }),
+      it({ sourceId: 'c', daysAgo: 4, topicTags: ['Arts & culture'] }),
+      it({ sourceId: 'd', daysAgo: 3, topicTags: ['Arts & culture'] }),
+      it({ sourceId: 'c', hoursAgo: 4, topicTags: ['Arts & culture'] }),
+    ],
+    watchTerms: ['Visit West'],
+    windowDays: 30,
+    nowMs: NOW,
+  });
+
+  const broadest = Math.max(
+    ...brief.themes.filter((t) => t.route === 'ran_without_you').map((t) => t.distinctSourceCount)
+  );
+  assert.equal(broadest, 2);
+  assert.equal(brief.sendability.sendable, false);
+  assert.ok(
+    brief.sendability.failures.includes('A theme that ran without them, across several outlets')
+  );
+});
+
+test('an empty window fails every check rather than passing by default', () => {
+  const brief = assembleBrief({ items: [], windowDays: 30, nowMs: NOW });
+  assert.equal(brief.sendability.sendable, false);
+  assert.equal(brief.sendability.failures.length, brief.sendability.checks.length);
+});
+
+test('assessBriefSendability is a pure function of stored content', () => {
+  // The gate reads only what is on the brief, so the reason one was held back is as
+  // checkable later as the evidence in it.
+  const content = {
+    totals: {
+      itemsScanned: 40,
+      itemsMatched: 40,
+      sourcesRepresented: 5,
+      themesFound: 4,
+      themesWithMention: 1,
+      themesWithoutMention: 3,
+      appearanceCount: 2,
+    },
+    themes: [
+      {
+        key: 'topic:Tourism & travel',
+        label: 'Tourism & travel',
+        kind: 'topic' as const,
+        itemCount: 6,
+        distinctSourceCount: 4,
+        sourceNames: ['A', 'B', 'C', 'D'],
+        firstSeenMs: NOW - 20 * DAY_MS,
+        lastSeenMs: NOW - DAY_MS,
+        spanDays: 19,
+        responseWindowHours: 18,
+        mentionCount: 0,
+        route: 'ran_without_you' as const,
+        evidence: [],
+      },
+    ],
+    windowUnderfilled: false,
+    windowDays: 30,
+    dataSpanDays: 28,
+  };
+
+  const first = assessBriefSendability(content);
+  const second = assessBriefSendability(content);
+  assert.deepEqual(first, second);
+  assert.equal(first.sendable, false); // one theme on the record, three needed
+  assert.ok(first.failures.includes('Enough themes to show a pattern'));
 });

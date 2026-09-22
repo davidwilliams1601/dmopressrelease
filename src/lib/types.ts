@@ -1041,6 +1041,24 @@ export type DestinationBriefContent = {
   /** What this brief does not establish. Always populated, always printed. */
   gaps: string[];
   sourcesUsed: Array<{ name: string; siteUrl?: string | null }>;
+  /** Whether the brief is strong enough to send, and why. Computed server-side at
+   *  generation. Absent on briefs generated before the gate existed, which is why every
+   *  reader must tolerate undefined and treat it as "not assessed" rather than "failed". */
+  sendability?: DestinationBriefSendability;
+};
+
+export type DestinationBriefSendabilityCheck = {
+  id: 'window_filled' | 'theme_count' | 'absent_theme_breadth' | 'response_window' | 'source_breadth';
+  label: string;
+  passed: boolean;
+  /** The observed value that decided the check, stated whether it passed or failed. */
+  detail: string;
+};
+
+export type DestinationBriefSendability = {
+  sendable: boolean;
+  checks: DestinationBriefSendabilityCheck[];
+  failures: string[];
 };
 
 export type DestinationBrief = {
@@ -1062,4 +1080,12 @@ export type DestinationBrief = {
   generatedByUid?: string;
   /** Superadmin workflow state for a slate of briefs. */
   status: 'draft' | 'final';
+  /** Present only when a brief was marked final below the sending bar. Recorded so the
+   *  slate shows which briefs went out weak and on what stated reasoning. */
+  gateOverride?: {
+    reason: string;
+    failures: string[];
+    byUid?: string;
+    at?: FirestoreTimestamp;
+  };
 };

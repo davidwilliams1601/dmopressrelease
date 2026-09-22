@@ -300,9 +300,29 @@ export default function AdminBriefsPage() {
                       {brief.content?.totals?.appearanceCount ?? 0}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={brief.status === 'final' ? 'default' : 'outline'}>
-                        {brief.status}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge variant={brief.status === 'final' ? 'default' : 'outline'}>
+                          {brief.status}
+                        </Badge>
+                        {/* Sendability, so the slate shows at a glance which briefs are
+                            actually ready to go out rather than merely generated. Briefs from
+                            before the gate existed show nothing rather than a false verdict. */}
+                        {brief.content?.sendability &&
+                          !brief.content.sendability.sendable &&
+                          !brief.gateOverride && (
+                            <Badge
+                              variant="destructive"
+                              title={brief.content.sendability.failures.join('; ')}
+                            >
+                              below bar
+                            </Badge>
+                          )}
+                        {brief.gateOverride && (
+                          <Badge variant="outline" title={brief.gateOverride.reason}>
+                            overridden
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="outline" size="sm">

@@ -276,6 +276,13 @@ export const generateDestinationBrief = functions
  * The stored `content` is never editable. If the analysis is wrong, the brief is
  * regenerated — a document whose evidence can be quietly hand-edited is worth nothing as a
  * record, and this whole feature is an argument about trustworthiness.
+ *
+ * Marking a brief `final` is gated on `content.sendability`. `final` is the state that
+ * means "this goes to a prospect", so the bar is enforced here rather than left to whoever
+ * is in a hurry before a trade show. The gate is overridable — judgement beats a constant,
+ * and there will be briefs whose weak numbers are exactly the point of the conversation —
+ * but an override must carry a written reason and is recorded on the document, so the slate
+ * shows which briefs went out below the bar and why.
  */
 export const updateDestinationBrief = functions.https.onCall(async (data, context) => {
   requireSuperAdmin(context);
@@ -288,22 +295,48 @@ export const updateDestinationBrief = functions.https.onCall(async (data, contex
 
   const status = data?.status === 'final' ? 'final' : 'draft';
 
-  await db
+  const briefRef = db
     .collection('mediaProspects')
     .doc(prospectId)
     .collection('briefs')
-    .doc(briefId)
-    .set(
-      {
-        headline: trimmed(data?.headline, 200) || null,
-        openingNote: trimmed(data?.openingNote, 2000) || null,
-        closingNote: trimmed(data?.closingNote, 2000) || null,
-        status,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedByUid: context.auth!.uid,
-      },
-      { merge: true }
-    );
+    .doc(briefId);
+
+  const payload: Record<string, unknown> = {
+    headline: trimmed(data?.headline, 200) || null,
+    openingNote: trimmed(data?.openingNote, 2000) || null,
+    closingNote: trimmed(data?.closingNote, 2000) || null,
+    status,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedByUid: context.auth!.uid,
+  };
+
+  if (status === 'final') {
+    const snap = await briefRef.get();
+    if (!snap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Brief not found.');
+    }
+    // Briefs generated before the gate existed have no sendability block. They are left
+    // alone rather than retro-judged on thresholds they were never assessed against.
+    const sendability = (snap.data() as any)?.content?.sendability;
+    if (sendability && sendability.sendable === false) {
+      const reason = trimmed(data?.overrideReason, 500);
+      if (data?.override !== true || !reason || reason.length < 15) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          `This brief is below the sending bar: ${(sendability.failures || []).join('; ')}. ` +
+            'Wait for more ingestion or add outlets, or override with a written reason.'
+        );
+      }
+      payload.gateOverride = {
+        reason,
+        failures: sendability.failures || [],
+        byUid: context.auth!.uid,
+        at: admin.firestore.FieldValue.serverTimestamp(),
+      };
+    }
+  }
+
+  await briefRef.set(payload, { merge: true });
 
   return { ok: true };
 });
