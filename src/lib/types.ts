@@ -140,6 +140,11 @@ export type User = {
 export type Release = {
   id: string;
   orgId: string;
+  /** Set when the release was started from a Media Opportunity card. */
+  sourceOpportunityId?: string | null;
+  sourceOpportunityTitle?: string | null;
+  /** Members suggested for the story when it was started, for the team to approach. */
+  suggestedPartnerIds?: string[];
   campaignType: string;
   targetMarket: string;
   /** One of the org's vertical `ai.audienceOptions` (see src/lib/verticals.ts). Typed as string because the list differs per vertical. */
@@ -904,6 +909,8 @@ export type MediaOpportunity = {
   generatorVersion: string;
   resolvedAt?: FirestoreTimestamp;
   resolvedByUid?: string;
+  /** The draft release this opportunity was turned into, when acted on from the card. */
+  actedOnReleaseId?: string;
 };
 
 export type MediaOpportunityStatusValue = 'new' | 'saved' | 'dismissed' | 'acted_on' | 'expired';

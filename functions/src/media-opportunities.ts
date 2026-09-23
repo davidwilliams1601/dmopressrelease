@@ -823,10 +823,24 @@ export const setMediaOpportunityStatus = functions.https.onCall(async (data, con
   const snap = await ref.get();
   if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Opportunity not found.');
 
+  // An optional release link closes the loop opportunity -> release -> coverage, which is
+  // what lets a dashboard say "3 opportunities acted on, 2 became releases, 1 was placed".
+  // Checked against the org's own releases so a caller cannot attach someone else's.
+  const releaseId = typeof data?.releaseId === 'string' ? data.releaseId.trim() : '';
+  let actedOnReleaseId: string | null = null;
+  if (releaseId && status === 'acted_on') {
+    const releaseSnap = await db.collection('orgs').doc(orgId).collection('releases').doc(releaseId).get();
+    if (!releaseSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Release not found in this organisation.');
+    }
+    actedOnReleaseId = releaseId;
+  }
+
   await ref.update({
     status,
     resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
     resolvedByUid: caller.uid,
+    ...(actedOnReleaseId ? { actedOnReleaseId } : {}),
   });
 
   return { ok: true };

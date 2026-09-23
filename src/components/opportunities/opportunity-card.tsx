@@ -10,8 +10,9 @@
  *  2. Every source is a real outbound link with its real publication date. If we cannot
  *     show that, the card should never have been written (generation enforces >= 2).
  *  3. The caveat is always visible — not behind a tooltip, not in small print.
- *  4. There is no "send" on this card. The MVP ends at save / brief / dismiss. Any route
- *     from an opportunity to a distribution send is deliberately absent.
+ *  4. There is no "send" on this card. The furthest it goes is a Draft release with
+ *     holding text flagged (see start-draft-dialog.tsx). Any route from an opportunity to a
+ *     distribution send is deliberately absent.
  */
 
 import { useState } from 'react';
@@ -42,11 +43,11 @@ import {
   type MediaOpportunityFeedbackReason,
 } from '@/lib/media-opportunities';
 import type { MediaOpportunity } from '@/lib/types';
+import { StartDraftDialog } from './start-draft-dialog';
 import {
   Bookmark,
   CheckCircle2,
   ExternalLink,
-  FileText,
   MessageSquare,
   X,
 } from 'lucide-react';
@@ -264,18 +265,13 @@ export function OpportunityCard({
           )}
 
           {/*
-            Deliberately a link to the release composer with the theme pre-filled as a
-            starting point — not a generated draft, and definitely not a send. The person
-            writes it; Press Pilot only tells them what is worth writing about.
+            Opens a dialog that creates a Draft seeded with prompts, not generated copy, and
+            with holding text flagged so it cannot be sent until a person has written it.
+            There is still no route from a card to a send.
           */}
-          <Button size="sm" variant="outline" asChild>
-            <a
-              href={`/dashboard/releases/new?theme=${encodeURIComponent(opportunity.title)}`}
-            >
-              <FileText className="mr-1.5 h-4 w-4" />
-              Start a draft
-            </a>
-          </Button>
+          {opportunity.suggestedAction !== 'no_action' && (
+            <StartDraftDialog opportunity={opportunity} onCreated={onChanged} />
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
