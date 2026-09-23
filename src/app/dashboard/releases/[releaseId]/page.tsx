@@ -13,6 +13,7 @@ import { ReleaseEditForm } from '@/components/releases/release-edit-form';
 import { ReleaseAnalytics } from '@/components/releases/release-analytics';
 import { SmartDistributionFocusCard } from '@/components/releases/smart-distribution-focus-card';
 import { RecommendationList } from '@/components/releases/recommendation-list';
+import { ReleaseCoverageCard } from '@/components/coverage/release-coverage-card';
 
 export default function ReleaseDetailPage() {
   const params = useParams();
@@ -84,6 +85,8 @@ export default function ReleaseDetailPage() {
 
       <SmartDistributionFocusCard release={releaseDoc.data} orgId={orgId!} />
       <RecommendationList release={releaseDoc.data} orgId={orgId!} organization={organization} />
+
+      {releaseDoc.data.status === 'Sent' && <ReleaseCoverageCard release={releaseDoc.data} orgId={orgId!} />}
 
       {/* Analytics Section - Only show for sent releases */}
       {releaseDoc.data.status === 'Sent' && (

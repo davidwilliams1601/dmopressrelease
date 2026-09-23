@@ -1107,3 +1107,67 @@ export type DestinationBrief = {
     at?: FirestoreTimestamp;
   };
 };
+
+// --- Coverage records (Proof of Value) ---------------------------------------
+
+/**
+ * One placement an org has earned, stored at /orgs/{orgId}/coverage/{id}.
+ *
+ * The unit of proof in Press Pilot's reporting, and what replaces a CoverageBook subscription:
+ * a coverage record ties a published piece back to the release that produced it and the members
+ * it featured, so a report can say "18 stories submitted · 9 issued · 6 placed · 14 placements"
+ * and name the members who got seen. Vocabularies and all derived figures live in
+ * src/lib/coverage-core.ts (byte-identical to functions/src/coverage-core.ts).
+ *
+ * `reportedAudience` is deliberately named: it is whatever the outlet or a named third party
+ * reports, carried with its source, never a Press Pilot estimate. There is no AVE field.
+ */
+export type CoverageRecord = {
+  id: string;
+  orgId: string;
+  /** As pasted. May be empty for print/broadcast with no online version. */
+  url: string;
+  /** canonicalCoverageUrl(url) — used to warn about logging the same article twice. */
+  canonicalUrl: string | null;
+  headline: string;
+  outletName: string;
+  publishedAtMs: number;
+  mediaType: import('./coverage-core').CoverageMediaType;
+  outletType: import('./coverage-core').CoverageOutletType;
+  tone: import('./coverage-core').CoverageTone;
+  releaseId: string | null;
+  /** Denormalised so reports and the partner portal don't need to read the release. */
+  releaseHeadline: string | null;
+  submissionIds: string[];
+  /** Partner (member) user ids featured. Partners can read records they appear in. */
+  partnerIds: string[];
+  partnerNames: string[];
+  themes: string[];
+  /** True when the placement followed a send made through Press Pilot. */
+  fromPressPilotSend: boolean;
+  reportedAudience: number | null;
+  reportedAudienceSource: string | null;
+  /** Visible to the team and featured members; never included in a shared report. */
+  notes: string;
+  createdAt?: any;
+  createdById: string;
+  createdByName: string;
+  updatedAt?: any;
+};
+
+/** Row returned by listCoverageReportShareLinks. */
+export type CoverageReportShareLink = {
+  token: string;
+  url: string;
+  title: string;
+  startMs: number | null;
+  endMs: number | null;
+  includeSensitive: boolean;
+  createdAtMs: number | null;
+  createdByName: string;
+  expiresAtMs: number | null;
+  revoked: boolean;
+  viewCount: number;
+  distinctViewerCount: number;
+  lastViewedAtMs: number | null;
+};
