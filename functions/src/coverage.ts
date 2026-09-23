@@ -38,6 +38,8 @@ import {
   trackViewer,
 } from './brief-sharing-core';
 
+import { peerBenchmark } from './dashboard-core';
+
 const db = admin.firestore();
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
@@ -377,5 +379,60 @@ export const getSharedCoverageReport = functions.https.onCall(async (data) => {
       issued: releaseSnap.docs.filter((d) => d.get('status') === 'Sent').length,
     },
     records,
+  };
+});
+
+// ---------------------------------------------------------------------------
+// 5. Peer benchmark
+// ---------------------------------------------------------------------------
+
+const PEER_WINDOW_DAYS = 90;
+/** Hard ceiling on orgs read per call; peers are sampled from the same vertical only. */
+const PEER_MAX_ORGS = 300;
+
+/**
+ * Where an organisation's placements sit against comparable organisations.
+ *
+ * "Comparable" means the same vertical and actually logging coverage: an org with no coverage
+ * records at all is not a peer with zero placements, it is an org not using the feature, and
+ * counting it would drag every median to nothing. Only the median, quartiles and the caller's
+ * own position leave the function (see peerBenchmark in dashboard-core),
+ * and nothing below five peers.
+ */
+export const getPeerCoverageBenchmark = functions.https.onCall(async (data, context) => {
+  const orgId = trimmed(data?.orgId, 128);
+  await requireOrgRole(context, orgId, ['Admin', 'User']);
+
+  const orgSnap = await db.collection('orgs').doc(orgId).get();
+  if (!orgSnap.exists) throw new functions.https.HttpsError('not-found', 'Organisation not found.');
+  const vertical = (orgSnap.get('vertical') as string) || 'dmo';
+  const sinceMs = Date.now() - PEER_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+  const countFor = async (id: string): Promise<{ ever: boolean; recent: number }> => {
+    const col = db.collection('orgs').doc(id).collection('coverage');
+    const [any, recent] = await Promise.all([
+      col.limit(1).select().get(),
+      col.where('publishedAtMs', '>=', sinceMs).count().get(),
+    ]);
+    return { ever: !any.empty, recent: recent.data().count };
+  };
+
+  const peersSnap = await db.collection('orgs').where('vertical', '==', vertical).limit(PEER_MAX_ORGS).get();
+  // Orgs created before verticals existed have no field and are treated as DMOs elsewhere.
+  const legacySnap =
+    vertical === 'dmo' ? await db.collection('orgs').limit(PEER_MAX_ORGS).get() : null;
+  const ids = new Set(peersSnap.docs.map((d) => d.id));
+  legacySnap?.docs.forEach((d) => {
+    if (!d.get('vertical')) ids.add(d.id);
+  });
+  ids.delete(orgId);
+
+  const [own, ...peerCounts] = await Promise.all([countFor(orgId), ...[...ids].map(countFor)]);
+  const peers = peerCounts.filter((p) => p.ever).map((p) => p.recent);
+
+  return {
+    windowDays: PEER_WINDOW_DAYS,
+    vertical,
+    benchmark: peerBenchmark(own.recent, peers),
   };
 });

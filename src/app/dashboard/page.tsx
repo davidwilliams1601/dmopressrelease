@@ -22,12 +22,19 @@ import {
   View,
 } from 'lucide-react';
 import { useMemo } from 'react';
+import { AttentionAndOutcomes } from '@/components/dashboard/attention-and-outcomes';
+import { useVerticalConfig } from '@/hooks/use-vertical-config';
 
 export const dynamic = 'force-dynamic';
 
 export default function DashboardPage() {
   const { firestore } = useFirebase();
   const { orgId, isLoading: isUserDataLoading } = useUserData();
+  const { config: verticalConfig } = useVerticalConfig(orgId);
+  const storyLabels = useMemo(() => {
+    const stories = (verticalConfig.nav.submissions || 'Submissions').toLowerCase();
+    return { story: stories.replace(/s$/, ''), stories };
+  }, [verticalConfig.nav.submissions]);
 
   // Fetch recent releases
   const releasesQuery = useCollection<Release>(
@@ -97,6 +104,12 @@ export default function DashboardPage() {
       </div>
 
       <GettingStartedChecklist orgId={orgId!} releases={recentReleases} />
+
+      <AttentionAndOutcomes
+        orgId={orgId!}
+        releases={(allReleasesQuery.data || []) as Release[]}
+        labels={storyLabels}
+      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
