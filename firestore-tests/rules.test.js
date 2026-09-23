@@ -449,3 +449,118 @@ describe('/platform/{docId} — platform-wide config, M8\'s read path', () => {
     );
   });
 });
+
+describe('/orgs/{orgId}/coverage/{coverageId} — coverage records', () => {
+  const USER_UID = 'team-user-a';
+  const OTHER_PARTNER_UID = 'partner-a2';
+
+  function coverage(overrides = {}) {
+    return {
+      orgId: ORG_A,
+      url: 'https://example.com/story',
+      canonicalUrl: 'https://example.com/story',
+      headline: 'Kent vineyard wins award',
+      outletName: 'Kent Live',
+      publishedAtMs: Date.UTC(2026, 8, 20),
+      mediaType: 'online',
+      outletType: 'regional',
+      tone: 'positive',
+      releaseId: null,
+      releaseHeadline: null,
+      submissionIds: [],
+      partnerIds: [PARTNER_UID],
+      partnerNames: ['Chapel Down'],
+      themes: ['Wine'],
+      fromPressPilotSend: false,
+      reportedAudience: null,
+      reportedAudienceSource: null,
+      notes: '',
+      createdById: TEAM_UID,
+      createdByName: 'David',
+      ...overrides,
+    };
+  }
+
+  beforeEach(async () => {
+    await seedOrgMembers();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'orgs', ORG_A, 'users', USER_UID), { id: USER_UID, orgId: ORG_A, role: 'User' });
+      await setDoc(doc(db, 'orgs', ORG_A, 'users', OTHER_PARTNER_UID), { id: OTHER_PARTNER_UID, orgId: ORG_A, role: 'Partner' });
+      await setDoc(doc(db, 'orgs', ORG_A, 'coverage', 'c1'), coverage());
+      await setDoc(doc(db, 'orgs', ORG_A, 'coverage', 'c2'), coverage({ partnerIds: [], partnerNames: [] }));
+    });
+  });
+
+  test('a team member can create a valid record as themselves', async () => {
+    await assertSucceeds(setDoc(doc(teamCtx().firestore(), 'orgs', ORG_A, 'coverage', 'new'), coverage()));
+  });
+
+  test('a standard User (not only Admin) can log coverage', async () => {
+    const ctx = testEnv.authenticatedContext(USER_UID);
+    await assertSucceeds(setDoc(doc(ctx.firestore(), 'orgs', ORG_A, 'coverage', 'new'), coverage({ createdById: USER_UID })));
+  });
+
+  test('creating a record attributed to someone else is denied', async () => {
+    const ctx = testEnv.authenticatedContext(USER_UID);
+    await assertFails(setDoc(doc(ctx.firestore(), 'orgs', ORG_A, 'coverage', 'new'), coverage({ createdById: TEAM_UID })));
+  });
+
+  test('bad shape is denied: unknown tone, missing headline, wrong orgId', async () => {
+    const db = teamCtx().firestore();
+    await assertFails(setDoc(doc(db, 'orgs', ORG_A, 'coverage', 'x1'), coverage({ tone: 'glowing' })));
+    await assertFails(setDoc(doc(db, 'orgs', ORG_A, 'coverage', 'x2'), coverage({ headline: '' })));
+    await assertFails(setDoc(doc(db, 'orgs', ORG_A, 'coverage', 'x3'), coverage({ orgId: ORG_B })));
+  });
+
+  test('a team member of another org can neither read nor write', async () => {
+    const db = otherOrgTeamCtx().firestore();
+    await assertFails(getDoc(doc(db, 'orgs', ORG_A, 'coverage', 'c1')));
+    await assertFails(setDoc(doc(db, 'orgs', ORG_A, 'coverage', 'x'), coverage({ createdById: OTHER_ORG_TEAM_UID })));
+  });
+
+  test('a featured partner can read their placements via array-contains', async () => {
+    const db = partnerCtx().firestore();
+    await assertSucceeds(getDoc(doc(db, 'orgs', ORG_A, 'coverage', 'c1')));
+    await assertSucceeds(getDocs(query(collection(db, 'orgs', ORG_A, 'coverage'), where('partnerIds', 'array-contains', PARTNER_UID))));
+  });
+
+  test('a partner cannot read placements they are not in, or list the collection', async () => {
+    const db = partnerCtx().firestore();
+    await assertFails(getDoc(doc(db, 'orgs', ORG_A, 'coverage', 'c2')));
+    await assertFails(getDocs(collection(db, 'orgs', ORG_A, 'coverage')));
+    const other = testEnv.authenticatedContext(OTHER_PARTNER_UID).firestore();
+    await assertFails(getDoc(doc(other, 'orgs', ORG_A, 'coverage', 'c1')));
+  });
+
+  test('a partner cannot write coverage, even about themselves', async () => {
+    const db = partnerCtx().firestore();
+    await assertFails(setDoc(doc(db, 'orgs', ORG_A, 'coverage', 'x'), coverage({ createdById: PARTNER_UID })));
+    await assertFails(updateDoc(doc(db, 'orgs', ORG_A, 'coverage', 'c1'), { tone: 'sensitive' }));
+  });
+
+  test('update cannot rewrite authorship or move the record', async () => {
+    const db = testEnv.authenticatedContext(USER_UID).firestore();
+    await assertSucceeds(updateDoc(doc(db, 'orgs', ORG_A, 'coverage', 'c1'), { tone: 'neutral' }));
+    await assertFails(updateDoc(doc(db, 'orgs', ORG_A, 'coverage', 'c1'), { createdById: USER_UID }));
+    await assertFails(updateDoc(doc(db, 'orgs', ORG_A, 'coverage', 'c1'), { orgId: ORG_B }));
+  });
+
+  test('unauthenticated requests are denied', async () => {
+    await assertFails(getDoc(doc(anonCtx().firestore(), 'orgs', ORG_A, 'coverage', 'c1')));
+  });
+});
+
+describe('/coverageReportLinks/{token} — callable-only', () => {
+  beforeEach(async () => {
+    await seedOrgMembers();
+    await seed(async (db) => {
+      await setDoc(doc(db, 'coverageReportLinks', 'tok'), { orgId: ORG_A, revoked: false });
+    });
+  });
+
+  test('no client can read, list or write — not even the owning org admin or superadmin', async () => {
+    await assertFails(getDoc(doc(teamCtx().firestore(), 'coverageReportLinks', 'tok')));
+    await assertFails(getDocs(collection(anonCtx().firestore(), 'coverageReportLinks')));
+    await assertFails(setDoc(doc(superAdminCtx().firestore(), 'coverageReportLinks', 'new'), { orgId: ORG_A }));
+  });
+});

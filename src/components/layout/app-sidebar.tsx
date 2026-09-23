@@ -27,6 +27,7 @@ import {
   Network,
   Radio,
   Radar,
+  Award,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
@@ -58,6 +59,7 @@ export default function AppSidebar() {
     { href: '/dashboard/opportunities', icon: Radar, label: 'Opportunities' },
     { href: '/dashboard/outlets', icon: Users, label: config.nav.outlets },
     { href: '/dashboard/settings/team', icon: UserCog, label: 'Team' },
+    { href: '/dashboard/coverage', icon: Award, label: 'Coverage' },
     { href: '/dashboard/reports', icon: BarChart3, label: 'Reports', adminOnly: true },
     ...(isInFederatedNetwork
       ? [{ href: '/dashboard/network', icon: Network, label: 'Network', adminOnly: true }]

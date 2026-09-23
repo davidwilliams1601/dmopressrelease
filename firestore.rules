@@ -316,6 +316,56 @@ service cloud.firestore {
     }
 
     /**
+     * @description Coverage records: one document per placement an org has earned.
+     * @path /orgs/{orgId}/coverage/{coverageId}
+     * @allow (read) Team members; and a Partner (member) named on the placement, so the partner
+     *        portal can show "where your story appeared". Partners query with
+     *        `partnerIds array-contains <uid>`, which this rule can prove against every result.
+     * @allow (create, update, delete) Team members, in their own org, with the shape below.
+     * @principle Logging coverage is ordinary editorial work, like editing a release, so it is a
+     *            direct client write under validation rather than a callable. The shared,
+     *            unauthenticated report reads these through getSharedCoverageReport with an
+     *            allow-listed payload; nothing here is public. `notes` is therefore visible to
+     *            featured members but never to report viewers, and the UI says so.
+     */
+    match /orgs/{orgId}/coverage/{coverageId} {
+      function validCoverage() {
+        let d = request.resource.data;
+        return d.orgId == orgId
+          && d.headline is string && d.headline.size() > 0 && d.headline.size() <= 300
+          && d.outletName is string && d.outletName.size() > 0 && d.outletName.size() <= 200
+          && d.url is string && d.url.size() <= 2000
+          && d.publishedAtMs is number
+          && d.mediaType in ['online', 'print', 'broadcast', 'podcast', 'social', 'newsletter', 'other']
+          && d.outletType in ['local', 'regional', 'national', 'trade', 'international', 'other']
+          && d.tone in ['positive', 'neutral', 'sensitive']
+          && d.partnerIds is list && d.partnerIds.size() <= 50
+          && d.partnerNames is list && d.partnerNames.size() <= 50
+          && d.themes is list && d.themes.size() <= 10
+          && d.fromPressPilotSend is bool;
+      }
+      allow read: if isTeamMember(orgId)
+        || (isOrgMember(orgId) && request.auth.uid in resource.data.partnerIds);
+      allow create: if isTeamMember(orgId) && validCoverage()
+        && request.resource.data.createdById == request.auth.uid;
+      allow update: if isTeamMember(orgId) && resource != null && validCoverage()
+        && isOrgIdImmutable()
+        && request.resource.data.createdById == resource.data.createdById;
+      allow delete: if isTeamMember(orgId) && resource != null;
+    }
+
+    /**
+     * @description Tokenised share links for coverage reports.
+     * @path /coverageReportLinks/{token}
+     * @principle Same as briefShareLinks: created, listed, revoked and opened only through
+     *            callables in functions/src/coverage.ts, so the token collection is never
+     *            enumerable and view counts cannot be forged.
+     */
+    match /coverageReportLinks/{token} {
+      allow read, write: if false;
+    }
+
+    /**
      * @description Collection-group access for Destination Briefs.
      * @path /{path=**}/briefs/{briefId}
      * @principle Required because the admin console runs collectionGroup('briefs') to show

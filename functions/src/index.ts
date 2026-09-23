@@ -1118,6 +1118,9 @@ export * from './media-opportunities';
 // ingested pool as Media Opportunities). See docs/destination-briefs.md.
 export * from './destination-briefs';
 export * from './brief-sharing';
+
+// Coverage records: link-metadata fetch and shareable coverage reports (CoverageBook replacement).
+export * from './coverage';
 export * from './coverage-benchmark';
 
 // Export super-admin functions

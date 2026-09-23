@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Instagram, Twitter, Facebook, Linkedin } from 'lucide-react';
 import Link from 'next/link';
 import type { PartnerSubmission, Tag } from '@/lib/types';
+import { MemberCoverageCard } from '@/components/coverage/member-coverage-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -254,6 +255,7 @@ export default function PartnerSubmissionDetailPage() {
               )}
             </CardContent>
           </Card>
+          {orgId && <MemberCoverageCard orgId={orgId} submissionId={submission.id} />}
         </div>
       </div>
     </div>

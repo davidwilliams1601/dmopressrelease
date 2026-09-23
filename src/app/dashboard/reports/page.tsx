@@ -20,6 +20,8 @@ import ReportPartnerEngagement from '@/components/reports/report-partner-engagem
 import ReportTopReleases from '@/components/reports/report-top-releases';
 import ReportEngagementTrends from '@/components/reports/report-engagement-trends';
 import ReportAudienceBreakdown from '@/components/reports/report-audience-breakdown';
+import { CoverageSummaryView } from '@/components/coverage/coverage-summary';
+import { useCoverageData } from '@/hooks/use-coverage-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +32,7 @@ export default function ReportsPage() {
   const [dateRange, setDateRange] = useState<DateRange>(() => getMonthRange(new Date()));
 
   const report = useReportData(orgId ?? null, dateRange);
+  const coverage = useCoverageData(orgId ?? null, dateRange);
 
   if (isUserLoading || isOrgLoading || report.isLoading) {
     return (
@@ -108,6 +111,19 @@ export default function ReportsPage() {
         partnersLabel={partnersLabel}
         submissionsLabel={submissionsLabel}
       />
+
+      {/* Coverage: what the distribution work above actually earned. Same summary component
+          as /dashboard/coverage and the shared report, so the numbers agree everywhere. */}
+      <section className="flex flex-col gap-4">
+        <h2 className="text-2xl font-headline font-bold">Coverage</h2>
+        <CoverageSummaryView
+          summary={coverage.summary}
+          funnel={coverage.funnel}
+          submissionsLabel={`${submissionsLabel} received`}
+          releasesLabel={`${releasesLabel} issued`}
+          membersLabel={partnersLabel}
+        />
+      </section>
 
       <ReportEngagementTrends trendData={report.trendData} />
 
