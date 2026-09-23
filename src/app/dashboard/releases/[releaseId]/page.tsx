@@ -75,6 +75,15 @@ export default function ReleaseDetailPage() {
         <p className="text-muted-foreground">
           Update your press release details and content.
         </p>
+        {releaseDoc.data.sourceOpportunityId && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Started from the opportunity{' '}
+            <a href="/dashboard/opportunities" className="font-medium text-foreground underline underline-offset-2">
+              {releaseDoc.data.sourceOpportunityTitle || 'in your opportunities feed'}
+            </a>
+            . Replace the bracketed prompts, then untick holding text when it is ready.
+          </p>
+        )}
       </div>
       <ReleaseEditForm
         release={releaseDoc.data}
