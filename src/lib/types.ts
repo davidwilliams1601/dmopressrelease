@@ -1008,6 +1008,9 @@ export type DestinationBriefTheme = {
   /** Hours from the first item to the first item from a different outlet. */
   responseWindowHours: number | null;
   mentionCount: number;
+  /** Items naming the organisation itself rather than one of its places or assets. Absent on
+   *  briefs generated before this field existed. See functions/src/destination-brief-engine.ts. */
+  orgNamedCount?: number;
   route: 'you_were_in_it' | 'ran_without_you';
   evidence: DestinationBriefEvidence[];
 };

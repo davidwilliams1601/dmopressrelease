@@ -606,3 +606,65 @@ test('assessBriefSendability is a pure function of stored content', () => {
   assert.equal(first.sendable, false); // one theme on the record, three needed
   assert.ok(first.failures.includes('Enough themes to show a pattern'));
 });
+
+// --- Organisation named vs place named ---------------------------------------
+
+const TOURISM = { key: 'topic:Tourism & travel', label: 'Tourism & travel', kind: 'topic' as const };
+
+test('a theme naming only a place counts as named but reports zero org mentions', () => {
+  const theme = summariseTheme(
+    {
+      ...TOURISM,
+      items: [
+        it({ sourceId: 'a', title: 'Chapel Down wins wine award' }),
+        it({ sourceId: 'b' }),
+        it({ sourceId: 'c' }),
+      ],
+    },
+    ['Chapel Down'],
+    ['Visit Kent']
+  );
+  assert.equal(theme!.route, 'you_were_in_it');
+  assert.equal(theme!.orgNamedCount, 0);
+});
+
+test('the organisation name counts as a mention even when it is not a watch term', () => {
+  const theme = summariseTheme(
+    {
+      ...TOURISM,
+      items: [
+        it({ sourceId: 'a', title: 'Visit Kent reports record summer' }),
+        it({ sourceId: 'b' }),
+        it({ sourceId: 'c' }),
+      ],
+    },
+    ['Chapel Down'],
+    ['Visit Kent']
+  );
+  assert.equal(theme!.route, 'you_were_in_it');
+  assert.equal(theme!.orgNamedCount, 1);
+  assert.equal(theme!.evidence[0].namesProspect, true);
+});
+
+test('without prospect names the field is omitted, so old callers are unchanged', () => {
+  const theme = summariseTheme(
+    { ...TOURISM, items: [it({ sourceId: 'a' }), it({ sourceId: 'b' }), it({ sourceId: 'c' })] },
+    ['Visit Kent']
+  );
+  assert.equal('orgNamedCount' in theme!, false);
+});
+
+test('assembleBrief counts org-name appearances in the totals', () => {
+  const brief = assembleBrief({
+    items: [
+      it({ sourceId: 'a', title: 'Visit Kent reports record summer' }),
+      it({ sourceId: 'b' }),
+      it({ sourceId: 'c' }),
+    ],
+    watchTerms: [],
+    prospectNames: ['Visit Kent'],
+    nowMs: NOW,
+  });
+  assert.equal(brief.totals.appearanceCount, 1);
+  assert.equal(brief.appearances.length, 1);
+});
