@@ -19,7 +19,14 @@ interface OrgRollupNode {
   escalatedInCount: number;
   /** Of those, how many have actually been drafted into a release (status === 'used'). */
   escalatedInUsedCount: number;
+  /** Coverage records published in the last ROLLUP_COVERAGE_DAYS days. */
+  placementCount: number;
+  /** Distinct releases those placements are linked to. */
+  placedReleaseCount: number;
 }
+
+/** The window coverage is rolled up over. Long enough for a quiet member to register at all. */
+const ROLLUP_COVERAGE_DAYS = 90;
 
 /**
  * Compute the same usage stats getSuperAdminReport computes per org, plus the
@@ -32,11 +39,24 @@ async function computeOrgNodeStats(
   const org = orgDoc.data() || {};
   const orgId = orgDoc.id;
 
-  const [usersSnap, submissionsSnap, releasesSnap] = await Promise.all([
+  const coverageSinceMs = Date.now() - ROLLUP_COVERAGE_DAYS * 24 * 60 * 60 * 1000;
+  const [usersSnap, submissionsSnap, releasesSnap, coverageSnap] = await Promise.all([
     db.collection('orgs').doc(orgId).collection('users').get(),
     db.collection('orgs').doc(orgId).collection('submissions').get(),
     db.collection('orgs').doc(orgId).collection('releases').get(),
+    // Only the release link is needed, so only the release link is read.
+    db
+      .collection('orgs')
+      .doc(orgId)
+      .collection('coverage')
+      .where('publishedAtMs', '>=', coverageSinceMs)
+      .select('releaseId')
+      .get(),
   ]);
+  const placementCount = coverageSnap.size;
+  const placedReleaseCount = new Set(
+    coverageSnap.docs.map((d) => d.get('releaseId')).filter((id) => typeof id === 'string' && id)
+  ).size;
 
   const partnerCount = usersSnap.docs.filter((u) => u.data().role === 'Partner').length;
   const submissionCount = submissionsSnap.size;
@@ -80,6 +100,8 @@ async function computeOrgNodeStats(
     lastActivityAt,
     escalatedInCount,
     escalatedInUsedCount,
+    placementCount,
+    placedReleaseCount,
   };
 }
 
@@ -124,6 +146,12 @@ export const getOrgRollup = functions.https.onCall(async (data, context) => {
     if (!callerSnap.exists) {
       throw new functions.https.HttpsError('permission-denied', 'You are not a member of this organisation.');
     }
+    // Partners (members) also have a users doc, so existence alone let a member read the
+    // whole network's figures. Team roles only.
+    const callerRole = callerSnap.get('role');
+    if (callerRole !== 'Admin' && callerRole !== 'User') {
+      throw new functions.https.HttpsError('permission-denied', 'Team-member access required.');
+    }
   }
 
   const orgRef = db.collection('orgs').doc(orgId);
@@ -155,6 +183,8 @@ export const getOrgRollup = functions.https.onCall(async (data, context) => {
       totalEmailsSent: acc.totalEmailsSent + n.totalEmailsSent,
       totalEscalated: acc.totalEscalated + n.escalatedInCount,
       totalEscalatedUsed: acc.totalEscalatedUsed + n.escalatedInUsedCount,
+      totalPlacements: acc.totalPlacements + n.placementCount,
+      totalPlacedReleases: acc.totalPlacedReleases + n.placedReleaseCount,
     }),
     {
       orgCount: 0,
@@ -164,6 +194,8 @@ export const getOrgRollup = functions.https.onCall(async (data, context) => {
       totalEmailsSent: 0,
       totalEscalated: 0,
       totalEscalatedUsed: 0,
+      totalPlacements: 0,
+      totalPlacedReleases: 0,
     }
   );
 
@@ -173,5 +205,6 @@ export const getOrgRollup = functions.https.onCall(async (data, context) => {
     org: { id: orgId, name: orgData.name || orgId, slug: orgData.slug || orgId },
     nodes,
     totals: { ...totals, escalationConversionRate },
+    coverageWindowDays: ROLLUP_COVERAGE_DAYS,
   };
 });

@@ -34,6 +34,9 @@ type OrgRollupNode = {
   lastActivityAt: any;
   escalatedInCount: number;
   escalatedInUsedCount: number;
+  /** Optional until the updated getOrgRollup is deployed. */
+  placementCount?: number;
+  placedReleaseCount?: number;
 };
 
 type RollupTotals = {
@@ -45,13 +48,24 @@ type RollupTotals = {
   totalEscalated: number;
   totalEscalatedUsed: number;
   escalationConversionRate: number;
+  totalPlacements?: number;
+  totalPlacedReleases?: number;
 };
 
 type RollupResult = {
   org: { id: string; name: string; slug: string };
   nodes: OrgRollupNode[];
   totals: RollupTotals;
+  coverageWindowDays?: number;
 };
+
+/** Median of a list, for "against the network" — the middle member, not a mean one big member skews. */
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 type ThemeTrendRow = {
   theme: string;
@@ -186,6 +200,8 @@ export default function NetworkRollupPage() {
   if (!canSeeNetwork) return null;
 
   const descendantCount = rollup ? rollup.totals.orgCount - 1 : 0;
+  const hasPlacements = !!rollup && rollup.nodes.some((n) => typeof n.placementCount === 'number');
+  const placementMedian = rollup ? median(rollup.nodes.map((n) => n.placementCount ?? 0)) : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -281,7 +297,12 @@ export default function NetworkRollupPage() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold font-headline">{rollup.totals.totalReleasesSent}</p>
-                    <p className="text-xs text-muted-foreground">Releases Sent Across Network</p>
+                    <p className="text-xs text-muted-foreground">
+                      Releases Sent Across Network
+                      {typeof rollup.totals.totalPlacements === 'number' && (
+                        <> · {rollup.totals.totalPlacements} placements ({rollup.coverageWindowDays ?? 90}d)</>
+                      )}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -323,6 +344,11 @@ export default function NetworkRollupPage() {
                     <TableHead className="text-right">Submissions</TableHead>
                     <TableHead className="text-right">Releases Sent</TableHead>
                     <TableHead className="text-right">Stories Pushed Up</TableHead>
+                    {hasPlacements && (
+                      <TableHead className="text-right" title={`Coverage logged in the last ${rollup.coverageWindowDays ?? 90} days, against the network median`}>
+                        Placements ({rollup.coverageWindowDays ?? 90}d)
+                      </TableHead>
+                    )}
                     <TableHead>Last Activity</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -342,6 +368,18 @@ export default function NetworkRollupPage() {
                             ? `${node.escalatedInCount} (${node.escalatedInUsedCount} drafted)`
                             : '—'}
                         </TableCell>
+                        {hasPlacements && (
+                          <TableCell className="text-right">
+                            {node.placementCount ?? 0}
+                            <span className="ml-1 text-xs text-muted-foreground">
+                              {(node.placementCount ?? 0) > placementMedian
+                                ? 'above median'
+                                : (node.placementCount ?? 0) < placementMedian
+                                  ? 'below median'
+                                  : 'at median'}
+                            </span>
+                          </TableCell>
+                        )}
                         <TableCell className="text-muted-foreground text-sm">
                           {formatActivity(node.lastActivityAt)}
                         </TableCell>
