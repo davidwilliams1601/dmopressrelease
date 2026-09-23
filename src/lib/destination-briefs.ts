@@ -13,16 +13,58 @@
 import type { DestinationBriefTheme } from '@/lib/types';
 
 export const BRIEF_ROUTE_LABELS: Record<DestinationBriefTheme['route'], string> = {
-  ran_without_you: 'Ran without you',
-  you_were_in_it: 'You were in it',
+  ran_without_you: 'Open to you',
+  you_were_in_it: 'You were named',
 };
 
 export const BRIEF_ROUTE_EXPLANATIONS: Record<DestinationBriefTheme['route'], string> = {
   ran_without_you:
-    'None of the coverage in this theme named your organisation or any of your watch terms.',
+    'Outlets were already carrying this theme and none of it named you or your places. It is a route you could join with your own angle.',
   you_were_in_it:
-    'At least one item in this theme named your organisation or one of your watch terms.',
+    'At least one item in this theme named your organisation or one of your places.',
 };
+
+/**
+ * How a theme's route is shown on the page.
+ *
+ * "You were in it" used to cover two different findings: coverage that named the organisation,
+ * and coverage that named one of its places or members without naming it. For a DMO or a
+ * membership body the second is the more useful finding — the story was theirs, the credit was
+ * not — so it gets its own label. The absent case is phrased as an opening, not a failure:
+ * the brief is read by the people it describes, and "ran without you" in red reads as a charge.
+ *
+ * Tolerates briefs stored before orgNamedCount existed by falling back to the combined wording.
+ */
+export type BriefRouteDisplay = {
+  key: 'org_named' | 'place_named' | 'named' | 'open';
+  label: string;
+  explanation: string;
+  tone: 'default' | 'secondary' | 'outline';
+};
+
+export function describeThemeRoute(theme: Pick<DestinationBriefTheme, 'route' | 'orgNamedCount' | 'mentionCount'>): BriefRouteDisplay {
+  if (theme.route === 'ran_without_you') {
+    return { key: 'open', label: BRIEF_ROUTE_LABELS.ran_without_you, explanation: BRIEF_ROUTE_EXPLANATIONS.ran_without_you, tone: 'outline' };
+  }
+  if (typeof theme.orgNamedCount !== 'number') {
+    return { key: 'named', label: 'You or your places were named', explanation: BRIEF_ROUTE_EXPLANATIONS.you_were_in_it, tone: 'default' };
+  }
+  if (theme.orgNamedCount > 0) {
+    return {
+      key: 'org_named',
+      label: 'You were named',
+      explanation: `${theme.orgNamedCount} ${theme.orgNamedCount === 1 ? 'item' : 'items'} in this theme named your organisation directly.`,
+      tone: 'default',
+    };
+  }
+  return {
+    key: 'place_named',
+    label: 'Your places, not your name',
+    explanation:
+      'Coverage named one of your places, events or members, but not your organisation. The story was yours; the credit went elsewhere.',
+    tone: 'secondary',
+  };
+}
 
 export const BRIEF_THEME_KIND_LABELS: Record<DestinationBriefTheme['kind'], string> = {
   watch_term: 'Your own name or asset',
@@ -108,10 +150,10 @@ export function describeResponseWindow(theme: DestinationBriefTheme): string | n
   if (h < 1) return 'A second outlet followed within the hour.';
   if (h < 24) {
     const rounded = Math.round(h);
-    return `A second outlet followed ${rounded} ${rounded === 1 ? 'hour' : 'hours'} later — that was the window to respond.`;
+    return `A second outlet followed ${rounded} ${rounded === 1 ? 'hour' : 'hours'} later, which shows how quickly this theme travels.`;
   }
   const days = Math.round(h / 24);
-  return `A second outlet followed ${days} ${days === 1 ? 'day' : 'days'} later — that was the window to respond.`;
+  return `A second outlet followed ${days} ${days === 1 ? 'day' : 'days'} later, which shows how quickly this theme travels.`;
 }
 
 /**
@@ -145,7 +187,9 @@ export function describeBriefHeadline(totals: {
   }
   return (
     `${themesFound} ${themesFound === 1 ? 'theme' : 'themes'} moved across ${sourcesRepresented} sources in ${period} of coverage. ` +
-    `${themesWithoutMention} of ${themesFound} ran without you named in ${themesWithoutMention === 1 ? 'it' : 'them'}.`
+    (themesWithoutMention
+      ? `${themesWithoutMention} of ${themesFound} did not name you or your places — ${themesWithoutMention === 1 ? 'a route' : 'routes'} you could join.`
+      : `Every one of them named you or your places.`)
   );
 }
 

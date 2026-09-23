@@ -234,6 +234,7 @@ export const generateDestinationBrief = functions
       priorityTopics,
       windowDays,
       itemsScanned: scanned,
+      prospectNames: prospect.name ? [String(prospect.name)] : [],
     });
 
     // A brief with no theme that clears the evidence bar is still written and still

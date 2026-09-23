@@ -117,6 +117,14 @@ export type BriefTheme = {
    *  realistic window an organisation had to respond before the story was already set. */
   responseWindowHours: number | null;
   mentionCount: number;
+  /**
+   * Items that named the organisation itself, as opposed to one of its places or assets.
+   * "Chapel Down wins award" names an asset of Visit Kent; it does not name Visit Kent. The
+   * difference is the whole pitch — the story was theirs, the credit was not — so the brief
+   * reports it separately instead of folding both into one "you were in it".
+   * Absent on briefs generated before this field existed; readers must tolerate undefined.
+   */
+  orgNamedCount?: number;
   /** The honest headline of the whole brief, per theme. */
   route: 'you_were_in_it' | 'ran_without_you';
   evidence: BriefEvidence[];
@@ -419,18 +427,25 @@ export function groupBriefThemes(
 /** Turns one candidate group into a brief theme, or null if it does not clear the bar. */
 export function summariseTheme(
   group: { key: string; label: string; kind: 'topic' | 'watch_term'; items: BriefInputItem[] },
-  watchTerms: string[]
+  watchTerms: string[],
+  prospectNames: string[] = []
 ): BriefTheme | null {
   const items = [...group.items].sort((a, b) => b.publishedAtMs - a.publishedAtMs);
   const sourceIds = new Set(items.map((i) => i.sourceId));
 
   if (items.length < BRIEF_MIN_ITEMS || sourceIds.size < BRIEF_MIN_SOURCES) return null;
 
-  const mentionCount = items.filter((i) => itemNamesProspect(i, watchTerms)).length;
+  // The organisation's own name counts as a mention even when nobody added it as a watch term:
+  // a theme that named them did not run without them.
+  const mentionTerms = [...watchTerms, ...prospectNames];
+  const mentionCount = items.filter((i) => itemNamesProspect(i, mentionTerms)).length;
+  const orgNamedCount = prospectNames.length
+    ? items.filter((i) => itemNamesProspect(i, prospectNames)).length
+    : undefined;
   const firstSeenMs = items[items.length - 1].publishedAtMs;
   const lastSeenMs = items[0].publishedAtMs;
 
-  const evidence = selectThemeEvidence(items, watchTerms, BRIEF_MAX_EVIDENCE_PER_THEME);
+  const evidence = selectThemeEvidence(items, mentionTerms, BRIEF_MAX_EVIDENCE_PER_THEME);
 
   return {
     key: group.key,
@@ -444,6 +459,7 @@ export function summariseTheme(
     spanDays: Math.max(0, Math.round((lastSeenMs - firstSeenMs) / DAY_MS)),
     responseWindowHours: responseWindowHours(items),
     mentionCount,
+    ...(orgNamedCount !== undefined ? { orgNamedCount } : {}),
     route: mentionCount > 0 ? 'you_were_in_it' : 'ran_without_you',
     evidence,
   };
@@ -521,11 +537,14 @@ export function assembleBrief(input: {
   nowMs?: number;
   /** Total items considered before sector/geography filtering, for an honest totals line. */
   itemsScanned?: number;
+  /** The organisation's own name (and any aliases), to tell "named you" from "named your places". */
+  prospectNames?: string[];
 }): BriefContent {
   const windowDays = input.windowDays ?? BRIEF_WINDOW_DAYS;
   const nowMs = input.nowMs ?? Date.now();
   const windowStartMs = nowMs - windowDays * DAY_MS;
   const watchTerms = (input.watchTerms || []).map((t) => t.trim()).filter((t) => t.length >= 3);
+  const prospectNames = (input.prospectNames || []).map((t) => t.trim()).filter((t) => t.length >= 3);
 
   const items = input.items.filter(
     (i) => i.publishedAtMs >= windowStartMs && i.publishedAtMs <= nowMs
@@ -533,15 +552,16 @@ export function assembleBrief(input: {
 
   const themes = rankBriefThemes(
     groupBriefThemes(items, { watchTerms, priorityTopics: input.priorityTopics })
-      .map((g) => summariseTheme(g, watchTerms))
+      .map((g) => summariseTheme(g, watchTerms, prospectNames))
       .filter((t): t is BriefTheme => t !== null)
   ).slice(0, BRIEF_MAX_THEMES);
 
+  const mentionTerms = [...watchTerms, ...prospectNames];
   const appearances = items
-    .filter((i) => itemNamesProspect(i, watchTerms))
+    .filter((i) => itemNamesProspect(i, mentionTerms))
     .sort((a, b) => b.publishedAtMs - a.publishedAtMs)
     .slice(0, BRIEF_MAX_APPEARANCES)
-    .map((i) => toEvidence(i, watchTerms));
+    .map((i) => toEvidence(i, mentionTerms));
 
   const sourcesUsed = [
     ...new Map(items.map((i) => [i.sourceId, { name: i.sourceName, siteUrl: i.sourceSiteUrl ?? null }])).values(),
@@ -567,7 +587,7 @@ export function assembleBrief(input: {
     themesFound: themes.length,
     themesWithMention: themes.filter((t) => t.route === 'you_were_in_it').length,
     themesWithoutMention: themes.filter((t) => t.route === 'ran_without_you').length,
-    appearanceCount: items.filter((i) => itemNamesProspect(i, watchTerms)).length,
+    appearanceCount: items.filter((i) => itemNamesProspect(i, mentionTerms)).length,
   };
 
   return {

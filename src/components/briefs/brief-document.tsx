@@ -20,14 +20,13 @@ import { Separator } from '@/components/ui/separator';
 import {
   BRIEF_FUTURE_STATE_NOTE,
   BRIEF_METHODOLOGY_NOTE,
-  BRIEF_ROUTE_EXPLANATIONS,
   BRIEF_EVIDENCE_ROLE_LABELS,
-  BRIEF_ROUTE_LABELS,
   briefCoveredDays,
   BRIEF_THEME_KIND_LABELS,
   describeBriefHeadline,
   describeBriefTheme,
   describeResponseWindow,
+  describeThemeRoute,
 } from '@/lib/destination-briefs';
 import type { DestinationBriefContent } from '@/lib/types';
 
@@ -112,6 +111,7 @@ export function BriefDocument({
           <h2 className="text-lg font-semibold">Themes that moved</h2>
           {c.themes.map((theme, index) => {
             const window = describeResponseWindow(theme);
+            const route = describeThemeRoute(theme);
             return (
               <Card key={theme.key} className="break-inside-avoid">
                 <CardHeader>
@@ -126,9 +126,7 @@ export function BriefDocument({
                       </CardDescription>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <Badge variant={theme.route === 'ran_without_you' ? 'destructive' : 'default'}>
-                        {BRIEF_ROUTE_LABELS[theme.route]}
-                      </Badge>
+                      <Badge variant={route.tone}>{route.label}</Badge>
                       <span className="text-[11px] text-muted-foreground">
                         {BRIEF_THEME_KIND_LABELS[theme.kind]}
                       </span>
@@ -136,7 +134,7 @@ export function BriefDocument({
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-sm">{BRIEF_ROUTE_EXPLANATIONS[theme.route]}</p>
+                  <p className="text-sm">{route.explanation}</p>
                   {window && <p className="text-sm font-medium">{window}</p>}
                   <Separator />
                   <div>
