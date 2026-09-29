@@ -639,6 +639,7 @@ export const seedMediaSources = functions.https.onCall(async (_data, context) =>
       verticals: seed.verticals,
       outletType: seed.outletType || null,
       geographies: seed.geographies || [],
+      region: seed.region || null,
       defaultTopics: seed.defaultTopics || [],
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -688,6 +689,7 @@ export const upsertMediaSource = functions.https.onCall(async (data, context) =>
     verticals,
     outletType: (data?.outletType as string | undefined) || null,
     geographies: Array.isArray(data?.geographies) ? data.geographies : [],
+    region: typeof data?.region === 'string' && data.region.trim() ? data.region.trim() : null,
     defaultTopics: Array.isArray(data?.defaultTopics) ? data.defaultTopics : [],
     enabled: data?.enabled !== false,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),

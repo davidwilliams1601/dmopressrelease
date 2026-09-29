@@ -261,6 +261,23 @@ export function assessBriefSendability(
   };
 }
 
+/**
+ * Is an item from a source with this region allowed into a brief scoped to `allowedRegions`?
+ *
+ * Sources with no region (national, international, trade) are always allowed. A regional
+ * source is allowed only when its region is on the prospect's list. An empty list means
+ * "not scoped" and lets regional sources from any region through — which is how Kent items
+ * reached the Visit West brief, so the prospect form now asks for regions explicitly.
+ */
+export function sourceAllowedForRegions(
+  sourceRegion: string | null | undefined,
+  allowedRegions: string[]
+): boolean {
+  if (!sourceRegion) return true;
+  if (!allowedRegions.length) return true;
+  return allowedRegions.includes(sourceRegion);
+}
+
 /** Does any watch term appear in this item's headline or feed summary? */
 export function itemNamesProspect(item: BriefInputItem, watchTerms: string[]): boolean {
   const haystack = `${item.title} ${item.summary || ''}`;

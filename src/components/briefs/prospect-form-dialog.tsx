@@ -37,6 +37,9 @@ import type { MediaProspect, VerticalId } from '@/lib/types';
 
 const VERTICALS: VerticalId[] = ['dmo', 'charity', 'trade-body', 'publisher', 'education'];
 
+/** Keep in step with SOURCE_REGIONS in functions/src/media-opportunity-config.ts. */
+const SOURCE_REGIONS = ['Kent', 'West of England'];
+
 export function ProspectFormDialog({
   open,
   onOpenChange,
@@ -58,6 +61,7 @@ export function ProspectFormDialog({
   const [watchTerms, setWatchTerms] = useState('');
   const [topics, setTopics] = useState<string[]>([]);
   const [geographies, setGeographies] = useState<string[]>([]);
+  const [regions, setRegions] = useState<string[]>([]);
   const [campaign, setCampaign] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactRole, setContactRole] = useState('');
@@ -72,6 +76,7 @@ export function ProspectFormDialog({
     setWatchTerms((prospect?.watchTerms || []).join(', '));
     setTopics(prospect?.priorityTopics || []);
     setGeographies(prospect?.priorityGeographies || []);
+    setRegions(prospect?.regions || []);
     setCampaign(prospect?.campaign || '');
     setContactName(prospect?.contactName || '');
     setContactRole(prospect?.contactRole || '');
@@ -101,6 +106,7 @@ export function ProspectFormDialog({
         watchTerms: parsedTerms,
         priorityTopics: topics,
         priorityGeographies: geographies,
+        regions,
         campaign,
         contactName,
         contactRole,
@@ -211,6 +217,23 @@ export function ProspectFormDialog({
                 <button key={geo} type="button" onClick={() => toggle(geographies, setGeographies, geo)}>
                   <Badge variant={geographies.includes(geo) ? 'default' : 'outline'} className="cursor-pointer">
                     {geo}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label>Regions covered</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Local and regional outlets from other regions are left out of this prospect&apos;s brief.
+              National and trade titles are always included. Leave empty only for a national body.
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {SOURCE_REGIONS.map((r) => (
+                <button key={r} type="button" onClick={() => toggle(regions, setRegions, r)}>
+                  <Badge variant={regions.includes(r) ? 'default' : 'outline'} className="cursor-pointer">
+                    {r}
                   </Badge>
                 </button>
               ))}
