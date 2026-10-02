@@ -1,7 +1,7 @@
 import { escapeHtml } from './html-utils';
 import { resolveOrgColors, getAttribution } from './brand-utils';
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.press-pilot.com';
 
 type OrgLike = {
   name?: string;

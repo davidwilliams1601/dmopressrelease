@@ -715,3 +715,13 @@ test('tightened terms still catch genuine visitor-economy stories', () => {
   assert.ok(tag({ title: 'Championship golf tournament returns to Somerset' }).topicTags.includes('Sport'));
   assert.ok(tag({ title: 'Hotel group backs hospitality apprenticeship scheme' }).topicTags.includes('Education'));
 });
+
+test('incident and injury headlines from the Visit West brief are flagged sensitive', () => {
+  for (const title of [
+    'Two people hurt as car crashes into hotel',
+    'Police update after Portway shut for hours as Clifton Suspension Bridge incident unfolds',
+    'A4 Portway closed both ways as police incident unfolds - live updates',
+  ]) {
+    assert.equal(tag({ title }).sensitive, true, title);
+  }
+});

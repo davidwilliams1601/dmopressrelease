@@ -41,7 +41,7 @@ import {
 
 const db = admin.firestore();
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.press-pilot.com';
 
 /** Duplicated per-file by repo convention (see destination-briefs.ts, media-opportunities.ts). */
 function requireSuperAdmin(context: functions.https.CallableContext) {

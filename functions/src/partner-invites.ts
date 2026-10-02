@@ -10,7 +10,7 @@ import { emailHeader, emailFooter, emailButton, emailCallout, getEmailColors } f
 import { orgSender } from './sender';
 
 const db = admin.firestore();
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.press-pilot.com';
 
 function getSendGridKey(): string | null {
   return functions.config().sendgrid?.key || process.env.SENDGRID_API_KEY || null;

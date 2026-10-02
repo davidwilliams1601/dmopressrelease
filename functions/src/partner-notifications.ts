@@ -69,7 +69,7 @@ export const onSubmissionUsed = functions.firestore
         if (releaseDoc.exists) {
           const release = releaseDoc.data()!;
           releaseHeadline = release.headline || '';
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.press-pilot.com';
           releaseUrl = `${appUrl}/releases/${orgSlug}/${release.slug}`;
         }
       }
@@ -298,7 +298,7 @@ export const sendQuarterlyPartnerReport = functions.https.onCall(async (data, co
     })
   );
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.press-pilot.com';
 
   let sentCount = 0;
   const failedRecipients: string[] = [];
@@ -516,7 +516,7 @@ export const previewQuarterlyPartnerReport = functions.https.onCall(async (data,
     })
   );
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.press-pilot.com';
 
   // Pick the first partner that has submissions this quarter, or fall back to the first partner
   let samplePartnerDoc = partnersSnap.docs[0];
@@ -975,7 +975,7 @@ async function sendMonthlyImpactForOrg(
     });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.press-pilot.com';
 
   let sentCount = 0;
   let failedCount = 0;

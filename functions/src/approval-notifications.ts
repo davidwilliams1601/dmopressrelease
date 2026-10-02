@@ -17,7 +17,7 @@ function getFromEmail(): string | null {
 }
 
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.press-pilot.com';
 
 /**
  * Fires when a release's approvalStatus transitions to 'pending'.
