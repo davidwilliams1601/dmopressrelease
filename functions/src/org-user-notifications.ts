@@ -18,7 +18,7 @@ function getFromEmail(): string | null {
 }
 
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dmo-press-release.vercel.app';
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.press-pilot.com';
 
 /**
  * Returns all Admin/User members of an org who have opted in to a given
