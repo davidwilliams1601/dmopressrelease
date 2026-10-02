@@ -38,7 +38,7 @@ import type { MediaProspect, VerticalId } from '@/lib/types';
 const VERTICALS: VerticalId[] = ['dmo', 'charity', 'trade-body', 'publisher', 'education'];
 
 /** Keep in step with SOURCE_REGIONS in functions/src/media-opportunity-config.ts. */
-const SOURCE_REGIONS = ['Kent', 'West of England'];
+const SOURCE_REGIONS = ['Kent', 'West of England', 'Jersey', 'Malta', 'Portugal', 'Las Vegas', 'UAE'];
 
 export function ProspectFormDialog({
   open,

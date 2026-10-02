@@ -1,3 +1,4 @@
+import { REGIONAL_SOURCE_PACKS } from './sources';
 /**
  * Configuration for the Media Opportunities intelligence layer: the deterministic
  * keyword map used for tagging, the sensitive-subject exclusion list, the momentum
@@ -348,7 +349,15 @@ export type SeedSource = {
   defaultTopics?: string[];
 };
 
-export const SOURCE_REGIONS = ['Kent', 'West of England'] as const;
+export const SOURCE_REGIONS = [
+  'Kent',
+  'West of England',
+  'Jersey',
+  'Malta',
+  'Portugal',
+  'Las Vegas',
+  'UAE',
+] as const;
 
 /**
  * The initial curated set, installed by the `seedMediaSources` callable. Small on
@@ -356,7 +365,7 @@ export const SOURCE_REGIONS = ['Kent', 'West of England'] as const;
  * Every URL here was confirmed to return a parseable RSS/Atom document; anything that
  * blocked automated readers or had no feed was left out rather than worked around.
  */
-export const SEED_SOURCES: SeedSource[] = [
+const CORE_SEED_SOURCES: SeedSource[] = [
   {
     id: 'ttg-media',
     name: 'TTG Media',
@@ -654,6 +663,8 @@ export const SEED_SOURCES: SeedSource[] = [
     region: 'West of England',
   },
 ];
+
+export const SEED_SOURCES: SeedSource[] = [...CORE_SEED_SOURCES, ...REGIONAL_SOURCE_PACKS];
 
 /**
  * Feeds checked and deliberately NOT included, kept here so the next person does not
