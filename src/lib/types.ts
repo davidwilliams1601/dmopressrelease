@@ -972,6 +972,8 @@ export type MediaProspect = {
   priorityTopics?: string[];
   /** Controlled-taxonomy geography labels. Empty means no geography filter. */
   priorityGeographies?: string[];
+  /** Named regions whose local outlets feed this prospect's brief (e.g. "West of England"). */
+  regions?: string[];
   /** Internal sales context. Never rendered on a printed brief. */
   notes?: string;
   contactName?: string;

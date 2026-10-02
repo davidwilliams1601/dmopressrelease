@@ -30,7 +30,9 @@ import {
   BRIEF_WINDOW_DAYS,
   BriefInputItem,
   assembleBrief,
+  sourceAllowedForRegions,
 } from './destination-brief-engine';
+import { SEED_SOURCES } from './media-opportunity-config';
 
 const db = admin.firestore();
 
@@ -101,6 +103,7 @@ export const upsertMediaProspect = functions.https.onCall(async (data, context) 
     watchTerms,
     priorityTopics: cleanStringArray(data?.priorityTopics, 20),
     priorityGeographies: cleanStringArray(data?.priorityGeographies, 8),
+    regions: cleanStringArray(data?.regions, 8),
     notes: trimmed(data?.notes, 2000) || null,
     contactName: trimmed(data?.contactName, 160) || null,
     contactRole: trimmed(data?.contactRole, 160) || null,
@@ -138,6 +141,7 @@ async function loadPool(input: {
   vertical: string;
   windowDays: number;
   priorityGeographies: string[];
+  regions: string[];
 }): Promise<{ items: BriefInputItem[]; scanned: number }> {
   const windowStart = admin.firestore.Timestamp.fromMillis(
     Date.now() - input.windowDays * DAY_MS
@@ -156,6 +160,15 @@ async function loadPool(input: {
   const siteUrlById = new Map<string, string | null>(
     sourceSnap.docs.map((d) => [d.id, (d.data().siteUrl as string | null) ?? null])
   );
+  // Region comes from the stored source, falling back to the seed registry so briefs are
+  // scoped correctly even before seedMediaSources is re-run to backfill the field.
+  const seedRegionById = new Map(SEED_SOURCES.map((s) => [s.id, s.region ?? null]));
+  const regionById = new Map<string, string | null>(
+    sourceSnap.docs.map((d) => [
+      d.id,
+      (d.data().region as string | null) ?? seedRegionById.get(d.id) ?? null,
+    ])
+  );
 
   let scanned = 0;
   const items: BriefInputItem[] = [];
@@ -164,6 +177,8 @@ async function loadPool(input: {
     const data = doc.data() as any;
     if (data.sensitive === true) continue;
     if (Array.isArray(data.verticals) && !data.verticals.includes(input.vertical)) continue;
+    const sourceRegion = regionById.get(data.sourceId) ?? seedRegionById.get(data.sourceId) ?? null;
+    if (!sourceAllowedForRegions(sourceRegion, input.regions)) continue;
     scanned += 1;
 
     if (input.priorityGeographies.length) {
@@ -226,6 +241,7 @@ export const generateDestinationBrief = functions
       vertical: prospect.vertical || 'dmo',
       windowDays,
       priorityGeographies: prospect.priorityGeographies || [],
+      regions: prospect.regions || [],
     });
 
     const content = assembleBrief({

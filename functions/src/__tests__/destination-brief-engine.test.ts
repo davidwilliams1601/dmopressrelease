@@ -668,3 +668,50 @@ test('assembleBrief counts org-name appearances in the totals', () => {
   assert.equal(brief.totals.appearanceCount, 1);
   assert.equal(brief.appearances.length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// Region scoping and topic precision (Visit West brief carried Kent items and
+// mis-themed stories)
+// ---------------------------------------------------------------------------
+import { sourceAllowedForRegions as allowRegion } from '../destination-brief-engine';
+import { tagItem as tag } from '../media-opportunity-engine';
+import { SEED_SOURCES as SEEDS } from '../media-opportunity-config';
+
+test('a Kent outlet is excluded from a West of England brief', () => {
+  assert.equal(allowRegion('Kent', ['West of England']), false);
+  assert.equal(allowRegion('West of England', ['West of England']), true);
+});
+
+test('national and trade outlets pass any region scope', () => {
+  assert.equal(allowRegion(null, ['West of England']), true);
+  assert.equal(allowRegion(undefined, ['Kent']), true);
+});
+
+test('every Regional/Local seed source names its region', () => {
+  const missing = SEEDS.filter(
+    (s) => (s.geographies || []).some((g) => g === 'Regional' || g === 'Local') && !s.region
+  ).map((s) => s.id);
+  // TTG-style trade titles tagged Regional alongside National are allowed to be unregioned.
+  const local = missing.filter((id) => SEEDS.find((s) => s.id === id)!.geographies!.includes('Local'));
+  assert.deepEqual(local, []);
+});
+
+test('loose single words no longer mis-theme stories from the Visit West brief', () => {
+  const cases: Array<[string, string]> = [
+    ['Carpenter shines in convincing Sale Prem Cup win', 'Retail openings'],
+    ['University of Bath launches investigation amid rumours of drink spiking', 'Retail openings'],
+    ['Plans for more than 800 homes on former Broke Hill Golf Course rejected', 'Sport'],
+    ['Restaurant to give away 500 free burgers to make dining more accessible', 'Health & wellbeing'],
+    ["Kent school placed into special measures", 'Education'],
+    ['From ads to The Gentlemen red carpet - training dogs for TV', 'Education'],
+  ];
+  for (const [title, topic] of cases) {
+    assert.ok(!tag({ title }).topicTags.includes(topic), `${title} should not be ${topic}`);
+  }
+});
+
+test('tightened terms still catch genuine visitor-economy stories', () => {
+  assert.ok(tag({ title: 'New rooftop bar opens its doors in Bath' }).topicTags.includes('Retail openings'));
+  assert.ok(tag({ title: 'Championship golf tournament returns to Somerset' }).topicTags.includes('Sport'));
+  assert.ok(tag({ title: 'Hotel group backs hospitality apprenticeship scheme' }).topicTags.includes('Education'));
+});

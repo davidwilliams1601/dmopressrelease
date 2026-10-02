@@ -105,9 +105,11 @@ export const TOPIC_TERMS: Record<string, string[]> = {
     'trading update',
   ],
   'Retail openings': [
-    'opens',
-    'opening',
-    'launches',
+    'grand opening',
+    'opens its doors',
+    'now open',
+    'store opening',
+    'shop opening',
     'new store',
     'new shop',
     'high street',
@@ -165,30 +167,30 @@ export const TOPIC_TERMS: Record<string, string[]> = {
     'walking route',
     'cycling route',
     'outdoor activity',
-    'accessible',
-    'accessibility',
-    'inclusive',
+    'accessible tourism',
+    'accessible travel',
   ],
   Education: [
-    'school',
-    'college',
-    'university',
     'apprenticeship',
+    'apprenticeships',
     'skills shortage',
-    'training',
-    'curriculum',
-    'students',
+    'skills gap',
+    'school trip',
+    'school trips',
+    'educational visit',
+    'hospitality training',
+    'tourism training',
     'work experience',
   ],
   Sport: [
     'stadium',
-    'match',
     'tournament',
     'marathon',
     'cycling event',
     'sporting event',
     'championship',
-    'golf',
+    'golf tournament',
+    'golf open',
     'sailing',
   ],
   'Community & charity': [
@@ -327,8 +329,17 @@ export type SeedSource = {
   verticals: string[];
   outletType?: string;
   geographies?: string[];
+  /**
+   * The named region a local/regional outlet covers ('Kent', 'West of England'). Absent for
+   * national, international and trade titles, which are relevant to every prospect.
+   * `geographies` is too coarse to scope a brief — Kent and Bristol are both 'Regional' —
+   * so a destination brief filters on this instead.
+   */
+  region?: string;
   defaultTopics?: string[];
 };
+
+export const SOURCE_REGIONS = ['Kent', 'West of England'] as const;
 
 /**
  * The initial curated set, installed by the `seedMediaSources` callable. Small on
@@ -502,6 +513,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body', 'education'],
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
+    region: 'Kent',
   },
   {
     id: 'kent-live-news',
@@ -512,6 +524,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body', 'education'],
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
+    region: 'Kent',
   },
   {
     id: 'kent-live-whats-on',
@@ -522,6 +535,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'trade-body'],
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
+    region: 'Kent',
     defaultTopics: ['Arts & culture'],
   },
 
@@ -549,6 +563,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body', 'education'],
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
+    region: 'West of England',
   },
   {
     id: 'bbc-somerset',
@@ -559,6 +574,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body', 'education'],
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
+    region: 'West of England',
   },
   {
     id: 'bristol-live-news',
@@ -569,6 +585,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body', 'education'],
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
+    region: 'West of England',
   },
   {
     id: 'bristol-live-whats-on',
@@ -579,6 +596,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'trade-body'],
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
+    region: 'West of England',
     defaultTopics: ['Arts & culture'],
   },
   {
@@ -590,6 +608,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body'],
     outletType: 'local-news',
     geographies: ['Local'],
+    region: 'West of England',
     defaultTopics: ['Arts & culture'],
   },
   {
@@ -601,6 +620,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body'],
     outletType: 'local-news',
     geographies: ['Local'],
+    region: 'West of England',
   },
   {
     id: 'somerset-live-news',
@@ -611,6 +631,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body', 'education'],
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
+    region: 'West of England',
   },
   {
     id: 'bath-echo',
@@ -621,6 +642,7 @@ export const SEED_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body', 'education'],
     outletType: 'local-news',
     geographies: ['Local'],
+    region: 'West of England',
   },
 ];
 
