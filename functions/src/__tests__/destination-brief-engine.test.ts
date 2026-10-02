@@ -725,3 +725,15 @@ test('incident and injury headlines from the Visit West brief are flagged sensit
     assert.equal(tag({ title }).sensitive, true, title);
   }
 });
+
+import { SOURCE_REGIONS as REGIONS } from '../media-opportunity-config';
+import { REGIONAL_SOURCE_PACKS as PACKS } from '../sources';
+
+test('every regional pack source names a known region, and seed ids are unique', () => {
+  for (const s of PACKS) {
+    assert.ok(s.region && (REGIONS as readonly string[]).includes(s.region), `${s.id} region`);
+    assert.ok(s.feedUrl.startsWith('https://'), `${s.id} https`);
+  }
+  const ids = SEEDS.map((s) => s.id);
+  assert.equal(new Set(ids).size, ids.length);
+});

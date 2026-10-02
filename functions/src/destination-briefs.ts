@@ -147,16 +147,51 @@ async function loadPool(input: {
     Date.now() - input.windowDays * DAY_MS
   );
 
-  const snap = await db
-    .collection('mediaItems')
-    .where('publishedAt', '>=', windowStart)
-    .orderBy('publishedAt', 'desc')
-    .limit(MAX_POOL_ITEMS)
-    .get();
-
   // Source names and site URLs are read once and cached, so a brief's source list can name
   // outlets properly rather than showing raw IDs.
   const sourceSnap = await db.collection('mediaSources').get();
+  const seedRegionFor = new Map(SEED_SOURCES.map((s) => [s.id, s.region ?? null]));
+
+  // A region-scoped brief reads only the sources it may use. Reading the whole window and
+  // filtering afterwards stops working once the registry carries several high-volume regional
+  // packs: the newest MAX_POOL_ITEMS across every region would crowd out the older half of
+  // this prospect's window. Needs the (sourceId, publishedAt desc) index on mediaItems.
+  const allowedSourceIds = input.regions.length
+    ? sourceSnap.docs
+        .filter((d) =>
+          sourceAllowedForRegions(
+            (d.data().region as string | null) ?? seedRegionFor.get(d.id) ?? null,
+            input.regions
+          )
+        )
+        .map((d) => d.id)
+    : null;
+
+  const docs: admin.firestore.QueryDocumentSnapshot[] = [];
+  if (allowedSourceIds) {
+    for (let i = 0; i < allowedSourceIds.length; i += 30) {
+      const chunk = allowedSourceIds.slice(i, i + 30);
+      const part = await db
+        .collection('mediaItems')
+        .where('sourceId', 'in', chunk)
+        .where('publishedAt', '>=', windowStart)
+        .orderBy('publishedAt', 'desc')
+        .limit(MAX_POOL_ITEMS)
+        .get();
+      docs.push(...part.docs);
+    }
+    docs.sort((a, b) => b.get('publishedAt').toMillis() - a.get('publishedAt').toMillis());
+    docs.splice(MAX_POOL_ITEMS);
+  } else {
+    const snap = await db
+      .collection('mediaItems')
+      .where('publishedAt', '>=', windowStart)
+      .orderBy('publishedAt', 'desc')
+      .limit(MAX_POOL_ITEMS)
+      .get();
+    docs.push(...snap.docs);
+  }
+  const snap = { docs };
   const siteUrlById = new Map<string, string | null>(
     sourceSnap.docs.map((d) => [d.id, (d.data().siteUrl as string | null) ?? null])
   );
