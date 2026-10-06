@@ -357,6 +357,7 @@ export const SOURCE_REGIONS = [
   'Portugal',
   'Las Vegas',
   'UAE',
+  'UK & Ireland',
 ] as const;
 
 /**
