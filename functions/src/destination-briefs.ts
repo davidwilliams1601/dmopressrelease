@@ -31,6 +31,7 @@ import {
   BriefInputItem,
   assembleBrief,
   sourceAllowedForRegions,
+  isProspectOwnSource,
 } from './destination-brief-engine';
 import { SEED_SOURCES } from './media-opportunity-config';
 
@@ -143,7 +144,10 @@ async function loadPool(input: {
   windowDays: number;
   priorityGeographies: string[];
   regions: string[];
-}): Promise<{ items: BriefInputItem[]; scanned: number }> {
+  /** Prospect name + watch terms, used to drop the prospect's own channels. */
+  ownTerms: string[];
+  ownSourceIds: string[];
+}): Promise<{ items: BriefInputItem[]; scanned: number; ownSourcesExcluded: string[] }> {
   const windowStart = admin.firestore.Timestamp.fromMillis(
     Date.now() - input.windowDays * DAY_MS
   );
@@ -206,6 +210,21 @@ async function loadPool(input: {
     ])
   );
 
+  const ownSourceIds = new Set(
+    sourceSnap.docs
+      .filter((d) =>
+        isProspectOwnSource(
+          { id: d.id, name: d.data().name, siteUrl: d.data().siteUrl },
+          input.ownTerms,
+          input.ownSourceIds
+        )
+      )
+      .map((d) => d.id)
+  );
+  const ownSourcesExcluded = sourceSnap.docs
+    .filter((d) => ownSourceIds.has(d.id))
+    .map((d) => String(d.data().name || d.id));
+
   let scanned = 0;
   const items: BriefInputItem[] = [];
 
@@ -215,6 +234,7 @@ async function loadPool(input: {
     if (Array.isArray(data.verticals) && !data.verticals.includes(input.vertical)) continue;
     const sourceRegion = regionById.get(data.sourceId) ?? seedRegionById.get(data.sourceId) ?? null;
     if (!sourceAllowedForRegions(sourceRegion, input.regions)) continue;
+    if (ownSourceIds.has(data.sourceId)) continue;
     scanned += 1;
 
     if (input.priorityGeographies.length) {
@@ -237,7 +257,7 @@ async function loadPool(input: {
     });
   }
 
-  return { items, scanned };
+  return { items, scanned, ownSourcesExcluded };
 }
 
 /**
@@ -273,11 +293,13 @@ export const generateDestinationBrief = functions
     const watchTerms: string[] = prospect.watchTerms || [];
     const priorityTopics: string[] = prospect.priorityTopics || [];
 
-    const { items, scanned } = await loadPool({
+    const { items, scanned, ownSourcesExcluded } = await loadPool({
       vertical: prospect.vertical || 'dmo',
       windowDays,
       priorityGeographies: prospect.priorityGeographies || [],
       regions: prospect.regions || [],
+      ownTerms: [String(prospect.name || ''), ...watchTerms],
+      ownSourceIds: prospect.ownSourceIds || [],
     });
 
     const content = assembleBrief({
@@ -288,6 +310,11 @@ export const generateDestinationBrief = functions
       itemsScanned: scanned,
       prospectNames: prospect.name ? [String(prospect.name)] : [],
     });
+    if (ownSourcesExcluded.length) {
+      content.gaps.push(
+        `Your own channels (${ownSourcesExcluded.join(', ')}) are excluded: what you publish yourself is not coverage, so it is not counted as you being named.`
+      );
+    }
 
     // A brief with no theme that clears the evidence bar is still written and still
     // returned. That is a real finding about the source set and the window, and quietly
@@ -297,6 +324,7 @@ export const generateDestinationBrief = functions
       prospectId,
       prospectName: prospect.name,
       watchTermsUsed: watchTerms,
+      ownSourcesExcluded,
       priorityTopicsUsed: priorityTopics,
       content,
       generatorVersion: BRIEF_GENERATOR_VERSION,

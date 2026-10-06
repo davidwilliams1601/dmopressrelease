@@ -737,3 +737,15 @@ test('every regional pack source names a known region, and seed ids are unique',
   const ids = SEEDS.map((s) => s.id);
   assert.equal(new Set(ids).size, ids.length);
 });
+
+import { isProspectOwnSource as ownSource } from '../destination-brief-engine';
+
+test("a prospect's own feed is recognised and excluded", () => {
+  const terms = ['UK Inbound', 'UKinbound', 'Joss Croft'];
+  assert.equal(ownSource({ id: 'ukinbound', name: 'UKinbound', siteUrl: 'https://www.ukinbound.org' }, terms), true);
+  assert.equal(ownSource({ id: 'x', name: 'Some Feed', siteUrl: 'https://ukinbound.org/news' }, terms), true);
+  assert.equal(ownSource({ id: 'ttg', name: 'TTG Media', siteUrl: 'https://www.ttgmedia.com' }, terms), false);
+  assert.equal(ownSource({ id: 'bbc-jersey', name: 'BBC News — Jersey' }, ['Visit Jersey']), false);
+  assert.equal(ownSource({ id: 'tourism-alliance', name: 'Tourism Alliance' }, ['Tourism Alliance']), true);
+  assert.equal(ownSource({ id: 'lovin-malta', name: 'Lovin Malta' }, ['Visit Malta'], ['lovin-malta']), true);
+});

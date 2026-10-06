@@ -154,7 +154,7 @@ export function BriefDocument({
                           </a>
                           <div className="text-xs text-muted-foreground">
                             {ev.sourceName} · {formatDate(ev.publishedAtMs)}
-                            {ev.namesProspect && ' · names you'}
+                            {ev.namesProspect && ' · mentions you or your places'}
                             {ev.role && BRIEF_EVIDENCE_ROLE_LABELS[ev.role] && !ev.namesProspect && (
                               <span className="ml-1 font-medium text-foreground">
                                 · {BRIEF_EVIDENCE_ROLE_LABELS[ev.role]}

@@ -278,6 +278,33 @@ export function sourceAllowedForRegions(
   return allowedRegions.includes(sourceRegion);
 }
 
+/**
+ * Is this source the prospect's own channel? A prospect's own newsroom, blog or press page is
+ * not earned coverage, so it must not count as "you were named" — otherwise a body that
+ * publishes its members' news (UKinbound, a chamber, a DMO with a feed) is "named" in every
+ * item it wrote itself. Matched on the source name or site domain against the prospect's name
+ * and watch terms, ignoring case, spaces and punctuation, plus any explicitly listed ids.
+ */
+export function isProspectOwnSource(
+  source: { id: string; name?: string | null; siteUrl?: string | null },
+  prospectTerms: string[],
+  explicitIds: string[] = []
+): boolean {
+  if (explicitIds.includes(source.id)) return true;
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const terms = prospectTerms.map(norm).filter((t) => t.length >= 5);
+  if (!terms.length) return false;
+  const name = norm(source.name || '');
+  let host = '';
+  try {
+    host = source.siteUrl ? new URL(source.siteUrl).hostname.replace(/^www\./, '') : '';
+  } catch {
+    host = '';
+  }
+  const domainLabel = norm(host.split('.')[0] || '');
+  return terms.some((t) => t === name || (domainLabel.length >= 5 && t === domainLabel));
+}
+
 /** Does any watch term appear in this item's headline or feed summary? */
 export function itemNamesProspect(item: BriefInputItem, watchTerms: string[]): boolean {
   const haystack = `${item.title} ${item.summary || ''}`;
