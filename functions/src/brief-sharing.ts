@@ -155,7 +155,7 @@ export const revokeBriefShareLink = functions.https.onCall(async (data, context)
  * Recording the view happens here rather than in a separate call so that a view is only ever
  * counted against a link that actually served a document.
  */
-export const getSharedBrief = functions.https.onCall(async (data) => {
+export const getSharedBrief = functions.https.onCall(async (data, context) => {
   const token = trimmed(data?.token, 200);
   const viewerId = trimmed(data?.viewerId, 100) || null;
   if (!token) {
@@ -195,6 +195,12 @@ export const getSharedBrief = functions.https.onCall(async (data) => {
     // A brief pulled back to draft stops being shareable immediately — otherwise a link
     // created while it was final would outlive the decision to withdraw it.
     throw new functions.https.HttpsError('permission-denied', 'This brief is no longer available.');
+  }
+
+  // Press Pilot's own superadmins checking a link before or after sending it are not readers.
+  // Counting them made "opened by 2 readers" mean "opened by the prospect and by us".
+  if (context.auth?.token?.superAdmin) {
+    return buildSharedBriefPayload(brief);
   }
 
   const seen: string[] = Array.isArray(link.seenViewerIds) ? link.seenViewerIds.map(String) : [];

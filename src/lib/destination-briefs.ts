@@ -106,7 +106,7 @@ export const BRIEF_METHODOLOGY_NOTE =
  * would make this document dishonest is blurring that line.
  */
 export const BRIEF_FUTURE_STATE_NOTE =
-  'We produced this brief by hand, once. Press Pilot is the system that does it continuously: ' +
+  'This brief is a single snapshot. Press Pilot does the same work continuously: ' +
   'it watches these sources for you, groups coverage into themes as it emerges, and tells your team ' +
   'when a theme is moving and one of your members has a story that belongs in it. It recommends a route ' +
   'and drafts the brief; your team decides whether to act. It never contacts a journalist on your behalf.';

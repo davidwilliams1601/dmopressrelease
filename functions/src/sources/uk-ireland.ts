@@ -7,6 +7,10 @@ import type { SeedSource } from '../media-opportunity-config';
  * trade titles (TTG, UKinbound, Tourism Alliance, GOV.UK VisitBritain); this pack adds
  * national and devolved-nation news, hospitality trade, and Irish national press.
  *
+ * ABTA News and UKHospitality added 6 October 2026: trade-body newsrooms that regularly report
+ * joint work with UKinbound. Rejected then: Hotel News Resource (no feed), TravelMole, Travel
+ * Gossip, Group Travel World, ALVA (0 items), Leisure Opportunities (invalid pubDate), Routes (403).
+ *
  * Every feed checked 6 October 2026 with the declared USER_AGENT and returned a current,
  * parseable document. Rejected: Travel Weekly and Travolution (feed returns 0 items), The
  * Caterer and Hospitality Ireland (404), Irish Times travel section (404), BreakingNews.ie
@@ -144,6 +148,28 @@ export const UKIRELAND_SOURCES: SeedSource[] = [
     verticals: ['dmo', 'charity', 'trade-body', 'education'],
     outletType: 'national-news',
     geographies: ['Regional'],
+    region: 'UK & Ireland',
+  },
+  {
+    id: 'abta-news',
+    name: 'ABTA News',
+    feedUrl: 'https://www.abta.com/news/rss',
+    siteUrl: 'https://www.abta.com',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body', 'education'],
+    outletType: 'trade',
+    geographies: ['National (UK)'],
+    region: 'UK & Ireland',
+  },
+  {
+    id: 'ukhospitality',
+    name: 'UKHospitality',
+    feedUrl: 'https://www.ukhospitality.org.uk/feed/',
+    siteUrl: 'https://www.ukhospitality.org.uk',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body', 'education'],
+    outletType: 'trade',
+    geographies: ['National (UK)'],
     region: 'UK & Ireland',
   },
 ];
