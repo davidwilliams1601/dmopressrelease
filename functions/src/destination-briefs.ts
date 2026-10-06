@@ -43,8 +43,9 @@ export const BRIEF_GENERATOR_VERSION = 'brief-1';
 
 /** Hard ceiling on the item pool read for one brief. A 30-day window across the current
  *  source set is well inside this; the cap exists so a future 200-feed registry cannot
- *  turn one button press into an unbounded read. */
-const MAX_POOL_ITEMS = 4000;
+ *  turn one button press into an unbounded read. Raised from 4,000 when the UK & Ireland pack
+ *  added several high-volume national feeds to a single region. */
+const MAX_POOL_ITEMS = 12000;
 
 /** Duplicated per-file by repo convention (see media-opportunities.ts, media-network.ts). */
 function requireSuperAdmin(context: functions.https.CallableContext) {
