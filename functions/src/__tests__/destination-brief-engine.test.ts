@@ -749,3 +749,16 @@ test("a prospect's own feed is recognised and excluded", () => {
   assert.equal(ownSource({ id: 'tourism-alliance', name: 'Tourism Alliance' }, ['Tourism Alliance']), true);
   assert.equal(ownSource({ id: 'lovin-malta', name: 'Lovin Malta' }, ['Visit Malta'], ['lovin-malta']), true);
 });
+
+test('policy headlines form a Tourism policy theme; loose words do not', () => {
+  for (const title of [
+    'Visitor levy for England confirmed in Autumn Budget',
+    'ETA fee rise will deter overseas visitors, industry warns',
+    'Tourism minister meets inbound tourism leaders',
+  ]) {
+    assert.ok(tag({ title }).topicTags.includes('Tourism policy'), title);
+  }
+  for (const title of ['Visa card outage hits shoppers', 'Family budget squeeze deepens']) {
+    assert.ok(!tag({ title }).topicTags.includes('Tourism policy'), title);
+  }
+});

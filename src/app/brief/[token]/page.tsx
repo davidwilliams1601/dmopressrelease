@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getAuth } from 'firebase/auth';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -94,7 +95,12 @@ export default function SharedBriefPage() {
 
     (async () => {
       try {
-        const fn = httpsCallable(getFunctions(getClientApp()), 'getSharedBrief');
+        const app = getClientApp();
+        // Wait for any existing sign-in to restore, so a Press Pilot superadmin's token rides
+        // along and their check of the link is not counted as a reader. Prospects are never
+        // signed in, so for them this resolves immediately with no user.
+        await getAuth(app).authStateReady();
+        const fn = httpsCallable(getFunctions(app), 'getSharedBrief');
         const res = await fn({ token, viewerId: getViewerId() });
         setBrief(res.data as SharedBrief);
       } catch (err: any) {

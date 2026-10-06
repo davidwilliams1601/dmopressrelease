@@ -66,6 +66,7 @@ const DEFAULT_MEDIA_TAXONOMY: Record<MediaTaxonomyCategory, string[]> = {
     'Education',
     'Sport',
     'Community & charity',
+    'Tourism policy',
   ],
 };
 
