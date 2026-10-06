@@ -327,6 +327,12 @@ function toEvidence(
   };
 }
 
+/** An item from a home-market outlet: national, regional or local, not only international. */
+export function isHomeMarketItem(item: BriefInputItem): boolean {
+  const geos = item.geographyTags || [];
+  return geos.some((g) => g !== 'International');
+}
+
 /**
  * Chooses which items in a theme are shown as evidence.
  *
@@ -377,8 +383,15 @@ export function selectThemeEvidence(
   );
   take(chrono[chrono.length - 1], 'latest');
 
-  // 5. Spread the remainder across the window instead of clustering on one date.
-  const remaining = chrono.filter((i) => !picked.has(i.id));
+  // 5. Spread the remainder across the window instead of clustering on one date. Home-market
+  //    items go first: international trade wires (Skift, Hospitality Net, Blooloop) publish
+  //    so much that an even spread across a theme is mostly Dubai, Nashville and Mykonos,
+  //    which tells a UK or regional reader nothing about their own press. International
+  //    items only fill slots the home market cannot.
+  const notPicked = chrono.filter((i) => !picked.has(i.id));
+  const home = notPicked.filter(isHomeMarketItem);
+  const slotsLeft = limit - picked.size;
+  const remaining = home.length >= slotsLeft ? home : notPicked;
   const slots = limit - picked.size;
   if (slots > 0 && remaining.length) {
     if (remaining.length <= slots) {
@@ -517,6 +530,22 @@ export function summariseTheme(
  * makes the case. Within each group, breadth of coverage wins over volume, because five
  * outlets carrying a story matters more than one outlet carrying it five times.
  */
+/**
+ * Cuts ranked themes to the limit without ever cutting one the prospect was named in.
+ *
+ * rankBriefThemes puts "routes you could join" first, which is right, but a plain slice then
+ * meant being covered could knock a theme out of the brief: UKinbound's Tourism policy and
+ * Tourism & travel themes vanished behind Sport and Food & drink because ABTA had named them.
+ * Named themes are kept (best first, up to the limit) and open themes fill what is left, in
+ * rank order.
+ */
+export function keepNamedThemes(ranked: BriefTheme[], limit: number): BriefTheme[] {
+  const named = ranked.filter((t) => t.route !== 'ran_without_you').slice(0, limit);
+  const open = ranked.filter((t) => t.route === 'ran_without_you').slice(0, limit - named.length);
+  const keep = new Set([...named, ...open]);
+  return ranked.filter((t) => keep.has(t));
+}
+
 export function rankBriefThemes(themes: BriefTheme[]): BriefTheme[] {
   return [...themes].sort((a, b) => {
     if (a.route !== b.route) return a.route === 'ran_without_you' ? -1 : 1;
@@ -594,11 +623,12 @@ export function assembleBrief(input: {
     (i) => i.publishedAtMs >= windowStartMs && i.publishedAtMs <= nowMs
   );
 
-  const themes = rankBriefThemes(
+  const ranked = rankBriefThemes(
     groupBriefThemes(items, { watchTerms, priorityTopics: input.priorityTopics })
       .map((g) => summariseTheme(g, watchTerms, prospectNames))
       .filter((t): t is BriefTheme => t !== null)
-  ).slice(0, BRIEF_MAX_THEMES);
+  );
+  const themes = keepNamedThemes(ranked, BRIEF_MAX_THEMES);
 
   const mentionTerms = [...watchTerms, ...prospectNames];
   const appearances = items

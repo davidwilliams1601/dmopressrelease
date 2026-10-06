@@ -93,7 +93,12 @@ export const TOPIC_TERMS: Record<string, string[]> = {
   ],
   'Business & investment': [
     'investment',
-    'funding',
+    // Not bare 'funding': it tagged royal household finances and public sector pay deals.
+    'funding boost',
+    'funding secured',
+    'secured funding',
+    'new funding',
+    'capital funding',
     'grant',
     'regeneration',
     'levelling up',

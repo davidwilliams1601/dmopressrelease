@@ -762,3 +762,29 @@ test('policy headlines form a Tourism policy theme; loose words do not', () => {
     assert.ok(!tag({ title }).topicTags.includes('Tourism policy'), title);
   }
 });
+
+import { keepNamedThemes, isHomeMarketItem } from '../destination-brief-engine';
+
+test('named themes survive the theme limit', () => {
+  const mk = (id: string, route: string) => ({ key: id, route } as any);
+  const ranked = [mk('a', 'ran_without_you'), mk('b', 'ran_without_you'), mk('c', 'ran_without_you'), mk('n', 'named_you')];
+  const kept = keepNamedThemes(ranked, 3).map((t: any) => t.key);
+  assert.deepEqual(kept, ['a', 'b', 'n']);
+});
+
+test('evidence spans prefer home-market outlets over international wires', () => {
+  const day = 24 * 60 * 60 * 1000;
+  const items: any[] = [];
+  for (let n = 0; n < 12; n += 1) {
+    const intl = n % 3 !== 0;
+    items.push({
+      id: `i${n}`, sourceId: intl ? `wire${n % 2}` : `uk${n}`, sourceName: 'x', title: `t${n}`, url: `u${n}`,
+      publishedAtMs: n * day, topicTags: [], geographyTags: intl ? ['International'] : ['National (UK)'],
+    });
+  }
+  const ev = selectThemeEvidence(items, [], 6);
+  const spans = ev.filter((e) => e.role === 'span').map((e) => e.mediaItemId);
+  for (const id of spans) {
+    assert.ok(isHomeMarketItem(items.find((i) => i.id === id)), id);
+  }
+});
