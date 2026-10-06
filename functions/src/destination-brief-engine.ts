@@ -63,6 +63,8 @@ export const SENDABLE_MIN_OUTLETS_ON_ABSENT_THEME = 3;
 export const SENDABLE_MIN_SOURCES_REPRESENTED = 4;
 
 export type BriefInputItem = {
+  /** The outlet's declared geographies, from the source registry. */
+  sourceGeographies?: string[];
   id: string;
   sourceId: string;
   sourceName: string;
@@ -329,7 +331,10 @@ function toEvidence(
 
 /** An item from a home-market outlet: national, regional or local, not only international. */
 export function isHomeMarketItem(item: BriefInputItem): boolean {
-  const geos = item.geographyTags || [];
+  // Judged on the OUTLET's declared coverage, not the item's text tags: text tagging adds
+  // Local/Regional for any story containing 'town', 'council' or 'region', which made a
+  // Blooloop piece on Six Flags California count as home-market.
+  const geos = item.sourceGeographies?.length ? item.sourceGeographies : item.geographyTags || [];
   return geos.some((g) => g !== 'International');
 }
 

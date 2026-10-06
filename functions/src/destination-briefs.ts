@@ -197,6 +197,15 @@ async function loadPool(input: {
     docs.push(...snap.docs);
   }
   const snap = { docs };
+  const seedGeosById = new Map(SEED_SOURCES.map((s) => [s.id, s.geographies || []]));
+  const geosById = new Map<string, string[]>(
+    sourceSnap.docs.map((d) => [
+      d.id,
+      (Array.isArray(d.data().geographies) && d.data().geographies.length
+        ? d.data().geographies
+        : seedGeosById.get(d.id)) || [],
+    ])
+  );
   const siteUrlById = new Map<string, string | null>(
     sourceSnap.docs.map((d) => [d.id, (d.data().siteUrl as string | null) ?? null])
   );
@@ -248,6 +257,7 @@ async function loadPool(input: {
       sourceId: data.sourceId,
       sourceName: data.sourceName,
       sourceSiteUrl: siteUrlById.get(data.sourceId) ?? null,
+      sourceGeographies: geosById.get(data.sourceId) ?? [],
       title: data.title,
       url: data.url,
       summary: data.summary,

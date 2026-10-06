@@ -788,3 +788,9 @@ test('evidence spans prefer home-market outlets over international wires', () =>
     assert.ok(isHomeMarketItem(items.find((i) => i.id === id)), id);
   }
 });
+
+test('home market is judged on the outlet, not text tags', () => {
+  const base: any = { id: 'x', sourceId: 's', sourceName: 'Blooloop', title: 't', url: 'u', publishedAtMs: 0, topicTags: [] };
+  assert.equal(isHomeMarketItem({ ...base, geographyTags: ['International', 'Local'], sourceGeographies: ['International'] }), false);
+  assert.equal(isHomeMarketItem({ ...base, geographyTags: ['International'], sourceGeographies: ['National (UK)'] }), true);
+});
