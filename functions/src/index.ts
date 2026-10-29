@@ -115,6 +115,26 @@ async function executeSendJob(
   }
   const org = orgDoc.data();
 
+  // Demo orgs never send real email. Their contacts are fictional (.example) and a
+  // live demo should be able to press Send without anything leaving the platform.
+  // The job is completed as a simulation so the release reads as sent in the UI.
+  if (org?.isDemo === true) {
+    await jobRef.update({
+      status: 'completed',
+      simulated: true,
+      sentCount: sendJob.totalRecipients || 0,
+      failedCount: 0,
+      completedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await releaseDoc.ref.update({
+      status: 'Sent',
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`[DEMO] Simulated send job ${jobId} for demo org ${orgId}; no email sent.`);
+    return;
+  }
+
   // Fetch all recipients from selected outlet lists, tracking each one's full document
   // path (recipientRef) and identity so Smart Distribution merging/dedupe below can use them.
   const recipients: any[] = [];

@@ -357,6 +357,9 @@ async function runGeneration(onlyOrgId?: string): Promise<GenerateSummary> {
     summary.orgsConsidered += 1;
     const org = orgDoc.data() as any;
     const orgId = orgDoc.id;
+    // Demo orgs show seeded, fictional opportunities. Never mix live news from other
+    // regions into them (and never overwrite the seeded cards).
+    if (org.isDemo === true) continue;
 
     const settingsSnap = await db
       .collection('orgs')

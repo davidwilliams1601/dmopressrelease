@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { stageNetworkContactRef } from './network-contact-refs';
+import { demoNetworkContacts } from './demo-tranquility';
 
 const db = admin.firestore();
 
@@ -353,10 +354,15 @@ export const generateRecommendations = functions.https.onCall(async (data, conte
   const walletSnap = await db.collection('orgs').doc(orgId).collection('creditWallet').doc('summary').get();
   const isSuspended = walletSnap.exists && walletSnap.data()?.smartDistributionSuspended === true;
 
-  const networkSnap = isSuspended
-    ? { docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] }
-    : await db.collection('mediaNetworkContacts').where('networkStatus', '==', 'active').get();
-  for (const doc of networkSnap.docs) {
+  // Demo orgs are matched against a fictional, anonymised network instead of the real
+  // one, so a demo never surfaces real journalists' beats or locations.
+  const isDemoOrg = orgSnap.exists && orgSnap.data()?.isDemo === true;
+  const networkDocs: Array<{ id: string; data: () => FirebaseFirestore.DocumentData }> = isSuspended
+    ? []
+    : isDemoOrg
+      ? demoNetworkContacts().map((c) => ({ id: c.id, data: () => c as FirebaseFirestore.DocumentData }))
+      : (await db.collection('mediaNetworkContacts').where('networkStatus', '==', 'active').get()).docs;
+  for (const doc of networkDocs) {
     const contact = doc.data();
     const elig = eligibilityForNetworkContact(contact);
     if (!elig.eligible) continue;

@@ -118,6 +118,15 @@ service cloud.firestore {
         && request.resource.data.get('childOrgDefaultTier', null) == resource.data.get('childOrgDefaultTier', null);
     }
 
+    /**
+     * The demo flag switches an org to simulated sends and fictional network data,
+     * so only the super-admin demo seeder (Admin SDK) may set or clear it.
+     */
+    function demoFieldsUnchanged() {
+      return request.resource.data.get('isDemo', null) == resource.data.get('isDemo', null)
+        && request.resource.data.get('demoSeededAt', null) == resource.data.get('demoSeededAt', null);
+    }
+
 
     /**
      * @description Rules for the top-level Organization documents.
@@ -132,7 +141,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
       allow create: if false;
-      allow update: if isOrgAdmin(orgId) && resource != null && billingFieldsUnchanged() && federationFieldsUnchanged();
+      allow update: if isOrgAdmin(orgId) && resource != null && billingFieldsUnchanged() && federationFieldsUnchanged() && demoFieldsUnchanged();
       allow delete: if false;
 
       // Private billing state (Stripe ids, subscription status, trial, card-on-file).
