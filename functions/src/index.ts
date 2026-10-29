@@ -119,6 +119,27 @@ async function executeSendJob(
   // live demo should be able to press Send without anything leaving the platform.
   // The job is completed as a simulation so the release reads as sent in the UI.
   if (org?.isDemo === true) {
+    // A follow-up send to one alternative contact records that contact as delivered,
+    // so the demo's follow-up view moves on exactly as it would for a real org.
+    if (Array.isArray(sendJob.targetRecipientRefs)) {
+      for (const ref of sendJob.targetRecipientRefs as string[]) {
+        const snap = await db.doc(ref).get();
+        if (!snap.exists) continue;
+        const r = snap.data()!;
+        await jobRef.collection('recipients').add({
+          orgId,
+          sendJobId: jobId,
+          source: 'customer_contact',
+          recipientRef: ref,
+          name: r.name || '',
+          email: r.email || '',
+          outlet: r.outlet || '',
+          deliveryStatus: 'delivered',
+          simulated: true,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    }
     await jobRef.update({
       status: 'completed',
       simulated: true,
@@ -157,10 +178,16 @@ async function executeSendJob(
   // Drop recipients the sender deliberately unticked in the send dialog (see
   // send-exclusions.ts). Done before identity tracking so an excluded customer contact
   // doesn't also suppress a matching Smart Distribution recommendation.
-  const { kept: includedRecipients, excluded: excludedRecipients } = applyExclusions(
+  const { kept: keptRecipients, excluded: excludedRecipients } = applyExclusions(
     recipients,
     Array.isArray(sendJob.excludedRecipientRefs) ? sendJob.excludedRecipientRefs : []
   );
+  // Follow-ups: a job created by approachAlternativeContact targets named contacts
+  // only, never the whole list they happen to live in.
+  const targetRefs: string[] | null = Array.isArray(sendJob.targetRecipientRefs) ? sendJob.targetRecipientRefs : null;
+  const includedRecipients = targetRefs
+    ? keptRecipients.filter((r) => targetRefs.includes(r.recipientRef))
+    : keptRecipients;
   if (excludedRecipients.length > 0) {
     console.log(`Send job ${jobId}: ${excludedRecipients.length} recipient(s) excluded by sender`);
   }
@@ -260,6 +287,12 @@ async function executeSendJob(
       // resolveNetworkContactRef, never written onto this client-readable row.
       ...(entry.networkContactRef ? { networkContactRef: entry.networkContactRef } : {}),
       ...(entry.recommendationSnapshotId ? { recommendationSnapshotId: entry.recommendationSnapshotId } : {}),
+      // Follow-ups: a snapshot of who this was, for the org's own contacts only, so the
+      // follow-up view still reads correctly if the contact is later edited or deleted.
+      // Never written for network contacts, whose identity stays hidden.
+      ...(!entry.networkContactRef
+        ? { name: entry.name || '', email: entry.email || '', outlet: entry.outlet || '' }
+        : {}),
       deliveryStatus: 'pending',
       createdAt: now,
     });
@@ -1128,6 +1161,9 @@ export * from './media-taxonomy';
 export * from './media-network';
 export * from './credits';
 export * from './recommendations';
+
+// Follow-ups: send a release to an alternative contact at an outlet that hasn't engaged.
+export * from './follow-ups';
 
 // Export Media Opportunities (intelligence layer) functions.
 // Read-only and recommendation-only by design: nothing in this module sends anything.

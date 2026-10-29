@@ -48,6 +48,8 @@ export type OrgBranding = {
 
 export type Organization = {
   id: string;
+  /** Demo organisation: sends are simulated and live data feeds are skipped. */
+  isDemo?: boolean;
   name: string;
   slug: string;
   boilerplate: string;
@@ -142,6 +144,8 @@ export type User = {
 export type Release = {
   id: string;
   orgId: string;
+  /** Set when the team closes follow-ups for this release (see FollowUpCard). */
+  followUpsClosedAt?: FirestoreTimestamp | null;
   /** Set when the release was started from a Media Opportunity card. */
   sourceOpportunityId?: string | null;
   sourceOpportunityTitle?: string | null;
@@ -330,6 +334,12 @@ export type SendJob = {
   /** Server-computed at creation: how many of `excludedRecipientRefs` actually existed
    *  in the selected lists. `totalRecipients` already has these taken off. */
   excludedCount?: number;
+  /** Follow-ups: a send to named contacts only (see approachAlternativeContact). */
+  targetRecipientRefs?: string[];
+  kind?: 'alternative_contact';
+  followUpOf?: { recipientRef: string; name: string };
+  /** Demo orgs: the send was simulated and nothing left the platform. */
+  simulated?: boolean;
 
   // --- Smart Distribution additions (Phase 4; all optional, additive) ---
   /** Set by the client at creation: whether this send should also include the
@@ -754,6 +764,20 @@ export type SendJobRecipient = {
   /** Set once an automatic refund has been issued for this row (see field doc above). */
   refundTransactionId?: string;
   deliveryStatus: 'pending' | 'delivered' | 'bounced_hard' | 'bounced_soft' | 'suppressed' | 'failed';
+  // --- Follow-ups (all optional; rows written before this change have none) ---
+  /** Snapshot of the org's own contact at send time. Never set for network contacts. */
+  name?: string;
+  email?: string;
+  outlet?: string;
+  /** Engagement recorded by the SendGrid webhook against this exact row. */
+  opens?: number;
+  clicks?: number;
+  firstOpenedAt?: FirestoreTimestamp;
+  lastOpenedAt?: FirestoreTimestamp;
+  firstClickedAt?: FirestoreTimestamp;
+  lastClickedAt?: FirestoreTimestamp;
+  /** Unsubscribed or reported as spam: never follow up. */
+  optedOut?: boolean;
   /** Set when deliveryStatus is 'suppressed' or 'failed' before an actual send attempt
    *  (e.g. failed the final pre-send eligibility/dedupe recheck, or the org's credit
    *  balance was insufficient at the moment this recipient's turn came up). */
@@ -1184,4 +1208,29 @@ export type CoverageReportShareLink = {
   viewCount: number;
   distinctViewerCount: number;
   lastViewedAtMs: number | null;
+};
+
+/**
+ * A follow-up logged against one recipient of one release.
+ * Path: orgs/{orgId}/releases/{releaseId}/followUps/{followUpKey}
+ */
+export type ReleaseFollowUp = {
+  id: string;
+  orgId: string;
+  releaseId: string;
+  recipientRef?: string;
+  name?: string;
+  outlet?: string;
+  outletKey?: string;
+  status: 'followed_up' | 'off_platform' | 'no_follow_up' | 'alternative_sent';
+  channel?: 'email' | 'phone' | 'linkedin' | 'whatsapp' | 'in_person' | 'other' | null;
+  outcome?: 'replied' | 'interview' | 'coverage' | 'declined' | null;
+  hook?: string;
+  note?: string;
+  count?: number;
+  alternativeRecipientRef?: string;
+  alternativeName?: string;
+  alternativeSendJobId?: string;
+  updatedAt?: FirestoreTimestamp;
+  updatedBy?: string;
 };

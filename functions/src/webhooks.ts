@@ -1,4 +1,5 @@
 import * as functions from 'firebase-functions';
+import { engagementUpdateFor } from './follow-up-core';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { refundSmartDistributionCredit } from './credits';
@@ -265,15 +266,41 @@ async function claimWebhookEventAndIncrementCounters(op: {
   eventData: any;
   statRef: FirebaseFirestore.DocumentReference;
   eventType: string;
+  recipientRowRef?: FirebaseFirestore.DocumentReference;
 }): Promise<boolean> {
   return db.runTransaction(async (tx) => {
     const existing = await tx.get(op.eventRef);
+    // Follow-ups: read the per-recipient send row in the same transaction (reads must
+    // come before writes) so engagement is recorded exactly once per event.
+    const row = op.recipientRowRef ? await tx.get(op.recipientRowRef) : null;
     if (existing.exists) {
       // Already claimed by a prior delivery of this exact event — no-op.
       return false;
     }
 
     tx.set(op.eventRef, op.eventData);
+
+    if (row && row.exists) {
+      const rowData = row.data() || {};
+      const update = engagementUpdateFor(op.eventType, {
+        hasFirstOpened: !!rowData.firstOpenedAt,
+        hasFirstClicked: !!rowData.firstClickedAt,
+      });
+      if (update) {
+        const at = op.eventData.timestamp || admin.firestore.Timestamp.now();
+        const fields: Record<string, any> = {};
+        if (update.increment) fields[update.increment] = admin.firestore.FieldValue.increment(1);
+        if (update.setFirstOpened) fields.firstOpenedAt = at;
+        if (update.setLastOpened) fields.lastOpenedAt = at;
+        if (update.setFirstClicked) fields.firstClickedAt = at;
+        if (update.setLastClicked) fields.lastClickedAt = at;
+        if (update.optOut) {
+          fields.optedOut = true;
+          fields.optedOutAt = at;
+        }
+        tx.update(op.recipientRowRef!, fields);
+      }
+    }
 
     if (op.eventType === 'open' || op.eventType === 'click') {
       const field = op.eventType === 'open' ? 'opens' : 'clicks';
@@ -329,6 +356,7 @@ export const handleSendGridWebhook = functions
       eventData: any;
       statRef: FirebaseFirestore.DocumentReference;
       eventType: string;
+      recipientRowRef?: FirebaseFirestore.DocumentReference;
     }> = [];
 
     for (const event of events) {
@@ -444,7 +472,16 @@ export const handleSendGridWebhook = functions
           .collection('releases').doc(releaseId!)
           .collection('dailyStats').doc(dateStr);
 
-        operations.push({ eventRef, dailyRef, eventData, statRef, eventType });
+        // Follow-ups: engagement is also recorded on the per-recipient send row, which
+        // is how opens and clicks are attributed without relying on email matching
+        // (network contacts' addresses are never stored on team-readable events).
+        const recipientRowRef =
+          sendJobId && sendJobRecipientId && ['open', 'click', 'unsubscribe', 'spam_report'].includes(eventType)
+            ? db.collection('orgs').doc(orgId!).collection('sendJobs').doc(sendJobId)
+                .collection('recipients').doc(sendJobRecipientId)
+            : undefined;
+
+        operations.push({ eventRef, dailyRef, eventData, statRef, eventType, recipientRowRef });
       }
     }
 

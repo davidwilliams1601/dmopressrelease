@@ -250,6 +250,12 @@ type DemoDataset = {
   pressContact?: { name: string; email: string; phone?: string };
   editorialPriorities?: string;
   creditBalance?: number;
+  /** Completed send jobs with per-recipient rows. `__ORG__` in a recipientRef becomes `orgs/{orgId}`. */
+  sendJobs?: Array<Record<string, unknown> & { id: string; recipients: Array<Record<string, unknown> & { id: string }> }>;
+  /** Tracked email events (orgs/{orgId}/events). */
+  events?: Array<Record<string, unknown> & { id: string }>;
+  /** Logged follow-ups (orgs/{orgId}/releases/{releaseId}/followUps). */
+  followUps?: Array<Record<string, unknown> & { id: string; releaseId: string }>;
 };
 
 /**
@@ -336,7 +342,14 @@ export const resetDemoOrg = functions
       'networkContactRefs',
       'partnerEmails',
     ];
-    await Promise.all(collectionsToWipe.map((c) => deleteCollectionDocs(orgRef.collection(c))));
+    // releases and sendJobs carry subcollections (followUps, counters, recipients),
+    // which a plain collection delete would leave behind for the next seed to inherit.
+    const recursive = new Set(['releases', 'sendJobs']);
+    await Promise.all(
+      collectionsToWipe.map((c) =>
+        recursive.has(c) ? db.recursiveDelete(orgRef.collection(c)) : deleteCollectionDocs(orgRef.collection(c))
+      )
+    );
 
     // Old seeded member businesses (e.g. the retired Cornwall set). Real team members
     // and any partners invited by hand are left alone.
@@ -466,6 +479,47 @@ async function writeDemoData(orgId: string) {
       oppBatch.set(orgRef.collection('mediaOpportunities').doc(o.id as string), { ...o, orgId });
     }
     await oppBatch.commit();
+  }
+
+  // Send history with per-recipient engagement, tracked events and logged follow-ups
+  const orgPath = `orgs/${orgId}`;
+  const withOrg = (v: unknown) => (typeof v === 'string' ? v.replace('__ORG__', orgPath) : v);
+  for (const job of dataset.sendJobs || []) {
+    const { id, recipients, ...jobData } = job;
+    const jobRef = orgRef.collection('sendJobs').doc(id);
+    await jobRef.set({ ...jobData, orgId });
+    const batch = db.batch();
+    for (const r of recipients) {
+      const { id: rid, ...row } = r;
+      batch.set(jobRef.collection('recipients').doc(rid), {
+        ...row,
+        recipientRef: withOrg(row.recipientRef),
+        orgId,
+        sendJobId: id,
+      });
+    }
+    await batch.commit();
+  }
+  if (dataset.events?.length) {
+    for (let i = 0; i < dataset.events.length; i += 400) {
+      const batch = db.batch();
+      for (const e of dataset.events.slice(i, i + 400)) {
+        batch.set(orgRef.collection('events').doc(e.id), { ...e, orgId });
+      }
+      await batch.commit();
+    }
+  }
+  if (dataset.followUps?.length) {
+    const batch = db.batch();
+    for (const f of dataset.followUps) {
+      const { id, ...rest } = f;
+      batch.set(orgRef.collection('releases').doc(f.releaseId).collection('followUps').doc(id), {
+        ...rest,
+        recipientRef: withOrg(rest.recipientRef),
+        orgId,
+      });
+    }
+    await batch.commit();
   }
 
   // Display-only credit balance so the Smart Distribution step doesn't warn about
