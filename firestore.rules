@@ -304,6 +304,20 @@ service cloud.firestore {
      *            item pool — but it is stored rather than recomputed so a figure that has been
      *            posted publicly can be reproduced later with the sample size behind it.
      */
+    /**
+     * @description Log of super-admin emails to customer organisations.
+     * @path /adminEmails/{emailId} (+ /recipients/{recipientId})
+     * @principle Written only by Cloud Functions; readable only by super-admins.
+     */
+    match /adminEmails/{emailId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+      match /recipients/{recipientId} {
+        allow read: if isSuperAdmin();
+        allow write: if false;
+      }
+    }
+
     match /coverageBenchmarks/{benchmarkId} {
       allow read: if isSuperAdmin();
       allow write: if false;
