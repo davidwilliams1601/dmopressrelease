@@ -28,6 +28,7 @@ import {
   Radio,
   Radar,
   Award,
+  Mail,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
@@ -114,6 +115,18 @@ export default function AppSidebar() {
                   <a href="/dashboard/admin/orgs">
                     <Building2 />
                     <span>Organisations</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/dashboard/admin/email')}
+                  tooltip={{ children: 'Email Organisations' }}
+                >
+                  <a href="/dashboard/admin/email">
+                    <Mail />
+                    <span>Email Organisations</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -18,6 +18,7 @@ interface UserData {
   notificationPrefs?: {
     partnerSubmissions: boolean;
     mediaRequests: boolean;
+    platformUpdates?: boolean;
   };
 }
 

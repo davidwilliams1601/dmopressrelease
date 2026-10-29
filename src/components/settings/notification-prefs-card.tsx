@@ -18,15 +18,17 @@ export default function NotificationPrefsCard() {
   // Default to true (opt-out model) when prefs haven't been saved yet
   const [partnerSubmissions, setPartnerSubmissions] = useState(true);
   const [mediaRequests, setMediaRequests] = useState(true);
+  const [platformUpdates, setPlatformUpdates] = useState(true);
 
   useEffect(() => {
     if (notificationPrefs) {
       setPartnerSubmissions(notificationPrefs.partnerSubmissions ?? true);
       setMediaRequests(notificationPrefs.mediaRequests ?? true);
+      setPlatformUpdates(notificationPrefs.platformUpdates ?? true);
     }
   }, [notificationPrefs]);
 
-  const save = async (prefs: { partnerSubmissions: boolean; mediaRequests: boolean }) => {
+  const save = async (prefs: { partnerSubmissions: boolean; mediaRequests: boolean; platformUpdates: boolean }) => {
     if (!user || !orgId) return;
     try {
       const userRef = doc(firestore, 'orgs', orgId, 'users', user.uid);
@@ -38,12 +40,17 @@ export default function NotificationPrefsCard() {
 
   const handlePartnerSubmissions = (checked: boolean) => {
     setPartnerSubmissions(checked);
-    save({ partnerSubmissions: checked, mediaRequests });
+    save({ partnerSubmissions: checked, mediaRequests, platformUpdates });
   };
 
   const handleMediaRequests = (checked: boolean) => {
     setMediaRequests(checked);
-    save({ partnerSubmissions, mediaRequests: checked });
+    save({ partnerSubmissions, mediaRequests: checked, platformUpdates });
+  };
+
+  const handlePlatformUpdates = (checked: boolean) => {
+    setPlatformUpdates(checked);
+    save({ partnerSubmissions, mediaRequests, platformUpdates: checked });
   };
 
   return (
@@ -86,6 +93,21 @@ export default function NotificationPrefsCard() {
             id="notif-media-requests"
             checked={mediaRequests}
             onCheckedChange={handleMediaRequests}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor="notif-platform-updates" className="text-sm font-medium">
+              Product updates from Press Pilot
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              New features, tips and invitations. You&apos;ll still get account, billing and security notices.
+            </p>
+          </div>
+          <Switch
+            id="notif-platform-updates"
+            checked={platformUpdates}
+            onCheckedChange={handlePlatformUpdates}
           />
         </div>
       </CardContent>

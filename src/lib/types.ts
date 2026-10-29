@@ -134,6 +134,8 @@ export type User = {
   notificationPrefs?: {
     partnerSubmissions: boolean;
     mediaRequests: boolean;
+    /** Product updates from Press Pilot (super-admin emails). Missing = opted in. */
+    platformUpdates?: boolean;
   };
 };
 

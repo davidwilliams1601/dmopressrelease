@@ -375,6 +375,11 @@ export default function AdminOrgsPage() {
                           currentParentOrgId={org.parentOrgId}
                           onUpdated={loadReport}
                         />
+                        <Button variant="ghost" size="sm" asChild title={`Email ${org.name}`}>
+                          <a href={`/dashboard/admin/email?orgId=${encodeURIComponent(org.id)}`}>
+                            <Mail className="h-4 w-4" />
+                          </a>
+                        </Button>
                         <ResetPasswordDialog
                           orgName={org.name}
                           adminEmail={org.adminEmail}

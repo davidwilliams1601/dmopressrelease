@@ -1145,6 +1145,7 @@ export * from './coverage-benchmark';
 
 // Export super-admin functions
 export * from './super-admin';
+export * from './admin-email';
 
 // Export billing / self-serve signup functions
 export * from './billing';
