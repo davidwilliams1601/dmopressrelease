@@ -50,6 +50,8 @@ export const onSubmissionUsed = functions.firestore
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       if (!orgDoc.exists) return;
       const orgData = orgDoc.data()!;
+      // Demo member businesses have fictional addresses; never email them.
+      if (orgData.isDemo === true) return;
       const orgName = orgData.name || 'Your organisation';
       const orgSlug = orgData.slug || orgId;
       const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
@@ -158,6 +160,8 @@ export const onSubmissionApproved = functions.firestore
       const orgDoc = await db.collection('orgs').doc(orgId).get();
       if (!orgDoc.exists) return;
       const orgData = orgDoc.data()!;
+      // Demo member businesses have fictional addresses; never email them.
+      if (orgData.isDemo === true) return;
       const orgName = orgData.name || 'Your organisation';
       const brandedOrg = { name: orgName, branding: orgData.branding, tier: orgData.tier };
       const colors = getEmailColors(brandedOrg);

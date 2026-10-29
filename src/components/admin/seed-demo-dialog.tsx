@@ -72,8 +72,8 @@ export function SeedDemoDialog({ orgId, orgName, mode, onDone }: SeedDemoDialogP
           <DialogTitle>{isReset ? 'Reset Demo Data' : 'Seed Demo Data'}</DialogTitle>
           <DialogDescription>
             {isReset
-              ? `This will wipe all releases, outlet lists, submissions, and partner accounts from ${orgName} and replace them with fresh demo data. Admin users will not be affected. Use this before a demo call.`
-              : `This will add demo releases, partners, outlet lists, and submissions to ${orgName}. Only use this on demo organisations — not real customer accounts.`}
+              ? `This will wipe releases, outlet lists, submissions, coverage, opportunities, recommendations and demo partner accounts from ${orgName} and replace them with the fictional Tranquility demo data. Admin users are not affected, and sends from this org will be simulated. Use this before a demo call.`
+              : `This will add fictional demo releases, partners, outlet lists, submissions, coverage and opportunities to ${orgName}, and mark it as a demo org (simulated sends, no live news feeds). Only use this on demo organisations, never on real customer accounts.`}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

@@ -21,6 +21,7 @@
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { demoPeerBenchmark } from './demo-tranquility';
 import { randomBytes } from 'crypto';
 import { promises as dns } from 'dns';
 import {
@@ -408,6 +409,14 @@ export const getPeerCoverageBenchmark = functions.https.onCall(async (data, cont
   const vertical = (orgSnap.get('vertical') as string) || 'dmo';
   const sinceMs = Date.now() - PEER_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
+  // Demo orgs get fixed, illustrative peer figures rather than counts derived from
+  // real customers' coverage.
+  if (orgSnap.get('isDemo') === true) {
+    const own = await db.collection('orgs').doc(orgId).collection('coverage')
+      .where('publishedAtMs', '>=', sinceMs).count().get();
+    return { windowDays: PEER_WINDOW_DAYS, vertical, benchmark: demoPeerBenchmark(own.data().count), demo: true };
+  }
+
   const countFor = async (id: string): Promise<{ ever: boolean; recent: number }> => {
     const col = db.collection('orgs').doc(id).collection('coverage');
     const [any, recent] = await Promise.all([
@@ -426,6 +435,10 @@ export const getPeerCoverageBenchmark = functions.https.onCall(async (data, cont
     if (!d.get('vertical')) ids.add(d.id);
   });
   ids.delete(orgId);
+  // Demo orgs carry invented coverage; keep them out of real customers' benchmarks.
+  for (const d of [...peersSnap.docs, ...(legacySnap?.docs ?? [])]) {
+    if (d.get('isDemo') === true) ids.delete(d.id);
+  }
 
   const [own, ...peerCounts] = await Promise.all([countFor(orgId), ...[...ids].map(countFor)]);
   const peers = peerCounts.filter((p) => p.ever).map((p) => p.recent);

@@ -55,6 +55,9 @@ export const onNewPartnerSubmission = functions.firestore
   .onCreate(async (snap, context) => {
     const { orgId, submissionId } = context.params;
     const submission = snap.data();
+    // Seeding or resetting a demo org writes its sample submissions in one go; don't
+    // email the team a notification for each one.
+    if (submissionId.startsWith('demo-sub-')) return;
 
     const key = getSendGridKey();
     const fromEmail = getFromEmail();
