@@ -190,6 +190,37 @@ service cloud.firestore {
         allow read: if isTeamMember(orgId);
         allow write: if false;
       }
+
+      // Follow-ups logged by the team against each recipient of this release.
+      // Team members may record that they followed up (by email from their own
+      // mailbox, or off platform) and the outcome. 'alternative_sent' is written only
+      // by the approachAlternativeContact callable, which performs a real send, so a
+      // client can neither create it nor overwrite one.
+      match /followUps/{followUpId} {
+        allow read: if isTeamMember(orgId);
+        allow create: if isTeamMember(orgId) && validFollowUp(orgId, releaseId)
+          && request.resource.data.status in ['followed_up', 'off_platform', 'no_follow_up'];
+        allow update: if isTeamMember(orgId) && validFollowUp(orgId, releaseId)
+          && request.resource.data.orgId == resource.data.orgId
+          && (
+            (resource.data.status != 'alternative_sent'
+              && request.resource.data.status in ['followed_up', 'off_platform', 'no_follow_up'])
+            || (resource.data.status == 'alternative_sent'
+                && request.resource.data.status == 'alternative_sent'
+                && request.resource.data.alternativeRecipientRef == resource.data.alternativeRecipientRef
+                && request.resource.data.alternativeSendJobId == resource.data.alternativeSendJobId)
+          );
+        allow delete: if false;
+      }
+    }
+
+    function validFollowUp(orgId, releaseId) {
+      let d = request.resource.data;
+      return d.orgId == orgId
+        && d.releaseId == releaseId
+        && (!('outcome' in d) || d.outcome == null || d.outcome in ['replied', 'interview', 'coverage', 'declined'])
+        && (!('channel' in d) || d.channel == null || d.channel in ['email', 'phone', 'linkedin', 'whatsapp', 'in_person', 'other'])
+        && (!('note' in d) || (d.note is string && d.note.size() <= 1000));
     }
     /**
      * @description Rules for Outlet List documents within an organization.

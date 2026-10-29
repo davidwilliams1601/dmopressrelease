@@ -97,10 +97,25 @@ Visit Tranquility is the official destination marketing organisation for Tranqui
         { id: 'demo-r-14', name: 'Rhys Daniels', email: 'rhys@shorelinepodcast.example', outlet: 'The Shoreline Podcast', position: 'Host', outletType: 'podcast', editorialFocus: ['Sustainability & environment', 'Sport & physical activity'], geography: ['Regional'], topics: ['Sustainability', 'Sport'], relationshipStatus: 'unknown' },
       ],
     },
+    {
+      // Second contacts at outlets already on the main lists. Not part of routine sends;
+      // this is where the follow-up view finds an alternative when the first contact
+      // at an outlet hasn't opened.
+      id: 'demo-list-desks',
+      name: 'Other Desk Contacts',
+      description: 'Second contacts at our key outlets, for when the usual contact is away or not responding.',
+      recipients: [
+        { id: 'demo-r-15', name: 'Jess Holloway', email: 'jess.holloway@dailycourier.example', outlet: 'The Daily Courier', position: 'Digital Travel Editor', outletType: 'national-news', editorialFocus: ['Tourism & destinations', 'Events & culture'], geography: ['National (UK)'], topics: ['Tourism & travel', 'Arts & culture'], relationshipStatus: 'known' },
+        { id: 'demo-r-16', name: 'Kofi Mensah', email: 'kofi@wanderlist.example', outlet: 'Wanderlist', position: 'Deputy Editor', outletType: 'creator', editorialFocus: ['Tourism & destinations'], geography: ['National (UK)'], topics: ['Tourism & travel'], relationshipStatus: 'unknown' },
+        { id: 'demo-r-17', name: 'Ruth Adeyemi', email: 'ruth@regionalbusiness.example', outlet: 'Tranquility Business Review', position: 'Reporter', outletType: 'trade', editorialFocus: ['Independent business & retail', 'Tourism & destinations'], geography: ['Regional'], topics: ['Business & investment', 'Tourism & travel'], relationshipStatus: 'published' },
+        { id: 'demo-r-18', name: 'Ellie Shaw', email: 'ellie@coastlinemagazine.example', outlet: 'Coastline Magazine', position: 'Wellbeing Editor', outletType: 'national-news', editorialFocus: ['Health & wellbeing'], geography: ['National (UK)'], topics: ['Health & wellbeing'], relationshipStatus: 'unknown' },
+        { id: 'demo-r-19', name: 'Daniel Frost', email: 'd.frost@weekendtraveller.example', outlet: 'The Weekend Traveller', position: 'Deputy Travel Editor', outletType: 'national-news', editorialFocus: ['Tourism & destinations'], geography: ['National (UK)'], topics: ['Tourism & travel'], relationshipStatus: 'known' },
+      ],
+    },
   ];
 
   // ---------------------------------------------------------------------------
-  // Releases: one draft, two ready (approved), two sent.
+  // Releases: one draft, two ready (approved), three sent.
   // ---------------------------------------------------------------------------
   const releases: Array<Record<string, unknown>> = [
     {
@@ -168,6 +183,29 @@ The three-day pass also includes discounted bike hire from Two Rivers Cycle Hire
 "More of our visitors are asking how to visit without a car, and now we have a simple answer," said ${D.spokesperson}, ${D.spokespersonTitle}. "The Coast Pass turns the journey into part of the holiday."
 
 The pass is on sale now through participating accommodation and at the Tranquility Bay visitor centre.
+
+${boilerplate}`,
+    },
+    {
+      id: 'demo-release-6',
+      headline: 'Valley Line Heritage Railway Adds Winter Steam Specials and a Dining Car',
+      slug: 'valley-line-winter-steam-specials',
+      campaignType: 'Seasonal',
+      targetMarket: 'UK',
+      audience: 'Consumer',
+      status: 'Sent',
+      sends: 14, opens: 0, clicks: 0, // set from the seeded engagement below
+      createdAt: ago(9),
+      updatedAt: ago(5),
+      sentAt: ago(5),
+      smartDistribution: { editorialFocus: ['Tourism & destinations', 'Events & culture'], geographies: ['National (UK)', 'Regional'], topics: ['Tourism & travel', 'Arts & culture'] },
+      bodyCopy: `The Valley Line Heritage Railway will run winter steam specials through the Stillwater Valley every weekend from late November, with a restored 1930s dining car serving a menu from Saltwork Kitchen.
+
+The two-hour return journey stops at five food-trail villages, and passengers can break their trip for lunch, a cider tasting at Stillwater Cider Press or a walk on the Larkspur Downs.
+
+"Winter is when the valley is at its most beautiful, and the railway is the best way to see it," said ${D.spokesperson}, ${D.spokespersonTitle}. "It gives visitors a reason to come in the quietest months, and it brings custom to the villages along the line."
+
+Tickets for the steam specials go on sale this week, with dining car packages from £48 per person.
 
 ${boilerplate}`,
     },
@@ -489,6 +527,135 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
     nc('9', ['Tourism & destinations'], ['National (UK)', 'International'], ['Tourism & travel'], 'broadcast', 'UK travel broadcaster', [[['Tourism & travel'], 50]]),
   ];
 
+  // ---------------------------------------------------------------------------
+  // The recent send (demo-release-6), with per-recipient engagement, so the
+  // follow-up view has every case to show: clicked, opened, not opened (with and
+  // without an alternative contact at the outlet), a logged reply and a bounce.
+  // ---------------------------------------------------------------------------
+  // Three working days ago at 09:30 UTC, so the send never lands on a weekend and
+  // both the clicked (1 day) and opened (2 day) follow-up windows are open.
+  const send6At = (() => {
+    let t = nowMs;
+    let back = 0;
+    while (back < 3) {
+      t -= DAY_MS;
+      const d = new Date(t).getUTCDay();
+      if (d !== 0 && d !== 6) back++;
+    }
+    const day = new Date(t);
+    day.setUTCHours(9, 30, 0, 0);
+    return day;
+  })();
+  const send6Ms = send6At.getTime();
+  const engagement: Record<string, { opens: number; clicks: number; bounced?: boolean }> = {
+    'demo-r-1': { opens: 3, clicks: 2 },
+    'demo-r-2': { opens: 2, clicks: 0 },
+    'demo-r-3': { opens: 4, clicks: 1 },
+    'demo-r-4': { opens: 0, clicks: 0 },
+    'demo-r-5': { opens: 1, clicks: 0 },
+    'demo-r-6': { opens: 0, clicks: 0 },
+    'demo-r-7': { opens: 2, clicks: 0 },
+    'demo-r-8': { opens: 0, clicks: 0 },
+    'demo-r-9': { opens: 1, clicks: 1 },
+    'demo-r-10': { opens: 1, clicks: 0 },
+    'demo-r-11': { opens: 0, clicks: 0 },
+    'demo-r-12': { opens: 0, clicks: 0 },
+    'demo-r-13': { opens: 2, clicks: 0 },
+    'demo-r-14': { opens: 0, clicks: 0, bounced: true },
+  };
+  const at = (hoursAfterSend: number) => new Date(send6Ms + hoursAfterSend * 60 * 60 * 1000);
+  const sentLists = outletLists.filter((l) => l.id !== 'demo-list-desks');
+  const sendJobRecipients = sentLists.flatMap((list) =>
+    list.recipients.map((r, i) => {
+      const e = engagement[r.id] || { opens: 0, clicks: 0 };
+      const firstOpen = e.opens > 0 || e.clicks > 0 ? at(2 + i) : null;
+      const firstClick = e.clicks > 0 ? at(3 + i) : null;
+      return {
+        id: `demo-sjr-${r.id.replace('demo-r-', '')}`,
+        source: 'customer_contact',
+        recipientRef: `__ORG__/outletLists/${list.id}/recipients/${r.id}`,
+        name: r.name,
+        email: r.email,
+        outlet: r.outlet,
+        deliveryStatus: e.bounced ? 'bounced_hard' : 'delivered',
+        opens: e.opens,
+        clicks: e.clicks,
+        ...(firstOpen ? { firstOpenedAt: firstOpen, lastOpenedAt: at(2 + i + (e.opens - 1) * 20) } : {}),
+        ...(firstClick ? { firstClickedAt: firstClick, lastClickedAt: firstClick } : {}),
+        createdAt: send6At,
+      };
+    })
+  );
+  const sendJobs = [
+    {
+      id: 'demo-job-6',
+      releaseId: 'demo-release-6',
+      outletListIds: sentLists.map((l) => l.id),
+      status: 'completed',
+      simulated: true,
+      totalRecipients: sendJobRecipients.length,
+      sentCount: sendJobRecipients.length,
+      failedCount: 0,
+      includeSmartDistributionRecommendations: false,
+      createdAt: send6At,
+      startedAt: send6At,
+      completedAt: send6At,
+      createdBy: 'demo-seed',
+      recipients: sendJobRecipients,
+    },
+  ];
+  const events: Array<Record<string, unknown> & { id: string }> = [];
+  for (const row of sendJobRecipients) {
+    const n = row.id.replace('demo-sjr-', '');
+    const base = { releaseId: 'demo-release-6', recipientEmail: row.email, metadata: {} };
+    if (row.deliveryStatus === 'bounced_hard') {
+      events.push({ id: `demo-ev-${n}-bounce`, ...base, eventType: 'bounce', timestamp: at(0.1) });
+      continue;
+    }
+    events.push({ id: `demo-ev-${n}-delivered`, ...base, eventType: 'delivered', timestamp: at(0.05) });
+    for (let k = 0; k < row.opens; k++) {
+      events.push({ id: `demo-ev-${n}-open-${k}`, ...base, eventType: 'open', timestamp: at(2 + Number(n) + k * 20) });
+    }
+    for (let k = 0; k < row.clicks; k++) {
+      events.push({ id: `demo-ev-${n}-click-${k}`, ...base, eventType: 'click', timestamp: at(3 + Number(n) + k * 20), metadata: { url: `https://${D.domain}/news/valley-line-winter-steam` } });
+    }
+  }
+  const release6 = releases.find((r) => r.id === 'demo-release-6')!;
+  release6.sentAt = send6At;
+  release6.updatedAt = send6At;
+  release6.opens = sendJobRecipients.reduce((sum, r) => sum + r.opens, 0);
+  release6.clicks = sendJobRecipients.reduce((sum, r) => sum + r.clicks, 0);
+
+  // Two follow-ups already logged by the team: a reply, and a phone call.
+  const followUps = [
+    {
+      id: 'demo-list-national__demo-r-7',
+      releaseId: 'demo-release-6',
+      recipientRef: '__ORG__/outletLists/demo-list-national/recipients/demo-r-7',
+      name: 'Aisha Rahman',
+      outlet: 'Green Journeys',
+      status: 'followed_up',
+      channel: 'email',
+      outcome: 'replied',
+      count: 1,
+      updatedAt: ago(2),
+      updatedBy: 'demo-seed',
+    },
+    {
+      id: 'demo-list-regional__demo-r-10',
+      releaseId: 'demo-release-6',
+      recipientRef: '__ORG__/outletLists/demo-list-regional/recipients/demo-r-10',
+      name: 'Sam Whitfield',
+      outlet: 'Coast & Valley Radio',
+      status: 'off_platform',
+      channel: 'phone',
+      outcome: 'interview',
+      count: 1,
+      updatedAt: ago(1),
+      updatedBy: 'demo-seed',
+    },
+  ];
+
   return {
     boilerplate,
     pressContact: { name: D.spokesperson, email: `press@${D.domain}`, phone: '' },
@@ -502,6 +669,9 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
     opportunities,
     opportunitySettings,
     networkContacts,
+    sendJobs,
+    events,
+    followUps,
     creditBalance: 250,
   };
 }

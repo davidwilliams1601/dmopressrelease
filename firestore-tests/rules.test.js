@@ -564,3 +564,42 @@ describe('/coverageReportLinks/{token} — callable-only', () => {
     await assertFails(setDoc(doc(superAdminCtx().firestore(), 'coverageReportLinks', 'new'), { orgId: ORG_A }));
   });
 });
+
+describe('/orgs/{orgId}/releases/{releaseId}/followUps/{id} — logged follow-ups', () => {
+  const fuPath = ['orgs', ORG_A, 'releases', 'rel-1', 'followUps', 'list-1__r-1'];
+  const valid = { orgId: ORG_A, releaseId: 'rel-1', status: 'followed_up', channel: 'email', outcome: null };
+
+  beforeEach(async () => {
+    await seedOrgMembers();
+  });
+
+  test('team member can log a follow-up and its outcome', async () => {
+    const db = teamCtx().firestore();
+    await assertSucceeds(setDoc(doc(db, ...fuPath), valid));
+    await assertSucceeds(updateDoc(doc(db, ...fuPath), { outcome: 'replied' }));
+  });
+
+  test('team member cannot write alternative_sent (server-only, it is a real send)', async () => {
+    const db = teamCtx().firestore();
+    await assertFails(setDoc(doc(db, ...fuPath), { ...valid, status: 'alternative_sent' }));
+  });
+
+  test('team member can add an outcome to an alternative_sent record but not rewrite it', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, ...fuPath), {
+        ...valid, status: 'alternative_sent', alternativeRecipientRef: 'x', alternativeSendJobId: 'j',
+      });
+    });
+    const db = teamCtx().firestore();
+    await assertSucceeds(updateDoc(doc(db, ...fuPath), { outcome: 'coverage' }));
+    await assertFails(updateDoc(doc(db, ...fuPath), { status: 'no_follow_up' }));
+    await assertFails(updateDoc(doc(db, ...fuPath), { alternativeSendJobId: 'other' }));
+  });
+
+  test('unknown outcomes, other orgs and partners are rejected', async () => {
+    await assertFails(setDoc(doc(teamCtx().firestore(), ...fuPath), { ...valid, outcome: 'ignored' }));
+    await assertFails(setDoc(doc(otherOrgTeamCtx().firestore(), ...fuPath), valid));
+    await assertFails(setDoc(doc(partnerCtx().firestore(), ...fuPath), valid));
+    await assertFails(getDoc(doc(partnerCtx().firestore(), ...fuPath)));
+  });
+});
