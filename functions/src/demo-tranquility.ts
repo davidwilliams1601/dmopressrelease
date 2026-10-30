@@ -15,6 +15,34 @@
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Demo photography: AI-generated scenes of the fictional destination (no real places,
+ * logos or identifiable people), served as static files from the app's public folder.
+ * Absolute URLs so they also render in release emails and link previews.
+ */
+export const DEMO_IMAGE_BASE = 'https://app.press-pilot.com/demo/tranquility';
+const DEMO_IMAGE_BYTES: Record<string, number> = {
+  'release-autumn-hotels': 311574,
+  'release-coast-pass': 380208,
+  'release-food-trail': 322601,
+  'release-lantern-festival': 241814,
+  'release-slow-travel': 311251,
+  'release-winter-steam': 354528,
+  'sub-cider-cellar': 283733,
+  'sub-lantern-schools': 309703,
+  'sub-night-paddle': 187351,
+  'sub-sea-swim-sauna': 227545,
+  'sub-supper-train': 217261,
+};
+export const DEMO_IMAGE_NAMES = Object.keys(DEMO_IMAGE_BYTES);
+const demoImageUrl = (name: string) => `${DEMO_IMAGE_BASE}/${name}.jpg`;
+const demoImageMeta = (name: string, uploadedAt: unknown) => ({
+  fileName: `${name}.jpg`,
+  size: DEMO_IMAGE_BYTES[name],
+  mimeType: 'image/jpeg',
+  uploadedAt,
+});
+
 export const DEMO_DESTINATION = {
   name: 'Tranquility',
   orgName: 'Visit Tranquility',
@@ -128,6 +156,8 @@ Visit Tranquility is the official destination marketing organisation for Tranqui
       status: 'Draft',
       sends: 0, opens: 0, clicks: 0,
       createdAt: ago(2),
+      imageUrl: demoImageUrl('release-autumn-hotels'),
+      imageMetadata: demoImageMeta('release-autumn-hotels', ago(2)),
       updatedAt: ago(1),
       smartDistribution: { editorialFocus: ['Tourism & destinations'], geographies: ['National (UK)', 'Regional'], topics: ['Tourism & travel', 'Business & investment'] },
       bodyCopy: `Hotels and self-catering businesses around Tranquility Bay are reporting their strongest autumn in five years, with October occupancy up 14% on last year and midweek stays showing the sharpest growth.
@@ -151,6 +181,8 @@ ${boilerplate}`,
       approvalStatus: 'approved',
       sends: 0, opens: 0, clicks: 0,
       createdAt: ago(8),
+      imageUrl: demoImageUrl('release-food-trail'),
+      imageMetadata: demoImageMeta('release-food-trail', ago(8)),
       updatedAt: ago(3),
       smartDistribution: { editorialFocus: ['Food & drink', 'Tourism & destinations'], geographies: ['National (UK)', 'Regional'], topics: ['Food & drink', 'Tourism & travel'] },
       bodyCopy: `A new self-guided food trail links 32 independent producers, restaurants and farm shops along the Stillwater Valley, from the harbour at Tranquility Bay to the orchards of Larkspur Downs.
@@ -174,6 +206,8 @@ ${boilerplate}`,
       approvalStatus: 'approved',
       sends: 0, opens: 0, clicks: 0,
       createdAt: ago(12),
+      imageUrl: demoImageUrl('release-coast-pass'),
+      imageMetadata: demoImageMeta('release-coast-pass', ago(12)),
       updatedAt: ago(6),
       smartDistribution: { editorialFocus: ['Sustainability & environment', 'Tourism & destinations'], geographies: ['National (UK)'], topics: ['Sustainability', 'Tourism & travel'] },
       bodyCopy: `Visitors arriving in Tranquility by train can now explore the whole coast and valley without a car, thanks to the new Coast Pass: unlimited travel on the coastal bus, the Valley Line Heritage Railway and the Tranquility Bay water taxi.
@@ -196,6 +230,8 @@ ${boilerplate}`,
       status: 'Sent',
       sends: 14, opens: 0, clicks: 0, // set from the seeded engagement below
       createdAt: ago(9),
+      imageUrl: demoImageUrl('release-winter-steam'),
+      imageMetadata: demoImageMeta('release-winter-steam', ago(9)),
       updatedAt: ago(5),
       sentAt: ago(5),
       smartDistribution: { editorialFocus: ['Tourism & destinations', 'Events & culture'], geographies: ['National (UK)', 'Regional'], topics: ['Tourism & travel', 'Arts & culture'] },
@@ -219,6 +255,8 @@ ${boilerplate}`,
       status: 'Sent',
       sends: 412, opens: 186, clicks: 61,
       createdAt: ago(34),
+      imageUrl: demoImageUrl('release-lantern-festival'),
+      imageMetadata: demoImageMeta('release-lantern-festival', ago(34)),
       updatedAt: ago(28),
       sentAt: ago(28),
       smartDistribution: { editorialFocus: ['Events & culture', 'Tourism & destinations'], geographies: ['Regional', 'National (UK)'], topics: ['Arts & culture', 'Tourism & travel'] },
@@ -242,6 +280,8 @@ ${boilerplate}`,
       status: 'Sent',
       sends: 640, opens: 297, clicks: 104,
       createdAt: ago(58),
+      imageUrl: demoImageUrl('release-slow-travel'),
+      imageMetadata: demoImageMeta('release-slow-travel', ago(58)),
       updatedAt: ago(51),
       sentAt: ago(51),
       smartDistribution: { editorialFocus: ['Tourism & destinations', 'Sustainability & environment'], geographies: ['National (UK)', 'International'], topics: ['Tourism & travel', 'Sustainability'] },
@@ -269,7 +309,7 @@ ${boilerplate}`,
 Sessions run at sunrise on weekends, are led by qualified open-water coaches and include a hot breakfast. Packages with an overnight stay start from £185 per person.
 
 We'd love to be part of any winter wellness or slow-travel story. High-res images and press visits are available.`,
-      tagIds: [], imageUrls: [], imageStoragePaths: [], imageMetadata: [],
+      tagIds: [], imageUrls: [demoImageUrl('sub-sea-swim-sauna')], imageStoragePaths: [], imageMetadata: [demoImageMeta('sub-sea-swim-sauna', ago(1, 5))],
       status: 'submitted',
       createdAt: ago(1, 5),
     },
@@ -280,7 +320,7 @@ We'd love to be part of any winter wellness or slow-travel story. High-res image
       bodyCopy: `After three generations of pressing apples in the valley, Stillwater Cider Press is opening its first cellar door, with orchard tours, tastings and a small kitchen serving food from fellow trail producers.
 
 The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minute walk from Larkspur station on the Valley Line.`,
-      tagIds: [], imageUrls: [], imageStoragePaths: [], imageMetadata: [],
+      tagIds: [], imageUrls: [demoImageUrl('sub-cider-cellar')], imageStoragePaths: [], imageMetadata: [demoImageMeta('sub-cider-cellar', ago(6))],
       status: 'reviewed',
       reviewNotes: 'Strong fit for the food trail release. Ask for orchard photography.',
       createdAt: ago(6),
@@ -291,7 +331,7 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
       ...sub(partners[6]),
       title: 'Lantern Festival 2026: Floating Lantern Trail and Schools Programme',
       bodyCopy: `This year's festival adds a floating lantern trail across the harbour and a lantern-making programme with nine local primary schools. Lanterns are made from biodegradable materials and collected the morning after each evening.`,
-      tagIds: [], imageUrls: [], imageStoragePaths: [], imageMetadata: [],
+      tagIds: [], imageUrls: [demoImageUrl('sub-lantern-schools')], imageStoragePaths: [], imageMetadata: [demoImageMeta('sub-lantern-schools', ago(40))],
       status: 'used',
       usedInReleaseIds: ['demo-release-3'],
       createdAt: ago(40),
@@ -302,7 +342,7 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
       ...sub(partners[1]),
       title: 'Bioluminescence Night Paddles Return to Tranquility Bay',
       bodyCopy: `Our guided night kayak trips to see the bay's bioluminescent plankton return from late summer, with small groups of up to eight and all kit provided. Last season sold out within a week of opening.`,
-      tagIds: [], imageUrls: [], imageStoragePaths: [], imageMetadata: [],
+      tagIds: [], imageUrls: [demoImageUrl('sub-night-paddle')], imageStoragePaths: [], imageMetadata: [demoImageMeta('sub-night-paddle', ago(3, 2))],
       status: 'submitted',
       createdAt: ago(3, 2),
     },
@@ -311,7 +351,7 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
       ...sub(partners[10]),
       title: 'Valley Line Heritage Railway Adds Evening Supper Trains',
       bodyCopy: `From spring the Valley Line will run Friday evening supper trains through the Stillwater Valley, serving a three-course menu from Saltwork Kitchen.`,
-      tagIds: [], imageUrls: [], imageStoragePaths: [], imageMetadata: [],
+      tagIds: [], imageUrls: [demoImageUrl('sub-supper-train')], imageStoragePaths: [], imageMetadata: [demoImageMeta('sub-supper-train', ago(15))],
       status: 'reviewed',
       reviewNotes: 'Hold for the spring food release.',
       createdAt: ago(15),
