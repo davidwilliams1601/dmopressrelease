@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTranquilityDataset, demoPeerBenchmark } from '../demo-tranquility';
+import { buildTranquilityDataset, demoPeerBenchmark, DEMO_IMAGE_BASE, DEMO_IMAGE_NAMES } from '../demo-tranquility';
 import { COVERAGE_MEDIA_TYPES, COVERAGE_OUTLET_TYPES, COVERAGE_TONES } from '../coverage-core';
 
 const NOW = Date.UTC(2026, 10, 2, 9, 0, 0);
@@ -22,8 +22,10 @@ test('every email address uses the reserved .example TLD', () => {
   for (const e of emails) assert.match(e, /\.example$/, `real-looking email: ${e}`);
 });
 
-test('every link uses the reserved .example TLD', () => {
-  const urls = allStrings.flatMap((s) => s.match(/https?:\/\/[^\s)]+/g) || []);
+test('every link uses the reserved .example TLD (apart from our own demo photography)', () => {
+  const urls = allStrings
+    .flatMap((s) => s.match(/https?:\/\/[^\s)]+/g) || [])
+    .filter((u) => !u.startsWith(DEMO_IMAGE_BASE + '/'));
   assert.ok(urls.length > 10);
   for (const u of urls) assert.match(new URL(u).hostname, /\.example$/, `real-looking URL: ${u}`);
 });
@@ -83,4 +85,30 @@ test('demo peer benchmark positions the org against fixed figures', () => {
   assert.equal(demoPeerBenchmark(12).position, 'above');
   assert.equal(demoPeerBenchmark(5).position, 'within');
   assert.equal(demoPeerBenchmark(1).position, 'below');
+});
+
+test('every release and submission has demo photography that ships with the app', () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const dir = path.resolve(__dirname, '../../../public/demo/tranquility');
+  const urls: string[] = [];
+  for (const r of ds.releases) {
+    assert.ok(typeof r.imageUrl === 'string', `${r.id} has no image`);
+    urls.push(r.imageUrl as string);
+  }
+  for (const s of ds.submissions) {
+    const list = s.imageUrls as string[];
+    assert.ok(list.length > 0, `${s.id} has no image`);
+    assert.equal((s.imageMetadata as unknown[]).length, list.length);
+    urls.push(...list);
+  }
+  for (const url of urls) {
+    assert.ok(url.startsWith(DEMO_IMAGE_BASE + '/'), url);
+    const file = path.join(dir, url.slice(DEMO_IMAGE_BASE.length + 1));
+    assert.ok(fs.existsSync(file), `missing ${file}`);
+  }
+  assert.equal(new Set(ds.releases.map((r) => r.imageUrl)).size, ds.releases.length, 'release images are distinct');
+  for (const name of DEMO_IMAGE_NAMES) {
+    assert.equal(fs.statSync(path.join(dir, `${name}.jpg`)).size > 0, true);
+  }
 });
