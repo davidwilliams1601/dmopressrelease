@@ -29,7 +29,8 @@ export type FeatureKey =
   | 'approvalWorkflows'
   | 'advancedReporting'
   | 'customContentTypes'
-  | 'whitelabel';
+  | 'whitelabel'
+  | 'mediaOpportunities';
 
 export type TierConfig = {
   id: TierId;
@@ -55,6 +56,7 @@ export const TIERS: Record<TierId, TierConfig> = {
       advancedReporting: false,
       customContentTypes: false,
       whitelabel: false,
+      mediaOpportunities: false,
     },
   },
   professional: {
@@ -68,6 +70,7 @@ export const TIERS: Record<TierId, TierConfig> = {
       advancedReporting: true,
       customContentTypes: true,
       whitelabel: false,
+      mediaOpportunities: true,
     },
   },
   organisation: {
@@ -81,6 +84,7 @@ export const TIERS: Record<TierId, TierConfig> = {
       advancedReporting: true,
       customContentTypes: true,
       whitelabel: true,
+      mediaOpportunities: true,
     },
   },
   enterprise: {
@@ -96,6 +100,7 @@ export const TIERS: Record<TierId, TierConfig> = {
       advancedReporting: true,
       customContentTypes: true,
       whitelabel: true,
+      mediaOpportunities: true,
     },
   },
 };

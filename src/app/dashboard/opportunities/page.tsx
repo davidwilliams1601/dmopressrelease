@@ -30,6 +30,8 @@ import { OpportunityCard } from '@/components/opportunities/opportunity-card';
 import { OPPORTUNITY_METHODOLOGY_NOTE } from '@/lib/media-opportunities';
 import type { MediaOpportunity, MediaOpportunitySettings } from '@/lib/types';
 import { Info, Radar } from 'lucide-react';
+import { useEntitlements } from '@/hooks/use-entitlements';
+import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +53,8 @@ export default function OpportunitiesPage() {
     );
   }, [firestore, orgId]);
 
+  const { can, isLoading: isEntitlementsLoading } = useEntitlements();
+  const canUseOpportunities = can('mediaOpportunities');
   const { data: settings, isLoading: isSettingsLoading } =
     useDoc<MediaOpportunitySettings>(settingsRef);
   const { data: allData, isLoading: isOpportunitiesLoading } =
@@ -63,7 +67,7 @@ export default function OpportunitiesPage() {
     return all.filter((o) => o.status === statusFilter);
   }, [all, statusFilter]);
 
-  if (isUserLoading || isSettingsLoading) {
+  if (isUserLoading || isSettingsLoading || isEntitlementsLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-56" />
@@ -73,6 +77,35 @@ export default function OpportunitiesPage() {
   }
 
   const isEnabled = settings?.enabled === true;
+
+  if (!canUseOpportunities) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-headline text-2xl font-bold">Media Opportunities</h1>
+          <p className="text-muted-foreground">
+            Themes moving in your sector where you have something of your own to say.
+          </p>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Radar className="h-5 w-5" />
+              Know what the media is about to cover
+            </CardTitle>
+            <CardDescription>
+              Media Opportunities watches travel-trade, regional and sector sources, spots themes
+              gaining momentum, and matches them to stories you and your members already have, so
+              you can pitch while the subject is live.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UpgradePrompt feature="mediaOpportunities" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

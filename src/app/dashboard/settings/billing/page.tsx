@@ -42,7 +42,18 @@ const FEATURE_LABELS: Record<string, string> = {
   advancedReporting: 'Advanced reporting',
   customContentTypes: 'Custom content types',
   whitelabel: 'Full whitelabel',
+  mediaOpportunities: 'Media Opportunities',
 };
+
+/** Shown on every plan card: core features that are not tier-gated. */
+const INCLUDED_ON_EVERY_PLAN = [
+  'Member story submissions and partner portal',
+  'Press release builder and media distribution',
+  'Coverage logging and shareable coverage reports',
+  'Public newsroom',
+  'Media requests',
+  'Smart Distribution (pay-as-you-go credits)',
+];
 
 const STATUS_LABELS: Record<string, string> = {
   trialing: 'Free trial',
@@ -168,6 +179,12 @@ export default function BillingPage() {
                     <Check className="h-4 w-4 text-primary" />
                     {fmtLimit(tier.maxUsers)} team users
                   </li>
+                  {tier.id === 'professional' && (
+                    <li className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-primary" />
+                      Subtle Press Pilot branding
+                    </li>
+                  )}
                   {Object.entries(tier.features)
                     .filter(([, on]) => on)
                     .map(([key]) => (
@@ -194,6 +211,25 @@ export default function BillingPage() {
           );
         })}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline text-lg">Included on every plan</CardTitle>
+          <CardDescription>
+            The core of Press Pilot comes with every plan. Higher plans add the features listed on each card.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
+            {INCLUDED_ON_EVERY_PLAN.map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-primary" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
 
       {orgId && <SmartDistributionWalletCard orgId={orgId} />}
 
