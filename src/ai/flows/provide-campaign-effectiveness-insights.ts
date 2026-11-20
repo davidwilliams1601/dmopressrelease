@@ -12,6 +12,7 @@ const ProvideCampaignEffectivenessInsightsInputSchema = z.object({
   opens: z.number().describe('The number of email opens for the campaign.'),
   clicks: z.number().describe('The number of link clicks in the emails for the campaign.'),
   pageViews: z.number().describe('The number of press page views for the campaign.'),
+  orgName: z.string().describe('The name of the organisation the stats belong to.'),
   brandToneNotes: z.string().describe('The brand and tone notes for the organization.'),
 });
 export type ProvideCampaignEffectivenessInsightsInput = z.infer<typeof ProvideCampaignEffectivenessInsightsInputSchema>;
@@ -34,7 +35,7 @@ export async function provideCampaignEffectivenessInsights(
     const {output} = await ai.generate({
       prompt: `You are an expert marketing analyst providing insights on campaign effectiveness.
 
-  Based on the following engagement statistics and brand/tone notes, provide insights on how well the campaign aligned with the target audience.
+  The organisation is ${input.orgName || 'the user\'s organisation'}. Based on the following engagement statistics and brand/tone notes, provide insights on how well its campaigns aligned with the target audience. Only refer to this organisation, and do not invent places, partners or campaigns that are not given here.
 
   Engagement Statistics:
   - Number of Releases: ${input.numReleases}
@@ -44,7 +45,7 @@ export async function provideCampaignEffectivenessInsights(
   - Page Views: ${input.pageViews}
 
   Brand/Tone Notes:
-  ${input.brandToneNotes}`,
+  ${input.brandToneNotes || 'None provided.'}`,
       output: {schema: ProvideCampaignEffectivenessInsightsOutputSchema},
     });
 

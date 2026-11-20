@@ -3,7 +3,8 @@
 import { provideCampaignEffectivenessInsights } from '@/ai/flows/provide-campaign-effectiveness-insights';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getOrganization } from '@/lib/data';
+import { useUserData } from '@/hooks/use-user-data';
+import { useOrganization } from '@/hooks/use-organization';
 import type { EngagementStats } from '@/lib/types';
 import { Wand2, Loader2 } from 'lucide-react';
 import { useState } from 'react';
@@ -13,9 +14,14 @@ export default function AiInsights({ stats }: { stats: EngagementStats }) {
   const [isLoading, setIsLoading] = useState(false);
   const [insights, setInsights] = useState('');
   const { toast } = useToast();
-  const organization = getOrganization();
+  // The signed-in user's own organisation. This used to read a hardcoded sample
+  // org (Visit Kent) from lib/data, so every customer's insights came back with
+  // Kent's name and tone notes.
+  const { orgId } = useUserData();
+  const { organization } = useOrganization(orgId);
 
   const handleGenerateInsights = async () => {
+    if (!organization) return;
     setIsLoading(true);
     setInsights('');
     try {
@@ -25,7 +31,8 @@ export default function AiInsights({ stats }: { stats: EngagementStats }) {
         opens: stats.opens,
         clicks: stats.clicks,
         pageViews: stats.pageViews,
-        brandToneNotes: organization.brandToneNotes,
+        orgName: organization.name || '',
+        brandToneNotes: organization.brandToneNotes || '',
       });
 
       if (!result.success) {
@@ -79,7 +86,7 @@ export default function AiInsights({ stats }: { stats: EngagementStats }) {
             </p>
           )}
         </div>
-        <Button onClick={handleGenerateInsights} disabled={isLoading}>
+        <Button onClick={handleGenerateInsights} disabled={isLoading || !organization}>
           <Wand2 />
           {isLoading ? 'Generating...' : 'Generate Insights'}
         </Button>

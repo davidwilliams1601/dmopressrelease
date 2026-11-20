@@ -71,7 +71,7 @@ export default function SignupForm({ plan }: { plan: TierId }) {
           id="orgName"
           name="orgName"
           type="text"
-          placeholder="e.g. Visit Kent"
+          placeholder="e.g. Visit Tranquility"
           required
           value={orgName}
           onChange={(e) => setOrgName(e.target.value)}
