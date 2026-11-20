@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import type { Release } from '@/lib/types';
 
 type Props = {
-  topReleases: Array<Release & { openRate: number; clickRate: number }>;
+  topReleases: Array<Release & { uniqueOpens: number; uniqueClicks: number; openRate: number; clickRate: number }>;
   releasesLabel: string;
 };
 
@@ -38,9 +38,9 @@ export default function ReportTopReleases({ topReleases, releasesLabel }: Props)
                 <TableHead>Headline</TableHead>
                 <TableHead>Audience</TableHead>
                 <TableHead className="text-right">Sends</TableHead>
-                <TableHead className="text-right">Opens</TableHead>
+                <TableHead className="text-right">Unique opens</TableHead>
                 <TableHead className="text-right">Open Rate</TableHead>
-                <TableHead className="text-right">Clicks</TableHead>
+                <TableHead className="text-right">Unique clicks</TableHead>
                 <TableHead className="text-right">Click Rate</TableHead>
               </TableRow>
             </TableHeader>
@@ -57,13 +57,13 @@ export default function ReportTopReleases({ topReleases, releasesLabel }: Props)
                     {(release.sends || 0).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right">
-                    {(release.opens || 0).toLocaleString()}
+                    {release.uniqueOpens.toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right">
                     {release.openRate}%
                   </TableCell>
                   <TableCell className="text-right">
-                    {(release.clicks || 0).toLocaleString()}
+                    {release.uniqueClicks.toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right">
                     {release.clickRate}%

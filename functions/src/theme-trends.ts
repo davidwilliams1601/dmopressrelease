@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { uniqueOpensOf, uniqueClicksOf } from './unique-engagement-core';
 
 const db = admin.firestore();
 
@@ -154,7 +155,7 @@ export const getThemeTrends = functions.https.onCall(async (data, context) => {
         const r = rel.data();
         releaseById.set(rel.id, r);
         networkTotalSends += r.sends || 0;
-        networkTotalOpens += r.opens || 0;
+        networkTotalOpens += uniqueOpensOf(r);
       }
       releasesByOrg.set(memberOrgId, releaseById);
 
@@ -195,8 +196,8 @@ export const getThemeTrends = functions.https.onCall(async (data, context) => {
       const rel = releasesByOrg.get(ownerOrgId)?.get(relId);
       if (rel) {
         totalSends += rel.sends || 0;
-        totalOpens += rel.opens || 0;
-        totalClicks += rel.clicks || 0;
+        totalOpens += uniqueOpensOf(rel);
+        totalClicks += uniqueClicksOf(rel);
       }
     }
 

@@ -164,8 +164,14 @@ export type Release = {
   /** When the release went out. Absent on releases sent before this was recorded. */
   sentAt?: FirestoreTimestamp;
   sends?: number;
+  /** Every open event, repeat opens included. Use uniqueOpensOf() for rates. */
   opens?: number;
+  /** Every click event, repeat clicks included. Use uniqueClicksOf() for rates. */
   clicks?: number;
+  /** Recipients who opened (or clicked), each counted once. */
+  uniqueOpens?: number;
+  /** Recipients who clicked, each counted once. */
+  uniqueClicks?: number;
   pageViews?: number;
   imageUrl?: string;
   imageStoragePath?: string;
@@ -368,6 +374,10 @@ export type PartnerEmail = {
   sentCount: number;
   opens: number;
   clicks: number;
+  /** Members who opened (or clicked), each counted once. */
+  uniqueOpens?: number;
+  /** Members who clicked, each counted once. */
+  uniqueClicks?: number;
   recipients: Array<{ id: string; name: string; email: string }>;
 };
 

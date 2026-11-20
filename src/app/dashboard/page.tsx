@@ -24,6 +24,7 @@ import {
 import { useMemo } from 'react';
 import { AttentionAndOutcomes } from '@/components/dashboard/attention-and-outcomes';
 import { useVerticalConfig } from '@/hooks/use-vertical-config';
+import { uniqueOpensOf, uniqueClicksOf } from '@/lib/engagement';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,8 +65,9 @@ export default function DashboardPage() {
     const sentReleases = releases.filter((r) => r.status === 'Sent');
 
     const totalSends = sentReleases.reduce((sum, r) => sum + (r.sends || 0), 0);
-    const totalOpens = sentReleases.reduce((sum, r) => sum + (r.opens || 0), 0);
-    const totalClicks = sentReleases.reduce((sum, r) => sum + (r.clicks || 0), 0);
+    // Unique: each recipient counts once, so rates can't pass 100%
+    const totalOpens = sentReleases.reduce((sum, r) => sum + uniqueOpensOf(r), 0);
+    const totalClicks = sentReleases.reduce((sum, r) => sum + uniqueClicksOf(r), 0);
 
     return {
       releases: releases.length,
@@ -122,7 +124,7 @@ export default function DashboardPage() {
           title="Open Rate"
           value={`${openRate}%`}
           icon={MousePointerClick}
-          description="Based on total sends"
+          description="Recipients who opened, of total sends"
         />
         <StatCard
           title="Page Views"

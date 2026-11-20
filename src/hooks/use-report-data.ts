@@ -11,6 +11,7 @@ import {
   releaseActivityDate,
   type TrendDataPoint,
 } from '@/lib/report-utils';
+import { uniqueOpensOf, uniqueClicksOf } from '@/lib/engagement';
 
 export type ReportMetrics = {
   totalReleasesSent: number;
@@ -45,7 +46,7 @@ export type ReportData = {
   topContributors: Array<{ name: string; submissions: number; used: number }>;
 
   // Top releases
-  topReleases: Array<Release & { openRate: number; clickRate: number }>;
+  topReleases: Array<Release & { uniqueOpens: number; uniqueClicks: number; openRate: number; clickRate: number }>;
 
   // Trends
   trendData: TrendDataPoint[];
@@ -54,8 +55,9 @@ export type ReportData = {
 function computeMetrics(releases: Release[]): ReportMetrics {
   const sent = releases.filter((r) => r.status === 'Sent');
   const totalEmails = sent.reduce((sum, r) => sum + (r.sends || 0), 0);
-  const totalOpens = sent.reduce((sum, r) => sum + (r.opens || 0), 0);
-  const totalClicks = sent.reduce((sum, r) => sum + (r.clicks || 0), 0);
+  // Unique: each recipient counts once, so rates can't pass 100%
+  const totalOpens = sent.reduce((sum, r) => sum + uniqueOpensOf(r), 0);
+  const totalClicks = sent.reduce((sum, r) => sum + uniqueClicksOf(r), 0);
   const totalPageViews = sent.reduce((sum, r) => sum + (r.pageViews || 0), 0);
 
   return {
@@ -144,8 +146,8 @@ export function useReportData(orgId: string | null, period: DateRange): ReportDa
         }
         releasesByAudience[audience].count++;
         releasesByAudience[audience].sends += r.sends || 0;
-        releasesByAudience[audience].opens += r.opens || 0;
-        releasesByAudience[audience].clicks += r.clicks || 0;
+        releasesByAudience[audience].opens += uniqueOpensOf(r);
+        releasesByAudience[audience].clicks += uniqueClicksOf(r);
       });
 
     // Partner engagement
@@ -165,18 +167,20 @@ export function useReportData(orgId: string | null, period: DateRange): ReportDa
 
     // Partner email stats
     const partnerEmailsSent = periodPartnerEmails.length;
-    const partnerEmailOpens = periodPartnerEmails.reduce((sum, e) => sum + (e.opens || 0), 0);
-    const partnerEmailClicks = periodPartnerEmails.reduce((sum, e) => sum + (e.clicks || 0), 0);
+    const partnerEmailOpens = periodPartnerEmails.reduce((sum, e) => sum + uniqueOpensOf({ ...e, sends: e.sentCount }), 0);
+    const partnerEmailClicks = periodPartnerEmails.reduce((sum, e) => sum + uniqueClicksOf({ ...e, sends: e.sentCount }), 0);
 
     // Top releases
     const topReleases = periodReleases
       .filter((r) => r.status === 'Sent')
       .map((r) => ({
         ...r,
-        openRate: computeRate(r.opens || 0, r.sends || 0),
-        clickRate: computeRate(r.clicks || 0, r.opens || 0),
+        uniqueOpens: uniqueOpensOf(r),
+        uniqueClicks: uniqueClicksOf(r),
+        openRate: computeRate(uniqueOpensOf(r), r.sends || 0),
+        clickRate: computeRate(uniqueClicksOf(r), uniqueOpensOf(r)),
       }))
-      .sort((a, b) => (b.opens || 0) - (a.opens || 0))
+      .sort((a, b) => b.uniqueOpens - a.uniqueOpens)
       .slice(0, 10);
 
     // Trends

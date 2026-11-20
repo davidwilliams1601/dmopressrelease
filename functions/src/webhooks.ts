@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import { engagementUpdateFor } from './follow-up-core';
+import { engagementKey, uniqueEngagementUpdate, type EngagedState } from './unique-engagement-core';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { refundSmartDistributionCredit } from './credits';
@@ -267,12 +268,15 @@ async function claimWebhookEventAndIncrementCounters(op: {
   statRef: FirebaseFirestore.DocumentReference;
   eventType: string;
   recipientRowRef?: FirebaseFirestore.DocumentReference;
+  /** Per-recipient marker for unique opens/clicks (see unique-engagement-core). */
+  uniqueRef?: FirebaseFirestore.DocumentReference;
 }): Promise<boolean> {
   return db.runTransaction(async (tx) => {
     const existing = await tx.get(op.eventRef);
     // Follow-ups: read the per-recipient send row in the same transaction (reads must
     // come before writes) so engagement is recorded exactly once per event.
     const row = op.recipientRowRef ? await tx.get(op.recipientRowRef) : null;
+    const marker = op.uniqueRef ? await tx.get(op.uniqueRef) : null;
     if (existing.exists) {
       // Already claimed by a prior delivery of this exact event — no-op.
       return false;
@@ -305,7 +309,17 @@ async function claimWebhookEventAndIncrementCounters(op: {
     if (op.eventType === 'open' || op.eventType === 'click') {
       const field = op.eventType === 'open' ? 'opens' : 'clicks';
       // Keep best-effort counter on the parent doc for backwards compatibility
-      tx.update(op.statRef, { [field]: admin.firestore.FieldValue.increment(1) });
+      const statUpdate: Record<string, any> = { [field]: admin.firestore.FieldValue.increment(1) };
+      // Unique counts: each recipient adds at most one open and one click.
+      if (op.uniqueRef) {
+        const unique = uniqueEngagementUpdate(op.eventType, marker?.exists ? (marker.data() as EngagedState) : null);
+        if (unique) {
+          if (unique.uniqueOpens) statUpdate.uniqueOpens = admin.firestore.FieldValue.increment(1);
+          if (unique.uniqueClicks) statUpdate.uniqueClicks = admin.firestore.FieldValue.increment(1);
+          tx.set(op.uniqueRef, { ...unique.next, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        }
+      }
+      tx.update(op.statRef, statUpdate);
       // Write to distributed counter shard (source of truth)
       const shardId = Math.floor(Math.random() * NUM_SHARDS);
       const shardRef = op.statRef.collection('counters').doc(`shard_${shardId}`);
@@ -357,6 +371,7 @@ export const handleSendGridWebhook = functions
       statRef: FirebaseFirestore.DocumentReference;
       eventType: string;
       recipientRowRef?: FirebaseFirestore.DocumentReference;
+      uniqueRef?: FirebaseFirestore.DocumentReference;
     }> = [];
 
     for (const event of events) {
@@ -423,6 +438,12 @@ export const handleSendGridWebhook = functions
       const eventTs = isValidTimestamp(event.timestamp) ? event.timestamp : Math.floor(Date.now() / 1000);
       const dateStr = new Date(eventTs * 1000).toISOString().split('T')[0];
 
+      // Unique opens/clicks marker: the send-job row ID when there is one, otherwise
+      // a hash of the address (never the raw email).
+      const uniqueKey = eventType === 'open' || eventType === 'click'
+        ? engagementKey(sendJobRecipientId, event.email)
+        : null;
+
       if (partnerEmailId) {
         const eventRef = db
           .collection('orgs').doc(orgId!)
@@ -447,7 +468,8 @@ export const handleSendGridWebhook = functions
           .collection('partnerEmails').doc(partnerEmailId)
           .collection('dailyStats').doc(dateStr);
 
-        operations.push({ eventRef, dailyRef, eventData, statRef, eventType });
+        const uniqueRef = uniqueKey ? statRef.collection('uniqueEngagement').doc(uniqueKey) : undefined;
+        operations.push({ eventRef, dailyRef, eventData, statRef, eventType, uniqueRef });
       } else {
         const eventRef = db
           .collection('orgs').doc(orgId!)
@@ -481,7 +503,8 @@ export const handleSendGridWebhook = functions
                 .collection('recipients').doc(sendJobRecipientId)
             : undefined;
 
-        operations.push({ eventRef, dailyRef, eventData, statRef, eventType, recipientRowRef });
+        const uniqueRef = uniqueKey ? statRef.collection('uniqueEngagement').doc(uniqueKey) : undefined;
+        operations.push({ eventRef, dailyRef, eventData, statRef, eventType, recipientRowRef, uniqueRef });
       }
     }
 

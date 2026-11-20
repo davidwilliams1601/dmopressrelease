@@ -344,9 +344,10 @@ export const resetDemoOrg = functions
       'networkContactRefs',
       'partnerEmails',
     ];
-    // releases and sendJobs carry subcollections (followUps, counters, recipients),
+    // releases, sendJobs and partnerEmails carry subcollections (followUps, counters,
+    // recipients, uniqueEngagement),
     // which a plain collection delete would leave behind for the next seed to inherit.
-    const recursive = new Set(['releases', 'sendJobs']);
+    const recursive = new Set(['releases', 'sendJobs', 'partnerEmails']);
     await Promise.all(
       collectionsToWipe.map((c) =>
         recursive.has(c) ? db.recursiveDelete(orgRef.collection(c)) : deleteCollectionDocs(orgRef.collection(c))

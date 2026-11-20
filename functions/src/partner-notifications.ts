@@ -5,6 +5,7 @@ import { sendWithRetry } from './sendgrid-retry';
 import { escapeHtml } from './html-utils';
 import { emailFooter, emailCallout, emailLink, emailMetric, emailMetricSmall, getEmailColors } from './email-branding';
 import { orgSender } from './sender';
+import { uniqueOpensOf, uniqueClicksOf } from './unique-engagement-core';
 
 const db = admin.firestore();
 
@@ -972,8 +973,9 @@ async function sendMonthlyImpactForOrg(
           headline: r.headline || '',
           slug: r.slug || '',
           sends: r.sends || 0,
-          opens: r.opens || 0,
-          clicks: r.clicks || 0,
+          // Unique: each journalist counts once, so open rates can't pass 100%
+          opens: uniqueOpensOf(r),
+          clicks: uniqueClicksOf(r),
         });
       }
     });

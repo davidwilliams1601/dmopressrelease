@@ -505,8 +505,13 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
     { id: 'demo-pe-6', subject: 'Regatta week media plan and how to get involved', days: 124, opens: 7, clicks: 3 },
     { id: 'demo-pe-7', subject: 'Dark sky news: share your stargazing offers', days: 150, opens: 9, clicks: 4 },
     { id: 'demo-pe-8', subject: 'Spring walking festival: press visits and photography', days: 178, opens: 8, clicks: 2 },
-  ].map(({ days, ...e }) => ({
+  ].map(({ days, opens, clicks, ...e }) => ({
     ...e,
+    // Listed figures are members who opened/clicked; totals include repeat opens.
+    uniqueOpens: opens,
+    uniqueClicks: clicks,
+    opens: opens + Math.ceil(opens * 0.4),
+    clicks: clicks + Math.floor(clicks * 0.3),
     sentBy: D.spokesperson,
     sentAt: ago(days),
     recipientCount: memberEmailRecipients.length,
@@ -826,6 +831,15 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
   release6.updatedAt = send6At;
   release6.opens = sendJobRecipients.reduce((sum, r) => sum + r.opens, 0);
   release6.clicks = sendJobRecipients.reduce((sum, r) => sum + r.clicks, 0);
+  release6.uniqueOpens = sendJobRecipients.filter((r) => r.opens > 0 || r.clicks > 0).length;
+  release6.uniqueClicks = sendJobRecipients.filter((r) => r.clicks > 0).length;
+
+  // Earlier sends: about three in four opens are first opens, the rest repeats.
+  for (const r of releases) {
+    if (r.status !== 'Sent' || typeof r.uniqueOpens === 'number') continue;
+    r.uniqueOpens = Math.round((r.opens as number) * 0.76);
+    r.uniqueClicks = Math.round((r.clicks as number) * 0.72);
+  }
 
   // Two follow-ups already logged by the team: a reply, and a phone call.
   const followUps = [
