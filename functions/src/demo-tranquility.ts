@@ -24,6 +24,11 @@ export const DEMO_IMAGE_BASE = 'https://app.press-pilot.com/demo/tranquility';
 const DEMO_IMAGE_BYTES: Record<string, number> = {
   'release-autumn-hotels': 311574,
   'release-coast-pass': 380208,
+  'release-dark-skies': 335107,
+  'release-glowing-bay': 183806,
+  'release-harbour-regatta': 400209,
+  'release-independents': 440372,
+  'release-walking-festival': 412487,
   'release-food-trail': 322601,
   'release-lantern-festival': 241814,
   'release-slow-travel': 311251,
@@ -143,7 +148,8 @@ Visit Tranquility is the official destination marketing organisation for Tranqui
   ];
 
   // ---------------------------------------------------------------------------
-  // Releases: one draft, two ready (approved), three sent.
+  // Releases: one draft, two ready (approved), three recent sends, plus the
+  // older sends added below.
   // ---------------------------------------------------------------------------
   const releases: Array<Record<string, unknown>> = [
     {
@@ -229,6 +235,7 @@ ${boilerplate}`,
       audience: 'Consumer',
       status: 'Sent',
       sends: 14, opens: 0, clicks: 0, // set from the seeded engagement below
+      pageViews: 46,
       createdAt: ago(9),
       imageUrl: demoImageUrl('release-winter-steam'),
       imageMetadata: demoImageMeta('release-winter-steam', ago(9)),
@@ -254,6 +261,7 @@ ${boilerplate}`,
       audience: 'Consumer',
       status: 'Sent',
       sends: 412, opens: 186, clicks: 61,
+      pageViews: 238,
       createdAt: ago(34),
       imageUrl: demoImageUrl('release-lantern-festival'),
       imageMetadata: demoImageMeta('release-lantern-festival', ago(34)),
@@ -279,6 +287,7 @@ ${boilerplate}`,
       audience: 'Hybrid',
       status: 'Sent',
       sends: 640, opens: 297, clicks: 104,
+      pageViews: 391,
       createdAt: ago(58),
       imageUrl: demoImageUrl('release-slow-travel'),
       imageMetadata: demoImageMeta('release-slow-travel', ago(58)),
@@ -294,6 +303,110 @@ Judges singled out the Stillwater Valley's network of walking and cycling routes
 ${boilerplate}`,
     },
   ];
+
+  // ---------------------------------------------------------------------------
+  // Six months of earlier sends, roughly one every three to four weeks, so every
+  // report period (this/last month, this/last quarter) and the trend charts have
+  // history to show. Each carries its own photo, because they all appear in the
+  // public newsroom.
+  // ---------------------------------------------------------------------------
+  const archive = (
+    id: string,
+    image: string,
+    sentDays: number,
+    fields: { headline: string; slug: string; campaignType: string; targetMarket: string; audience: string; sends: number; opens: number; clicks: number; pageViews: number; smartDistribution: Record<string, string[]>; bodyCopy: string }
+  ) => ({
+    id,
+    ...fields,
+    status: 'Sent',
+    createdAt: ago(sentDays + 6),
+    updatedAt: ago(sentDays),
+    sentAt: ago(sentDays),
+    imageUrl: demoImageUrl(image),
+    imageMetadata: demoImageMeta(image, ago(sentDays + 6)),
+  });
+  releases.push(
+    archive('demo-release-7', 'release-independents', 16, {
+      headline: 'Independents Fortnight Puts 120 Tranquility Member Businesses in the Spotlight',
+      slug: 'independents-fortnight-member-businesses',
+      campaignType: 'Event',
+      targetMarket: 'UK',
+      audience: 'Hybrid',
+      sends: 318, opens: 149, clicks: 47, pageViews: 164,
+      smartDistribution: { editorialFocus: ['Independent business & retail', 'Tourism & destinations'], geographies: ['Regional', 'National (UK)'], topics: ['Business & investment', 'Tourism & travel'] },
+      bodyCopy: `More than 120 independent shops, cafes, makers and galleries across Tranquility are taking part in the first Independents Fortnight, with late openings, maker demonstrations and a trail map linking every participating business.
+
+Visitors who collect five stamps on the trail map are entered into a draw for a weekend break at The Harbourmaster Hotel.
+
+"Independent businesses are the reason people fall for Tranquility," said ${D.spokesperson}, ${D.spokespersonTitle}. "Independents Fortnight is our way of saying so, and of giving visitors a reason to explore beyond the harbour."
+
+${boilerplate}`,
+    }),
+    archive('demo-release-8', 'release-glowing-bay', 84, {
+      headline: 'Bioluminescence Season Opens in Tranquility Bay, With Guided Night Paddles',
+      slug: 'bioluminescence-season-night-paddles',
+      campaignType: 'Seasonal',
+      targetMarket: 'UK',
+      audience: 'Consumer',
+      sends: 498, opens: 241, clicks: 92, pageViews: 356,
+      smartDistribution: { editorialFocus: ['Tourism & destinations', 'Sport & physical activity'], geographies: ['National (UK)'], topics: ['Tourism & travel', 'Sport'] },
+      bodyCopy: `Late summer brings one of Britain's most unusual natural spectacles to Tranquility Bay, as bioluminescent plankton light up the water on dark, calm nights.
+
+Tranquility Bay Sea Kayaks runs small-group guided night paddles through the season, with all kit provided and trips timed around the new moon for the best chance of a glow.
+
+"It's the kind of experience people talk about for years," said ${D.spokesperson}, ${D.spokespersonTitle}. "And it's a reason to stay the night rather than visit for the day."
+
+${boilerplate}`,
+    }),
+    archive('demo-release-9', 'release-harbour-regatta', 112, {
+      headline: 'Tranquility Harbour Regatta Returns With a Seafood Festival on the Quay',
+      slug: 'harbour-regatta-seafood-festival',
+      campaignType: 'Event',
+      targetMarket: 'UK',
+      audience: 'Consumer',
+      sends: 455, opens: 198, clicks: 63, pageViews: 231,
+      smartDistribution: { editorialFocus: ['Events & culture', 'Food & drink'], geographies: ['Regional', 'National (UK)'], topics: ['Arts & culture', 'Food & drink'] },
+      bodyCopy: `The Tranquility Harbour Regatta returns for its 60th year, with three days of dinghy racing, gig rowing and, for the first time, a seafood festival on the quay featuring Saltwork Kitchen and a dozen local fishing families.
+
+Racing is free to watch from the harbour wall, and the festival runs each evening with live music.
+
+"The regatta is the oldest event in our calendar, and the seafood festival brings the whole harbour into it," said ${D.spokesperson}, ${D.spokespersonTitle}.
+
+${boilerplate}`,
+    }),
+    archive('demo-release-10', 'release-dark-skies', 138, {
+      headline: 'Stillwater Valley Recognised as a Dark Sky Destination',
+      slug: 'stillwater-valley-dark-sky-destination',
+      campaignType: 'Award',
+      targetMarket: 'UK & International',
+      audience: 'Hybrid',
+      sends: 702, opens: 338, clicks: 129, pageViews: 412,
+      smartDistribution: { editorialFocus: ['Sustainability & environment', 'Tourism & destinations'], geographies: ['National (UK)', 'International'], topics: ['Sustainability', 'Tourism & travel'] },
+      bodyCopy: `The Stillwater Valley has been recognised as a dark sky destination, after a three-year community effort to reduce light pollution across its villages and farms.
+
+Member businesses including Old Ropeworks Cottages and Larkspur Downs Ranger Walks now offer stargazing breaks and guided night walks, with telescopes available to borrow from the Tranquility Bay visitor centre.
+
+"Dark skies are part of what makes the valley special, and our members have worked hard to protect them," said ${D.spokesperson}, ${D.spokespersonTitle}.
+
+${boilerplate}`,
+    }),
+    archive('demo-release-11', 'release-walking-festival', 168, {
+      headline: 'Larkspur Downs Spring Walking Festival Adds 40 Guided Routes',
+      slug: 'larkspur-downs-spring-walking-festival',
+      campaignType: 'Event',
+      targetMarket: 'UK',
+      audience: 'Consumer',
+      sends: 520, opens: 231, clicks: 74, pageViews: 268,
+      smartDistribution: { editorialFocus: ['Tourism & destinations', 'Sport & physical activity'], geographies: ['National (UK)', 'Regional'], topics: ['Tourism & travel', 'Sport'] },
+      bodyCopy: `The Larkspur Downs Spring Walking Festival returns with 40 guided routes over ten days, from gentle wildflower strolls to a full-day walk along the Tranquility Coast Path.
+
+Every walk starts from a bus stop or Valley Line station, and Old Ropeworks Cottages and The Harbourmaster Hotel are offering walkers' packages with packed lunches and luggage transfers.
+
+"Spring on the downs is spectacular, and the festival makes it easy to see it on foot," said ${D.spokesperson}, ${D.spokespersonTitle}.
+
+${boilerplate}`,
+    })
+  );
 
   // ---------------------------------------------------------------------------
   // Member submissions across every status.
@@ -359,6 +472,48 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
     },
   ];
 
+  // Older member stories that went on to become the archive releases above.
+  const usedSub = (id: string, partnerIdx: number, title: string, bodyCopy: string, image: string, releaseId: string, days: number) => ({
+    id,
+    ...sub(partners[partnerIdx]),
+    title,
+    bodyCopy,
+    tagIds: [], imageUrls: [demoImageUrl(image)], imageStoragePaths: [], imageMetadata: [demoImageMeta(image, ago(days))],
+    status: 'used',
+    usedInReleaseIds: [releaseId],
+    createdAt: ago(days),
+    updatedAt: ago(days - 4),
+  });
+  submissions.push(
+    usedSub('demo-sub-6', 3, 'Late Openings and Maker Demonstrations for Independents Fortnight', `The gallery will open late every Thursday of Independents Fortnight, with live printmaking demonstrations from our resident artists and a pop-up shop for local makers.`, 'release-independents', 'demo-release-7', 26),
+    usedSub('demo-sub-7', 7, 'Stargazing Breaks at Old Ropeworks Cottages', `We've added stargazing breaks for the darker months, with a telescope in every cottage, a guide to the night sky and a hot chocolate hamper on arrival.`, 'release-dark-skies', 'demo-release-10', 150),
+    usedSub('demo-sub-8', 2, 'Saltwork Kitchen to Host the First Regatta Seafood Festival', `We're bringing a seafood festival to the quay for regatta week, cooking with catch from a dozen local fishing families each evening.`, 'release-harbour-regatta', 'demo-release-9', 125),
+    usedSub('demo-sub-9', 5, '40 Guided Walks for the Spring Walking Festival', `Our rangers will lead 40 guided walks over the festival, all starting from a bus stop or station, from wildflower strolls to a full day on the coast path.`, 'release-walking-festival', 'demo-release-11', 180),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Member update emails (orgs/{orgId}/partnerEmails), roughly monthly, so the
+  // member engagement section of the report has opens and clicks to show.
+  // ---------------------------------------------------------------------------
+  const memberEmailRecipients = partners.map((pp) => ({ id: pp.id, name: pp.name, email: pp.email }));
+  const partnerEmails = [
+    { id: 'demo-pe-1', subject: 'Your coverage this month, and stories we need for winter', days: 4, opens: 11, clicks: 6 },
+    { id: 'demo-pe-2', subject: 'Independents Fortnight: get your business on the trail map', days: 24, opens: 10, clicks: 7 },
+    { id: 'demo-pe-3', subject: 'Lantern Festival press interest: can you host a journalist?', days: 38, opens: 9, clicks: 4 },
+    { id: 'demo-pe-4', subject: 'Autumn stories wanted: what\u2019s new at your business?', days: 66, opens: 8, clicks: 3 },
+    { id: 'demo-pe-5', subject: 'Summer round-up: where members appeared in the press', days: 96, opens: 10, clicks: 5 },
+    { id: 'demo-pe-6', subject: 'Regatta week media plan and how to get involved', days: 124, opens: 7, clicks: 3 },
+    { id: 'demo-pe-7', subject: 'Dark sky news: share your stargazing offers', days: 150, opens: 9, clicks: 4 },
+    { id: 'demo-pe-8', subject: 'Spring walking festival: press visits and photography', days: 178, opens: 8, clicks: 2 },
+  ].map(({ days, ...e }) => ({
+    ...e,
+    sentBy: D.spokesperson,
+    sentAt: ago(days),
+    recipientCount: memberEmailRecipients.length,
+    sentCount: memberEmailRecipients.length,
+    recipients: memberEmailRecipients,
+  }));
+
   // ---------------------------------------------------------------------------
   // Earned coverage, spread across the last ~90 days so the dashboard, coverage
   // page and shareable report all have a story to tell.
@@ -375,8 +530,14 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
     { id: 'demo-cov-8', headline: 'Winter wild swimming: five coastal saunas to try this year', outletName: 'Coastline Magazine', url: 'https://coastlinemagazine.example/wellness/coastal-saunas', days: 9, mediaType: 'online', outletType: 'national', tone: 'positive', releaseId: null, partnerIds: [p(10).id], themes: ['wellness'], fromPressPilotSend: false, reportedAudience: 260000 },
     { id: 'demo-cov-9', headline: 'Visitor parking pressure at Mistral Point raised at council meeting', outletName: 'Stillwater Valley Post', url: 'https://stillwaterpost.example/news/mistral-point-parking', days: 12, mediaType: 'online', outletType: 'local', tone: 'sensitive', releaseId: null, partnerIds: [], themes: ['visitor management'], fromPressPilotSend: false, reportedAudience: 18000 },
     { id: 'demo-cov-10', headline: 'How a regional DMO grew its autumn season', outletName: 'Travel Trade Bulletin', url: 'https://traveltradebulletin.example/destinations/tranquility-autumn', days: 5, mediaType: 'newsletter', outletType: 'trade', tone: 'neutral', releaseId: null, partnerIds: [p(1).id, p(8).id], themes: ['shoulder season', 'business'], fromPressPilotSend: false, reportedAudience: 42000 },
-    { id: 'demo-cov-11', headline: 'Bioluminescent bays: where to see the sea glow in Britain', outletName: 'Wanderlist', url: 'https://wanderlist.example/nature/glowing-bays', days: 74, mediaType: 'social', outletType: 'national', tone: 'positive', releaseId: null, partnerIds: [p(2).id], themes: ['nature', 'adventure'], fromPressPilotSend: false, reportedAudience: 95000 },
+    { id: 'demo-cov-11', headline: 'Bioluminescent bays: where to see the sea glow in Britain', outletName: 'Wanderlist', url: 'https://wanderlist.example/nature/glowing-bays', days: 74, mediaType: 'social', outletType: 'national', tone: 'positive', releaseId: 'demo-release-8', partnerIds: [p(2).id], themes: ['nature', 'adventure'], fromPressPilotSend: true, reportedAudience: 95000 },
     { id: 'demo-cov-12', headline: 'Green Journeys weekly: the Tranquility Coast Path, one section at a time', outletName: 'Green Journeys', url: 'https://greenjourneys.example/newsletter/coast-path', days: 3, mediaType: 'newsletter', outletType: 'national', tone: 'positive', releaseId: null, partnerIds: [p(6).id], themes: ['slow travel', 'sustainability'], fromPressPilotSend: false, reportedAudience: 36000 },
+    { id: 'demo-cov-13', headline: 'Independents Fortnight brings late openings to Tranquility', outletName: 'Tranquility Business Review', url: 'https://regionalbusiness.example/retail/independents-fortnight', days: 11, mediaType: 'online', outletType: 'trade', tone: 'positive', releaseId: 'demo-release-7', partnerIds: [p(4).id], themes: ['business', 'community'], fromPressPilotSend: true, reportedAudience: 15000 },
+    { id: 'demo-cov-14', headline: 'Glowing seas: the night paddle you need to book now', outletName: 'Coastline Magazine', url: 'https://coastlinemagazine.example/adventure/glowing-seas', days: 79, mediaType: 'online', outletType: 'national', tone: 'positive', releaseId: 'demo-release-8', partnerIds: [p(2).id], themes: ['nature', 'adventure'], fromPressPilotSend: true, reportedAudience: 260000 },
+    { id: 'demo-cov-15', headline: 'Regatta at 60: seafood and sails on the quay', outletName: 'The Tranquility Gazette', url: 'https://tranquilitygazette.example/news/regatta-at-60', days: 109, mediaType: 'online', outletType: 'regional', tone: 'positive', releaseId: 'demo-release-9', partnerIds: [p(3).id], themes: ['events', 'food & drink'], fromPressPilotSend: true, reportedAudience: 64000 },
+    { id: 'demo-cov-16', headline: 'Britain\u2019s newest places to see the Milky Way', outletName: 'The Daily Courier', url: 'https://dailycourier.example/travel/dark-sky-spots', days: 133, mediaType: 'print', outletType: 'national', tone: 'positive', releaseId: 'demo-release-10', partnerIds: [p(8).id, p(6).id], themes: ['nature', 'sustainability'], fromPressPilotSend: true, reportedAudience: 410000 },
+    { id: 'demo-cov-17', headline: 'Stillwater Valley switches off the lights', outletName: 'Coast & Valley Radio', url: 'https://coastandvalley.example/news/dark-sky-valley', days: 136, mediaType: 'broadcast', outletType: 'regional', tone: 'positive', releaseId: 'demo-release-10', partnerIds: [], themes: ['sustainability', 'community'], fromPressPilotSend: true, reportedAudience: 140000 },
+    { id: 'demo-cov-18', headline: 'Five spring walking festivals worth the train fare', outletName: 'The Weekend Traveller', url: 'https://weekendtraveller.example/travel/spring-walking-festivals', days: 161, mediaType: 'online', outletType: 'national', tone: 'positive', releaseId: 'demo-release-11', partnerIds: [p(6).id, p(1).id], themes: ['slow travel', 'events'], fromPressPilotSend: true, reportedAudience: 1200000 },
   ].map(({ days, ...c }) => {
     const rel = releases.find((r) => r.id === c.releaseId);
     return {
@@ -712,6 +873,7 @@ The tasting room is a stop on the Stillwater Valley Food Trail and is a ten-minu
     sendJobs,
     events,
     followUps,
+    partnerEmails,
     creditBalance: 250,
   };
 }

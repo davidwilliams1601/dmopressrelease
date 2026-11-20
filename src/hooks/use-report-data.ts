@@ -8,6 +8,7 @@ import {
   computeRate,
   buildTrendData,
   getPreviousPeriod,
+  releaseActivityDate,
   type TrendDataPoint,
 } from '@/lib/report-utils';
 
@@ -118,10 +119,11 @@ export function useReportData(orgId: string | null, period: DateRange): ReportDa
     const allPartners = usersQuery.data || [];
     const allPartnerEmails = partnerEmailsQuery.data || [];
 
-    // Filter to period
-    const periodReleases = allReleases.filter((r) => isInRange(r.createdAt, period));
+    // Filter to period. Send metrics follow the send date; "created" counts follow creation.
+    const periodReleases = allReleases.filter((r) => isInRange(releaseActivityDate(r), period));
     const previousPeriod = getPreviousPeriod(period);
-    const prevReleases = allReleases.filter((r) => isInRange(r.createdAt, previousPeriod));
+    const prevReleases = allReleases.filter((r) => isInRange(releaseActivityDate(r), previousPeriod));
+    const releasesCreatedInPeriod = allReleases.filter((r) => isInRange(r.createdAt, period)).length;
 
     const periodSubmissions = allSubmissions.filter((s) => isInRange(s.createdAt, period));
     const periodPartnerEmails = allPartnerEmails.filter((e) => isInRange(e.sentAt, period));
@@ -186,7 +188,7 @@ export function useReportData(orgId: string | null, period: DateRange): ReportDa
       metrics,
       previousMetrics,
       totalPartners: allPartners.length,
-      releasesCreated: periodReleases.length,
+      releasesCreated: releasesCreatedInPeriod,
       releasesByAudience,
       newPartnersInPeriod: newPartners.length,
       submissionsReceived: periodSubmissions.length,

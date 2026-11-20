@@ -503,6 +503,7 @@ async function executeSendJob(
     await releaseDoc.ref.update({
       status: 'Sent',
       sends: admin.firestore.FieldValue.increment(sentCount),
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }
@@ -943,6 +944,7 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
     await releaseRef.update({
       status: 'Sent',
       sends: (release.sends || 0) + totalRecipients,
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }

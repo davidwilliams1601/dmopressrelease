@@ -254,6 +254,8 @@ type DemoDataset = {
   sendJobs?: Array<Record<string, unknown> & { id: string; recipients: Array<Record<string, unknown> & { id: string }> }>;
   /** Tracked email events (orgs/{orgId}/events). */
   events?: Array<Record<string, unknown> & { id: string }>;
+  /** Member update emails with open/click totals (orgs/{orgId}/partnerEmails). */
+  partnerEmails?: Array<Record<string, unknown> & { id: string }>;
   /** Logged follow-ups (orgs/{orgId}/releases/{releaseId}/followUps). */
   followUps?: Array<Record<string, unknown> & { id: string; releaseId: string }>;
 };
@@ -518,6 +520,15 @@ async function writeDemoData(orgId: string) {
         recipientRef: withOrg(rest.recipientRef),
         orgId,
       });
+    }
+    await batch.commit();
+  }
+
+  if (dataset.partnerEmails?.length) {
+    const batch = db.batch();
+    for (const e of dataset.partnerEmails) {
+      const { id, ...rest } = e;
+      batch.set(orgRef.collection('partnerEmails').doc(id), { ...rest, id, orgId });
     }
     await batch.commit();
   }
