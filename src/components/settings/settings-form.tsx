@@ -186,7 +186,7 @@ export default function SettingsForm({ organization }: SettingsFormProps) {
               id="org-name"
               name="org-name"
               defaultValue={organization.name}
-              placeholder="e.g., Visit Kent"
+              placeholder="e.g., Visit Tranquility"
               required
             />
           </div>
