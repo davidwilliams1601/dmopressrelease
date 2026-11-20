@@ -28,6 +28,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { tierHasFeature } from './tiers';
 import {
   DEVELOPING_WINDOW_DAYS,
   FEED_TIMEOUT_MS,
@@ -360,6 +361,9 @@ async function runGeneration(onlyOrgId?: string): Promise<GenerateSummary> {
     // Demo orgs show seeded, fictional opportunities. Never mix live news from other
     // regions into them (and never overwrite the seeded cards).
     if (org.isDemo === true) continue;
+    // Media Opportunities is a Professional-and-above feature. A Starter org (or one
+    // that has downgraded) keeps its saved settings but gets no new cards.
+    if (!tierHasFeature(org.tier, 'mediaOpportunities')) continue;
 
     const settingsSnap = await db
       .collection('orgs')
@@ -775,6 +779,16 @@ export const updateMediaOpportunitySettings = functions.https.onCall(async (data
     const userSnap = await db.collection('orgs').doc(orgId).collection('users').doc(caller.uid).get();
     if (userSnap.data()?.role !== 'Admin') {
       throw new functions.https.HttpsError('permission-denied', 'Only an organisation Admin can change these settings.');
+    }
+  }
+
+  if (data?.enabled === true) {
+    const orgSnap = await db.collection('orgs').doc(orgId).get();
+    if (!tierHasFeature(orgSnap.data()?.tier, 'mediaOpportunities')) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Media Opportunities is available on the Professional plan and above.'
+      );
     }
   }
 

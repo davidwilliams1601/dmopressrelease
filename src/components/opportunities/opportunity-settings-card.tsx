@@ -26,6 +26,8 @@ import { useToast } from '@/hooks/use-toast';
 import { DEFAULT_MEDIA_TAXONOMY } from '@/lib/media-taxonomy';
 import type { MediaOpportunitySettings } from '@/lib/types';
 import { Radar } from 'lucide-react';
+import { useEntitlements } from '@/hooks/use-entitlements';
+import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
 
 function TermToggles({
   options,
@@ -66,6 +68,8 @@ export function OpportunitySettingsCard({ orgId }: { orgId: string }) {
     [firestore, orgId]
   );
   const { data: settings, isLoading } = useDoc<MediaOpportunitySettings>(settingsRef);
+  const { can, isLoading: isEntitlementsLoading } = useEntitlements();
+  const canUseOpportunities = can('mediaOpportunities');
 
   const [topics, setTopics] = useState<string[]>([]);
   const [geographies, setGeographies] = useState<string[]>([]);
@@ -118,8 +122,28 @@ export function OpportunitySettingsCard({ orgId }: { orgId: string }) {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || isEntitlementsLoading) {
     return <Skeleton className="h-64 w-full" />;
+  }
+
+  if (!canUseOpportunities) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Radar className="h-5 w-5" />
+            Media Opportunities
+          </CardTitle>
+          <CardDescription>
+            Spots themes moving in your sector&apos;s media and matches them to stories you
+            already have.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <UpgradePrompt feature="mediaOpportunities" />
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

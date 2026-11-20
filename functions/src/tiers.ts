@@ -57,11 +57,12 @@ export const TIER_FEATURES: Record<TierId, {
   advancedReporting: boolean;
   customContentTypes: boolean;
   whitelabel: boolean;
+  mediaOpportunities: boolean;
 }> = {
-  starter: { approvalWorkflows: false, advancedReporting: false, customContentTypes: false, whitelabel: false },
-  professional: { approvalWorkflows: true, advancedReporting: true, customContentTypes: true, whitelabel: false },
-  organisation: { approvalWorkflows: true, advancedReporting: true, customContentTypes: true, whitelabel: true },
-  enterprise: { approvalWorkflows: true, advancedReporting: true, customContentTypes: true, whitelabel: true },
+  starter: { approvalWorkflows: false, advancedReporting: false, customContentTypes: false, whitelabel: false, mediaOpportunities: false },
+  professional: { approvalWorkflows: true, advancedReporting: true, customContentTypes: true, whitelabel: false, mediaOpportunities: true },
+  organisation: { approvalWorkflows: true, advancedReporting: true, customContentTypes: true, whitelabel: true, mediaOpportunities: true },
+  enterprise: { approvalWorkflows: true, advancedReporting: true, customContentTypes: true, whitelabel: true, mediaOpportunities: true },
 };
 
 export const DEFAULT_TIER: TierId = 'starter';
@@ -82,4 +83,11 @@ export function isSelfServeTierId(value: unknown): value is SelfServeTierId {
 
 export function getTierLimits(tier?: string | null): TierLimits {
   return isTierId(tier) ? TIER_LIMITS[tier] : TIER_LIMITS[DEFAULT_TIER];
+}
+
+export type TierFeatureKey = keyof (typeof TIER_FEATURES)[TierId];
+
+/** True if the tier includes the feature. Unknown/missing tier falls back to Starter. */
+export function tierHasFeature(tier: string | null | undefined, feature: TierFeatureKey): boolean {
+  return (isTierId(tier) ? TIER_FEATURES[tier] : TIER_FEATURES[DEFAULT_TIER])[feature];
 }
