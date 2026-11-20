@@ -72,7 +72,7 @@ test('approved releases are tagged so recommendations can be generated', () => {
 });
 
 test('IDs are unique within each collection', () => {
-  const groups = [ds.partners, ds.releases, ds.submissions, ds.coverage, ds.opportunities, ds.networkContacts];
+  const groups = [ds.partners, ds.releases, ds.submissions, ds.coverage, ds.opportunities, ds.networkContacts, ds.partnerEmails];
   for (const g of groups) {
     const ids = g.map((x: any) => x.id);
     assert.equal(new Set(ids).size, ids.length);
@@ -110,5 +110,38 @@ test('every release and submission has demo photography that ships with the app'
   assert.equal(new Set(ds.releases.map((r) => r.imageUrl)).size, ds.releases.length, 'release images are distinct');
   for (const name of DEMO_IMAGE_NAMES) {
     assert.equal(fs.statSync(path.join(dir, `${name}.jpg`)).size > 0, true);
+  }
+});
+
+test('send history covers six months with no long gaps, so every report period has data', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const sent = ds.releases
+    .filter((r) => r.status === 'Sent')
+    .map((r) => (r.sentAt as Date).getTime())
+    .sort((a, b) => b - a);
+  assert.ok(sent.length >= 8);
+  assert.ok(NOW - sent[sent.length - 1] > 150 * DAY, 'history reaches back about six months');
+  let prev = NOW;
+  for (const t of sent) {
+    assert.ok(t < NOW);
+    assert.ok(prev - t <= 35 * DAY, `gap of ${Math.round((prev - t) / DAY)} days`);
+    prev = t;
+  }
+});
+
+test('every sent release has tracking figures and page views', () => {
+  for (const r of ds.releases.filter((x) => x.status === 'Sent')) {
+    assert.ok((r.sends as number) > 0, `${r.id} sends`);
+    assert.ok((r.opens as number) > 0, `${r.id} opens`);
+    assert.ok((r.pageViews as number) > 0, `${r.id} pageViews`);
+    assert.ok((r.createdAt as Date) <= (r.sentAt as Date), `${r.id} sent before it was created`);
+  }
+});
+
+test('member update emails are seeded with engagement', () => {
+  assert.ok(ds.partnerEmails.length >= 6);
+  for (const e of ds.partnerEmails) {
+    assert.ok(e.opens <= e.sentCount && e.clicks <= e.opens);
+    assert.ok((e.sentAt as Date).getTime() < NOW);
   }
 });

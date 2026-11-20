@@ -52,6 +52,16 @@ export function isInRange(timestamp: any, range: DateRange): boolean {
   return date >= range.from && date <= range.to;
 }
 
+/**
+ * The date a release's engagement belongs to: when it went out, for sent releases
+ * (a release drafted in October and sent in November is November's activity),
+ * otherwise when it was created.
+ */
+export function releaseActivityDate(release: Pick<Release, 'status' | 'createdAt' | 'sentAt'>): any {
+  if (release.status === 'Sent' && release.sentAt) return release.sentAt;
+  return release.createdAt;
+}
+
 export function computeRate(numerator: number, denominator: number): number {
   if (denominator === 0) return 0;
   return Math.round((numerator / denominator) * 1000) / 10;
@@ -109,10 +119,10 @@ export function buildTrendData(
     });
   }
 
-  // Place each release into its bucket based on createdAt
+  // Place each sent release into the bucket for the day it went out
   releases.forEach((release) => {
     if (release.status !== 'Sent') return;
-    const date = toDate(release.createdAt);
+    const date = toDate(releaseActivityDate(release));
 
     let bucketKey: string;
     if (useWeekly) {

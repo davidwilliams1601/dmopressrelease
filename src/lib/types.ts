@@ -161,6 +161,8 @@ export type Release = {
   status: 'Draft' | 'Ready' | 'Sent' | 'Scheduled';
   createdAt: FirestoreTimestamp; // Can be Date or Firestore Timestamp
   updatedAt?: FirestoreTimestamp; // Can be Date or Firestore Timestamp
+  /** When the release went out. Absent on releases sent before this was recorded. */
+  sentAt?: FirestoreTimestamp;
   sends?: number;
   opens?: number;
   clicks?: number;
