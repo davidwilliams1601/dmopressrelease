@@ -15,6 +15,7 @@ import {
 } from 'date-fns';
 import { toDate } from '@/lib/utils';
 import type { Release } from '@/lib/types';
+import { uniqueOpensOf, uniqueClicksOf } from '@/lib/engagement';
 
 export type DateRange = { from: Date; to: Date };
 
@@ -139,8 +140,8 @@ export function buildTrendData(
     const bucket = buckets.get(bucketKey);
     if (bucket) {
       bucket.sends += release.sends || 0;
-      bucket.opens += release.opens || 0;
-      bucket.clicks += release.clicks || 0;
+      bucket.opens += uniqueOpensOf(release);
+      bucket.clicks += uniqueClicksOf(release);
     }
   });
 

@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { ProvisionOrgDialog } from '@/components/admin/provision-org-dialog';
 import { EditOrgLimitsDialog } from '@/components/admin/edit-org-limits-dialog';
 import { BackfillBillingDialog } from '@/components/admin/backfill-billing-dialog';
+import { BackfillUniqueOpensDialog } from '@/components/admin/backfill-unique-opens-dialog';
 import { SetOrgParentDialog } from '@/components/admin/set-org-parent-dialog';
 import { DeleteOrgDialog } from '@/components/admin/delete-org-dialog';
 import { SeedDemoDialog } from '@/components/admin/seed-demo-dialog';
@@ -189,6 +190,7 @@ export default function AdminOrgsPage() {
             Refresh
           </Button>
           <BackfillBillingDialog onDone={loadReport} />
+          <BackfillUniqueOpensDialog />
           <ProvisionOrgDialog onOrgProvisioned={loadReport} />
         </div>
       </div>

@@ -141,7 +141,18 @@ test('every sent release has tracking figures and page views', () => {
 test('member update emails are seeded with engagement', () => {
   assert.ok(ds.partnerEmails.length >= 6);
   for (const e of ds.partnerEmails) {
-    assert.ok(e.opens <= e.sentCount && e.clicks <= e.opens);
+    assert.ok(e.uniqueOpens <= e.sentCount && e.uniqueClicks <= e.uniqueOpens);
+    assert.ok(e.opens >= e.uniqueOpens && e.clicks >= e.uniqueClicks);
     assert.ok((e.sentAt as Date).getTime() < NOW);
+  }
+});
+
+test('unique opens never exceed sends, and unique clicks never exceed unique opens', () => {
+  for (const r of ds.releases.filter((x) => x.status === 'Sent')) {
+    const u = r.uniqueOpens as number;
+    const c = r.uniqueClicks as number;
+    assert.ok(u > 0 && u <= (r.sends as number), `${r.id} unique opens ${u} of ${r.sends}`);
+    assert.ok(c <= u, `${r.id} unique clicks ${c} > unique opens ${u}`);
+    assert.ok((r.opens as number) >= u && (r.clicks as number) >= c);
   }
 });

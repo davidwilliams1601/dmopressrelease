@@ -26,6 +26,7 @@ import { format } from 'date-fns';
 import { toDate, getAppBaseUrl } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import type { PartnerInvite, PartnerEmail, User } from '@/lib/types';
+import { uniqueOpensOf, uniqueClicksOf } from '@/lib/engagement';
 
 export const dynamic = 'force-dynamic';
 
@@ -336,18 +337,20 @@ export default function PartnersPage() {
               </TableHeader>
               <TableBody>
                 {partnerEmails.map((email) => {
-                  const openRate = email.sentCount > 0 ? Math.round((email.opens / email.sentCount) * 100) : 0;
-                  const clickRate = email.sentCount > 0 ? Math.round((email.clicks / email.sentCount) * 100) : 0;
+                  const uniqueOpens = uniqueOpensOf({ ...email, sends: email.sentCount });
+                  const uniqueClicks = uniqueClicksOf({ ...email, sends: email.sentCount });
+                  const openRate = email.sentCount > 0 ? Math.round((uniqueOpens / email.sentCount) * 100) : 0;
+                  const clickRate = email.sentCount > 0 ? Math.round((uniqueClicks / email.sentCount) * 100) : 0;
                   return (
                     <TableRow key={email.id}>
                       <TableCell className="font-medium">{email.subject}</TableCell>
                       <TableCell className="text-right">{email.sentCount}</TableCell>
                       <TableCell className="text-right">
-                        <span className="tabular-nums">{email.opens}</span>
+                        <span className="tabular-nums">{uniqueOpens}</span>
                         <span className="text-muted-foreground text-xs ml-1">({openRate}%)</span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className="tabular-nums">{email.clicks}</span>
+                        <span className="tabular-nums">{uniqueClicks}</span>
                         <span className="text-muted-foreground text-xs ml-1">({clickRate}%)</span>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">

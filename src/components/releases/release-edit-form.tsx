@@ -52,6 +52,7 @@ import { SendJobsCard } from './send-jobs-card';
 import { ImageUpload } from './image-upload';
 import { SubmissionVideoPicker, type PickedVideo } from './submission-video-picker';
 import { ApprovalWorkflowCard } from './approval-workflow-card';
+import { uniqueOpensOf, uniqueClicksOf } from '@/lib/engagement';
 
 type ReleaseEditFormProps = {
   release: Release;
@@ -493,12 +494,14 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                   <p className="text-2xl font-bold">{release.sends || 0}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Opens</p>
-                  <p className="text-2xl font-bold">{release.opens || 0}</p>
+                  <p className="text-sm text-muted-foreground">Opened by</p>
+                  <p className="text-2xl font-bold">{uniqueOpensOf(release)}</p>
+                  <p className="text-xs text-muted-foreground">{release.opens || 0} opens in total</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Clicks</p>
-                  <p className="text-2xl font-bold">{release.clicks || 0}</p>
+                  <p className="text-sm text-muted-foreground">Clicked by</p>
+                  <p className="text-2xl font-bold">{uniqueClicksOf(release)}</p>
+                  <p className="text-xs text-muted-foreground">{release.clicks || 0} clicks in total</p>
                 </div>
               </div>
             </CardContent>

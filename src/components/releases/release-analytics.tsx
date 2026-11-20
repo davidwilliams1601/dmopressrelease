@@ -17,6 +17,7 @@ import type { EmailEvent, Release } from '@/lib/types';
 import { format } from 'date-fns';
 import { toDate } from '@/lib/utils';
 import { Mail, MousePointerClick, ExternalLink, AlertCircle, Ban } from 'lucide-react';
+import { uniqueOpensOf, uniqueClicksOf } from '@/lib/engagement';
 
 type ReleaseAnalyticsProps = {
   orgId: string;
@@ -120,7 +121,7 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
     );
     if (otherReleases.length === 0) return null;
     const totalRate = otherReleases.reduce((sum, r) => {
-      const rate = ((r.opens ?? 0) / (r.sends ?? 1)) * 100;
+      const rate = (uniqueOpensOf(r) / (r.sends || 1)) * 100;
       return sum + rate;
     }, 0);
     return { avg: totalRate / otherReleases.length, count: otherReleases.length };
@@ -136,19 +137,20 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
     const opens = shardTotals.opens > 0 ? shardTotals.opens : events.filter((e) => e.eventType === 'open').length;
     const clicks = shardTotals.clicks > 0 ? shardTotals.clicks : events.filter((e) => e.eventType === 'click').length;
 
-    // Calculate unique opens (by recipient email) — from raw events
-    const uniqueOpens = new Set(
-      events.filter((e) => e.eventType === 'open').map((e) => e.recipientEmail)
-    ).size;
-
-    // Calculate unique clicks
-    const uniqueClicks = new Set(
-      events.filter((e) => e.eventType === 'click').map((e) => e.recipientEmail)
-    ).size;
+    // Unique opens/clicks: the release's server-side counters (each recipient once,
+    // including network contacts, whose events carry no email). Older releases that
+    // haven't been backfilled fall back to distinct addresses in the loaded events.
+    const thisRelease = orgReleases.find((r) => r.id === releaseId);
+    const uniqueOpens = typeof thisRelease?.uniqueOpens === 'number'
+      ? thisRelease.uniqueOpens
+      : new Set(events.filter((e) => e.eventType === 'open' || e.eventType === 'click').map((e) => e.recipientEmail)).size;
+    const uniqueClicks = typeof thisRelease?.uniqueClicks === 'number'
+      ? thisRelease.uniqueClicks
+      : new Set(events.filter((e) => e.eventType === 'click').map((e) => e.recipientEmail)).size;
 
     // Calculate rates
     const openRate = delivered > 0 ? (uniqueOpens / delivered) * 100 : 0;
-    const clickRate = opens > 0 ? (uniqueClicks / uniqueOpens) * 100 : 0;
+    const clickRate = uniqueOpens > 0 ? (uniqueClicks / uniqueOpens) * 100 : 0;
 
     return {
       delivered,
@@ -161,7 +163,7 @@ export function ReleaseAnalytics({ orgId, releaseId }: ReleaseAnalyticsProps) {
       openRate,
       clickRate,
     };
-  }, [events, shardTotals]);
+  }, [events, shardTotals, orgReleases, releaseId]);
 
   // Get click URLs breakdown
   const clickedUrls = useMemo(() => {
