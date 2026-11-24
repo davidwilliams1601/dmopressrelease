@@ -59,7 +59,7 @@ echo "==> Deploying to Firebase project: $PROJECT"
 firebase deploy $DEPLOY_TARGET --project "$PROJECT"
 
 echo ""
-echo "==> Restoring public IAM binding on $FUNCTION…"
+echo "==> Restoring public IAM binding on ${FUNCTION}…"
 gcloud functions add-iam-policy-binding "$FUNCTION" \
   --region="$REGION" \
   --member="allUsers" \
@@ -68,4 +68,4 @@ gcloud functions add-iam-policy-binding "$FUNCTION" \
   --quiet
 
 echo ""
-echo "✓ Done. $FUNCTION is publicly accessible."
+echo "✓ Done. ${FUNCTION} is publicly accessible."
