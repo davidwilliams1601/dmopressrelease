@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
 import { buildTranquilityDataset } from './demo-tranquility';
 import { canonicalCoverageUrl } from './coverage-core';
 
@@ -24,8 +25,8 @@ async function deleteCollectionDocs(collRef: admin.firestore.CollectionReference
 }
 
 /** Returns a Firestore Timestamp for N days ago. */
-function daysAgo(n: number): admin.firestore.Timestamp {
-  return admin.firestore.Timestamp.fromDate(new Date(Date.now() - n * 24 * 60 * 60 * 1000));
+function daysAgo(n: number): Timestamp {
+  return Timestamp.fromDate(new Date(Date.now() - n * 24 * 60 * 60 * 1000));
 }
 
 // ---------------------------------------------------------------------------
