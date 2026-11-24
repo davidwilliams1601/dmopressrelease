@@ -382,12 +382,30 @@ export type SeedSource = {
    */
   region?: string;
   defaultTopics?: string[];
+  /**
+   * Staged pending rights. A staged source is installed switched off with
+   * rightsStatus 'pending', and ingestion skips it even if someone flips `enabled` in the
+   * console. Only setMediaSourceRights (Super Admin, with a recorded scope note) clears it.
+   * A public feed or a parseable document confers no right to collect, store or report on it.
+   */
+  staging?: {
+    /** Row ID in the research pack that holds the endpoint and rights evidence, e.g. 'M01'. */
+    rightsRef: string;
+    /** What to check or limit before any trial. Shown in the admin registry. */
+    note: string;
+  };
 };
+
+/** 'pending' and 'refused' block ingestion; absent (legacy sources) and 'cleared' allow it. */
+export function sourceRightsAllowFetch(rightsStatus: unknown): boolean {
+  return rightsStatus !== 'pending' && rightsStatus !== 'refused';
+}
 
 export const SOURCE_REGIONS = [
   'Kent',
   'West of England',
   'Jersey',
+  'Isle of Man',
   'Malta',
   'Portugal',
   'Las Vegas',
@@ -640,6 +658,10 @@ const CORE_SEED_SOURCES: SeedSource[] = [
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
     region: 'West of England',
+    staging: {
+      rightsRef: 'R03',
+      note: 'Repair trial only, lower priority. Reach plc: no commercial feed agreement verified. Stage only if it beats BBC Bristol and Bristol24/7.',
+    },
   },
   {
     id: 'bristol-live-whats-on',
@@ -686,6 +708,10 @@ const CORE_SEED_SOURCES: SeedSource[] = [
     outletType: 'local-news',
     geographies: ['Regional', 'Local'],
     region: 'West of England',
+    staging: {
+      rightsRef: 'R05',
+      note: 'Repair trial only (best of the Reach repairs). No commercial feed agreement verified; many off-brief headlines.',
+    },
   },
   {
     id: 'bath-echo',
@@ -697,6 +723,42 @@ const CORE_SEED_SOURCES: SeedSource[] = [
     outletType: 'local-news',
     geographies: ['Local'],
     region: 'West of England',
+  },
+
+  // -------------------------------------------------------------------------
+  // Staged UK-wide specialists from the 20 November 2026 scanned-publications review.
+  // No region: relevant to every prospect once cleared. Installed switched off and
+  // rights-pending; see SeedSource.staging.
+  // -------------------------------------------------------------------------
+  {
+    id: 'railadvent',
+    name: 'RailAdvent',
+    feedUrl: 'https://www.railadvent.co.uk/feed',
+    siteUrl: 'https://www.railadvent.co.uk',
+    format: 'rss',
+    verticals: ['dmo', 'trade-body'],
+    outletType: 'trade',
+    geographies: ['National (UK)'],
+    defaultTopics: ['Tourism & travel'],
+    staging: {
+      rightsRef: 'N03',
+      note: 'High volume (99 items). Heritage rail, visitor stations and car-free journeys only; cap volume. Exclude incidents, simulator and retail items.',
+    },
+  },
+  {
+    id: 'mummytravels',
+    name: 'MUMMYTRAVELS',
+    feedUrl: 'https://www.mummytravels.com/feed/',
+    siteUrl: 'https://www.mummytravels.com',
+    format: 'rss',
+    verticals: ['dmo'],
+    outletType: 'creator',
+    geographies: ['National (UK)', 'International'],
+    defaultTopics: ['Tourism & travel'],
+    staging: {
+      rightsRef: 'S01',
+      note: 'Creator track, kept apart from earned news. Verify disclosure per item; paid, hosted and affiliate posts never count as earned.',
+    },
   },
 ];
 

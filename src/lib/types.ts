@@ -859,6 +859,15 @@ export type MediaSource = {
    *  before per-item tagging runs. A trade title's whole output is on-topic by definition. */
   defaultTopics?: string[];
   enabled: boolean;
+  /** Rights gate. 'pending' and 'refused' are never fetched; absent means a legacy source. */
+  rightsStatus?: 'pending' | 'cleared' | 'refused';
+  /** Research-pack row holding the endpoint and rights evidence, e.g. 'M01'. */
+  rightsRef?: string;
+  stagingNote?: string;
+  /** Recorded scope and expiry of a clearance, or the reason for a refusal. */
+  rightsNote?: string | null;
+  rightsDecidedAt?: FirestoreTimestamp;
+  rightsDecidedByUid?: string;
   /** Ingestion health, written only by ingestMediaSources. */
   lastCheckedAt?: FirestoreTimestamp;
   lastSuccessAt?: FirestoreTimestamp;

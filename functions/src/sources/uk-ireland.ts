@@ -172,4 +172,38 @@ export const UKIRELAND_SOURCES: SeedSource[] = [
     geographies: ['National (UK)'],
     region: 'UK & Ireland',
   },
+  // Staged devolved-nation specialists from the 20 November 2026 scanned-publications
+  // review: installed switched off and rights-pending (see SeedSource.staging).
+  {
+    id: 'nation-cymru-culture',
+    name: 'Nation.Cymru — Culture',
+    feedUrl: 'https://nation.cymru/category/culture/feed/',
+    siteUrl: 'https://nation.cymru/culture/',
+    format: 'rss',
+    verticals: ['dmo', 'charity', 'trade-body'],
+    outletType: 'national-news',
+    geographies: ['National (UK)'],
+    region: 'UK & Ireland',
+    defaultTopics: ['Arts & culture'],
+    staging: {
+      rightsRef: 'N01',
+      note: 'Culture section only, not the noisy home feed. Reject music-only releases, routine brand items and non-English articles.',
+    },
+  },
+  {
+    id: 'walkhighlands-news',
+    name: 'Walkhighlands — News',
+    feedUrl: 'https://www.walkhighlands.co.uk/news/feed/',
+    siteUrl: 'https://www.walkhighlands.co.uk/news/',
+    format: 'rss',
+    verticals: ['dmo'],
+    outletType: 'trade',
+    geographies: ['National (UK)'],
+    region: 'UK & Ireland',
+    defaultTopics: ['Tourism & travel'],
+    staging: {
+      rightsRef: 'N02',
+      note: 'Weekly, long-tail specialist walking source. Prove freshness against its real publishing rhythm; separate editorial from site and partner announcements.',
+    },
+  },
 ];
