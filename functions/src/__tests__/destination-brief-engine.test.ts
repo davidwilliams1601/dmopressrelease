@@ -794,3 +794,27 @@ test('home market is judged on the outlet, not text tags', () => {
   assert.equal(isHomeMarketItem({ ...base, geographyTags: ['International', 'Local'], sourceGeographies: ['International'] }), false);
   assert.equal(isHomeMarketItem({ ...base, geographyTags: ['International'], sourceGeographies: ['National (UK)'] }), true);
 });
+
+import { sourceRightsAllowFetch as rightsOk } from '../media-opportunity-config';
+
+test('staged sources are rights-pending and the gate blocks pending and refused', () => {
+  const staged = SEEDS.filter((s) => s.staging);
+  assert.deepEqual(
+    staged.map((s) => s.id).sort(),
+    [
+      'bristol-live-news',
+      'manx-news',
+      'manx-radio-news',
+      'mummytravels',
+      'nation-cymru-culture',
+      'railadvent',
+      'somerset-live-news',
+      'walkhighlands-news',
+    ]
+  );
+  for (const s of staged) assert.ok(s.staging!.rightsRef && s.staging!.note.length > 10, s.id);
+  assert.equal(rightsOk(undefined), true);
+  assert.equal(rightsOk('cleared'), true);
+  assert.equal(rightsOk('pending'), false);
+  assert.equal(rightsOk('refused'), false);
+});

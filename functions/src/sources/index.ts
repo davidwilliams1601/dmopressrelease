@@ -5,6 +5,7 @@
  */
 import type { SeedSource } from '../media-opportunity-config';
 import { JERSEY_SOURCES } from './jersey';
+import { ISLE_OF_MAN_SOURCES } from './isle-of-man';
 import { MALTA_SOURCES } from './malta';
 import { PORTUGAL_SOURCES } from './portugal';
 import { LASVEGAS_SOURCES } from './las-vegas';
@@ -13,6 +14,7 @@ import { UKIRELAND_SOURCES } from './uk-ireland';
 
 export const REGIONAL_SOURCE_PACKS: SeedSource[] = [
   ...JERSEY_SOURCES,
+  ...ISLE_OF_MAN_SOURCES,
   ...MALTA_SOURCES,
   ...PORTUGAL_SOURCES,
   ...LASVEGAS_SOURCES,

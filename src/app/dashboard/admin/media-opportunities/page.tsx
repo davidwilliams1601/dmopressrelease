@@ -40,6 +40,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle, Download, Play, Radar, RefreshCw, Tags, TestTube2 } from 'lucide-react';
 import type { MediaSource } from '@/lib/types';
+import { SourceRightsDialog } from '@/components/admin/source-rights-dialog';
 
 type FeedTest = {
   ok: boolean;
@@ -357,8 +358,20 @@ export default function MediaOpportunitiesAdminPage() {
                     <TableCell className="text-right text-xs">
                       {s.lastItemCount ?? '—'}
                     </TableCell>
-                    <TableCell>
-                      {!s.enabled ? (
+                    <TableCell className="space-y-1">
+                      {s.rightsStatus === 'pending' ? (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-400 text-amber-800 dark:text-amber-300"
+                          title={s.stagingNote || undefined}
+                        >
+                          Rights pending{s.rightsRef ? ` · ${s.rightsRef}` : ''}
+                        </Badge>
+                      ) : s.rightsStatus === 'refused' ? (
+                        <Badge variant="secondary" title={s.rightsNote || undefined}>
+                          Rights refused
+                        </Badge>
+                      ) : !s.enabled ? (
                         <Badge variant="secondary">Disabled</Badge>
                       ) : (s.consecutiveFailures || 0) > 0 ? (
                         <Badge variant="destructive" title={s.lastError || undefined}>
@@ -366,6 +379,16 @@ export default function MediaOpportunitiesAdminPage() {
                         </Badge>
                       ) : (
                         <Badge variant="outline">OK</Badge>
+                      )}
+                      {s.rightsStatus && (
+                        <span className="block">
+                          {s.rightsStatus === 'cleared' && (
+                            <span className="mr-1 text-xs text-muted-foreground" title={s.rightsNote || undefined}>
+                              Rights cleared ·
+                            </span>
+                          )}
+                          <SourceRightsDialog source={s} />
+                        </span>
                       )}
                     </TableCell>
                   </TableRow>

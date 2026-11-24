@@ -40,6 +40,7 @@ import {
   MIN_SOURCES_EMERGING,
   OPPORTUNITY_TTL_DAYS,
   SEED_SOURCES,
+  sourceRightsAllowFetch,
   USER_AGENT,
 } from './media-opportunity-config';
 import {
@@ -145,6 +146,9 @@ async function runIngestion(): Promise<IngestSummary> {
 
   for (const sourceDoc of sourcesSnap.docs) {
     const source = sourceDoc.data() as any;
+    // Rights gate: a staged source is never fetched until a Super Admin records clearance,
+    // even if `enabled` was flipped by hand in the console.
+    if (!sourceRightsAllowFetch(source.rightsStatus)) continue;
     summary.sourcesChecked += 1;
 
     let xml: string;
@@ -650,13 +654,25 @@ export const seedMediaSources = functions.https.onCall(async (_data, context) =>
       defaultTopics: seed.defaultTopics || [],
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
+    // Staged sources carry their rights reference and note. On an existing doc the status is
+    // only set when none has been recorded, so a later clearance or refusal is never undone.
+    const staging = seed.staging
+      ? { rightsRef: seed.staging.rightsRef, stagingNote: seed.staging.note }
+      : {};
     if (existing.exists) {
-      await ref.update(base);
+      const hasRights = existing.get('rightsStatus') !== undefined;
+      await ref.update({
+        ...base,
+        ...staging,
+        ...(seed.staging && !hasRights ? { rightsStatus: 'pending' } : {}),
+      });
       updated += 1;
     } else {
       await ref.set({
         ...base,
-        enabled: true,
+        ...staging,
+        ...(seed.staging ? { rightsStatus: 'pending' } : {}),
+        enabled: !seed.staging,
         consecutiveFailures: 0,
         lastError: null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -667,6 +683,44 @@ export const seedMediaSources = functions.https.onCall(async (_data, context) =>
   }
 
   return { created, updated, total: SEED_SOURCES.length };
+});
+
+/**
+ * Record the rights decision for one source. Super Admin only.
+ *  - 'cleared' needs a note recording scope (fetch frequency, storage, excerpts, reporting,
+ *    onward use) and expiry; it may optionally switch the source on in the same step.
+ *  - 'refused' switches the source off and keeps it off.
+ *  - 'pending' puts a source back behind the gate (e.g. a licence lapsed).
+ */
+export const setMediaSourceRights = functions.https.onCall(async (data, context) => {
+  requireSuperAdmin(context);
+  const sourceId = (data?.sourceId as string | undefined)?.trim();
+  const status = data?.status as string | undefined;
+  const note = ((data?.note as string | undefined) || '').trim();
+  if (!sourceId) throw new functions.https.HttpsError('invalid-argument', 'sourceId is required.');
+  if (status !== 'cleared' && status !== 'refused' && status !== 'pending') {
+    throw new functions.https.HttpsError('invalid-argument', "status must be 'cleared', 'refused' or 'pending'.");
+  }
+  if (status === 'cleared' && note.length < 10) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Record the cleared scope and expiry in the note (at least a sentence).'
+    );
+  }
+  const ref = db.collection('mediaSources').doc(sourceId);
+  if (!(await ref.get()).exists) throw new functions.https.HttpsError('not-found', 'Source not found.');
+
+  const update: Record<string, unknown> = {
+    rightsStatus: status,
+    rightsNote: note || null,
+    rightsDecidedAt: admin.firestore.FieldValue.serverTimestamp(),
+    rightsDecidedByUid: context.auth!.uid,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  if (status !== 'cleared') update.enabled = false;
+  else if (data?.enable === true) update.enabled = true;
+  await ref.update(update);
+  return { sourceId, rightsStatus: status, enabled: update.enabled ?? null };
 });
 
 /** Create or edit one source. Feed URL must be https — no plaintext feed reads. */
@@ -703,7 +757,15 @@ export const upsertMediaSource = functions.https.onCall(async (data, context) =>
   };
 
   if (sourceId) {
-    await db.collection('mediaSources').doc(sourceId).update(payload);
+    const ref = db.collection('mediaSources').doc(sourceId);
+    const current = await ref.get();
+    if (payload.enabled && !sourceRightsAllowFetch(current.get('rightsStatus'))) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'This source is rights-pending or refused. Record clearance with setMediaSourceRights first.'
+      );
+    }
+    await ref.update(payload);
     return { sourceId, created: false };
   }
 
