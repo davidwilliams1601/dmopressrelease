@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { tierHasFeature } from './tiers';
 
 /**
@@ -46,8 +47,8 @@ export async function ensureMediaOpportunitiesDefault(
       const base: Record<string, unknown> = {
         orgId,
         enabled: true,
-        autoEnabledAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        autoEnabledAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       };
       // Only seed empty arrays on a brand-new doc so we never wipe saved settings.
       if (!snap.exists) {
