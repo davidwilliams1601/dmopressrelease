@@ -13,6 +13,12 @@ import type { Release } from '@/lib/types';
 import { cn, toDate } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import {
+  DISTRIBUTION_CLASSES,
+  DISTRIBUTION_LABELS,
+  effectiveDistributionStatus,
+  isInNewsroom,
+} from '@/lib/release-status';
 
 type ReleasesTableProps = {
   releases: Release[];
@@ -62,6 +68,18 @@ export default function ReleasesTable({ releases }: ReleasesTableProps) {
                 >
                   {release.status}
                 </Badge>
+                {/* Email pill only when it says something the status badge doesn't:
+                    in flight, failed, or partly sent. */}
+                {(() => {
+                  const d = effectiveDistributionStatus(release);
+                  if (d !== 'queued' && d !== 'sending' && d !== 'failed' && d !== 'partially_sent') return null;
+                  return <Badge className={DISTRIBUTION_CLASSES[d]}>{DISTRIBUTION_LABELS[d]}</Badge>;
+                })()}
+                {release.status !== 'Sent' && isInNewsroom(release) && (
+                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                    In newsroom
+                  </Badge>
+                )}
                 {release.approvalStatus === 'pending' && (
                   <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
                     Awaiting Approval

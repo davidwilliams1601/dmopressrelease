@@ -55,7 +55,7 @@ export default function AppSidebar() {
     { href: '/dashboard/content', icon: Globe, label: config.nav.content },
     { href: '/dashboard/submissions', icon: Inbox, label: config.nav.submissions },
     { href: '/dashboard/media-requests', icon: Newspaper, label: config.nav.mediaRequests },
-    // Always visible: the page itself explains the add-on when it is not enabled, which is
+    // Always visible: the page itself explains the feature when it is not switched on, which is
     // a better discovery route than hiding it and is how Reports/Network behave too.
     { href: '/dashboard/opportunities', icon: Radar, label: 'Opportunities' },
     { href: '/dashboard/outlets', icon: Users, label: config.nav.outlets },

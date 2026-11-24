@@ -141,6 +141,16 @@ export type User = {
   };
 };
 
+export type ReleaseDistributionStatus =
+  | 'not_sent'
+  | 'scheduled'
+  | 'queued'
+  | 'sending'
+  | 'sent'
+  | 'partially_sent'
+  | 'failed'
+  | 'delivered';
+
 export type Release = {
   id: string;
   orgId: string;
@@ -164,6 +174,20 @@ export type Release = {
   /** When the release went out. Absent on releases sent before this was recorded. */
   sentAt?: FirestoreTimestamp;
   sends?: number;
+  /**
+   * Axis 1 (newsroom). true = publicly readable on the newsroom and permalink, independent
+   * of email. Legacy releases with status 'Sent' are also public. Draft/Ready stay private.
+   */
+  newsroomVisible?: boolean;
+  publishedAt?: FirestoreTimestamp;
+  /**
+   * Axis 2 (email). Written only by Cloud Functions. Absent on releases sent before this
+   * field existed — treat status 'Sent' as 'sent' for those.
+   */
+  distributionStatus?: ReleaseDistributionStatus;
+  latestSendJobId?: string;
+  /** accepted/failed from executeSendJob; delivered/bounced rolled up from SendGrid webhooks. */
+  deliverySummary?: { accepted?: number; failed?: number; delivered?: number; bounced?: number };
   /** Every open event, repeat opens included. Use uniqueOpensOf() for rates. */
   opens?: number;
   /** Every click event, repeat clicks included. Use uniqueClicksOf() for rates. */
@@ -330,6 +354,10 @@ export type SendJob = {
   totalRecipients: number;
   sentCount: number;
   failedCount: number;
+  /** Rolled up idempotently from SendGrid 'delivered' webhooks (first transition only). */
+  deliveredCount?: number;
+  /** Rolled up from hard bounces / drops (first terminal transition only). Soft bounces are not counted. */
+  bouncedCount?: number;
   createdAt: FirestoreTimestamp;
   completedAt?: FirestoreTimestamp;
   error?: string;
@@ -888,6 +916,12 @@ export type MediaOpportunitySettings = {
   watchlistTerms?: string[];
   /** Topics never to surface for this org, whatever the momentum. */
   mutedTopics?: string[];
+  /** Press Pilot deliberately paused this org. Super Admin / Cloud Function only. */
+  adminDisabledOverride?: boolean;
+  /** The org's own Admin switched it off; lifecycle auto-enable respects this. */
+  pausedByOrgAdmin?: boolean;
+  /** Set when ensureMediaOpportunitiesDefault switched it on at signup/upgrade. */
+  autoEnabledAt?: FirestoreTimestamp;
   updatedAt?: FirestoreTimestamp;
   updatedByUid?: string;
 };

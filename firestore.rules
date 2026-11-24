@@ -175,8 +175,11 @@ service cloud.firestore {
      * @principle Team members only (Admin/User). Partners cannot access releases.
      */
     match /orgs/{orgId}/releases/{releaseId} {
-      // Team members full access; public can read only Sent releases (newsroom)
-      allow read: if isTeamMember(orgId) || resource.data.status == 'Sent';
+      // Team members full access. Public can read a release once it is in the newsroom:
+      // legacy releases by status == 'Sent', newer ones by newsroomVisible == true
+      // (published to the newsroom without, or before, an email send). Draft and Ready
+      // stay private. Public queries must filter on one of these two fields.
+      allow read: if isTeamMember(orgId) || resource.data.status == 'Sent' || resource.data.newsroomVisible == true;
       allow create: if isTeamMember(orgId) && hasCorrectOrgIdOnCreate(orgId);
       allow update: if isTeamMember(orgId) && resource != null && isOrgIdImmutable();
       allow delete: if isTeamMember(orgId) && resource != null;
@@ -471,9 +474,9 @@ service cloud.firestore {
     /**
      * @description An organisation's Media Opportunities watch configuration.
      * @path /orgs/{orgId}/mediaOpportunitySettings/{docId}
-     * @principle Team members read; only updateMediaOpportunitySettings (Admin-gated)
-     *            writes. Client writes are denied so `enabled` — which is what turns a
-     *            paid add-on on — cannot be set from the browser.
+     * @principle Team members read; only Cloud Functions write (updateMediaOpportunitySettings
+     *            for org Admins, ensureMediaOpportunitiesDefault at signup/upgrade). Client
+     *            writes are denied so tier gating and adminDisabledOverride cannot be bypassed.
      */
     match /orgs/{orgId}/mediaOpportunitySettings/{docId} {
       allow read: if isTeamMember(orgId);

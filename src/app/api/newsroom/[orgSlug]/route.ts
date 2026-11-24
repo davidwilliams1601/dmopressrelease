@@ -43,16 +43,19 @@ export async function GET(_req: NextRequest, { params }: Params) {
       pressContact: orgData.pressContact ?? null,
     };
 
-    // Fetch sent releases ordered by createdAt desc
-    const releasesSnap = await db
-      .collection('orgs')
-      .doc(org.id)
-      .collection('releases')
-      .where('status', '==', 'Sent')
-      .orderBy('createdAt', 'desc')
-      .get();
+    // Public releases (legacy Sent, or published to the newsroom), createdAt desc.
+    const releasesCol = db.collection('orgs').doc(org.id).collection('releases');
+    const [sentSnap, publishedSnap] = await Promise.all([
+      releasesCol.where('status', '==', 'Sent').orderBy('createdAt', 'desc').get(),
+      releasesCol.where('newsroomVisible', '==', true).orderBy('createdAt', 'desc').get(),
+    ]);
+    const byId = new Map<string, (typeof sentSnap.docs)[number]>();
+    [...sentSnap.docs, ...publishedSnap.docs].forEach((d) => byId.set(d.id, d));
+    const publicDocs = [...byId.values()].sort(
+      (a, b) => (b.data().createdAt?.toMillis?.() ?? 0) - (a.data().createdAt?.toMillis?.() ?? 0)
+    );
 
-    const releases = releasesSnap.docs.map((doc) => {
+    const releases = publicDocs.map((doc) => {
       const d = doc.data();
       return {
         id: doc.id,

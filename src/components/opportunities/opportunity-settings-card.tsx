@@ -4,9 +4,9 @@
  * Per-organisation Media Opportunities configuration, rendered inside Settings.
  *
  * Two deliberate constraints:
- *  1. `enabled` is shown but NOT editable here. Whether a paid add-on is on is a
- *     commercial decision, not a self-serve toggle, so it is set by Press Pilot. The card
- *     states that plainly rather than showing a switch that silently fails.
+ *  1. `enabled` is an org-Admin Active/Paused switch. Media Opportunities is included on
+ *     Professional and above, so it is the customer's choice — unless Press Pilot has set
+ *     adminDisabledOverride, in which case the switch is hidden and a paused notice shown.
  *  2. Topics and geographies come from the controlled taxonomy (src/lib/media-taxonomy.ts),
  *     the same vocabulary the ingestion tagger uses. Free text is allowed only for the
  *     watchlist, where the point is a destination or member name no taxonomy would carry.
@@ -26,6 +26,8 @@ import { useToast } from '@/hooks/use-toast';
 import { DEFAULT_MEDIA_TAXONOMY } from '@/lib/media-taxonomy';
 import type { MediaOpportunitySettings } from '@/lib/types';
 import { Radar } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { useUserData } from '@/hooks/use-user-data';
 import { useEntitlements } from '@/hooks/use-entitlements';
 import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
 
@@ -76,9 +78,14 @@ export function OpportunitySettingsCard({ orgId }: { orgId: string }) {
   const [muted, setMuted] = useState<string[]>([]);
   const [watchlist, setWatchlist] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const { role } = useUserData();
+  const isAdmin = role === 'Admin';
+  const isPausedByPressPilot = settings?.adminDisabledOverride === true;
 
   useEffect(() => {
     if (!settings) return;
+    setEnabled(settings.enabled === true);
     setTopics(settings.priorityTopics || []);
     setGeographies(settings.priorityGeographies || []);
     setMuted(settings.mutedTopics || []);
@@ -100,8 +107,8 @@ export function OpportunitySettingsCard({ orgId }: { orgId: string }) {
       const call = httpsCallable(getFunctions(), 'updateMediaOpportunitySettings');
       await call({
         orgId,
-        // Preserved, never changed from the browser — the callable writes what it is given.
-        enabled: settings?.enabled === true,
+        // The org Admin's choice. The callable re-checks tier and adminDisabledOverride.
+        enabled: isPausedByPressPilot ? false : enabled,
         priorityTopics: topics,
         priorityGeographies: geographies,
         mutedTopics: muted,
@@ -153,16 +160,33 @@ export function OpportunitySettingsCard({ orgId }: { orgId: string }) {
           <Radar className="h-5 w-5" />
           Media Opportunities
           <Badge variant={settings?.enabled ? 'default' : 'secondary'} className="ml-1">
-            {settings?.enabled ? 'Active' : 'Not enabled'}
+            {settings?.enabled ? 'Active' : isPausedByPressPilot ? 'Paused by Press Pilot' : 'Paused'}
           </Badge>
         </CardTitle>
         <CardDescription>
-          Tell Press Pilot what to watch for you. These settings shape which themes reach your
-          opportunities queue. Whether the add-on itself is active is set by Press Pilot — talk
-          to us to switch it on or off.
+          Included in your plan. Tell Press Pilot what to watch for you — these settings shape
+          which themes reach your opportunities queue.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {isPausedByPressPilot ? (
+          <p className="text-sm text-muted-foreground">
+            Press Pilot has paused Media Opportunities for your organisation. Contact Press Pilot
+            support to switch it back on.
+          </p>
+        ) : (
+          <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="mo-enabled">Receive sector themes</Label>
+              <p className="text-xs text-muted-foreground">
+                {isAdmin
+                  ? 'Switch off to pause new themes. Your settings are kept.'
+                  : 'Only an organisation Admin can change this.'}
+              </p>
+            </div>
+            <Switch id="mo-enabled" checked={enabled} onCheckedChange={setEnabled} disabled={!isAdmin} />
+          </div>
+        )}
         <div className="space-y-2">
           <Label>Priority topics</Label>
           <p className="text-xs text-muted-foreground">

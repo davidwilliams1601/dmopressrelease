@@ -265,8 +265,8 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
       // client (firestore.rules now denies it — see H2 fix comment there). The
       // createSendJob callable re-validates everything server-side (release approval,
       // outlet-list ownership, recipient counts, confirmed Smart Distribution selection)
-      // and only marks the release Scheduled/Sent once the sendJob document itself is
-      // confirmed written — a thrown error here is caught below and never silently
+      // and marks the release Scheduled (or queued) once the sendJob document itself is
+      // confirmed written; the release only becomes Sent once emails actually go out — a thrown error here is caught below and never silently
       // reports success, closing the H4 gap.
       const functionsInstance = getFunctions();
       const createSendJob = httpsCallable<any, { success: boolean; sendJobId: string; totalRecipients: number; excludedCount?: number }>(
@@ -319,8 +319,8 @@ export function SendReleaseDialog({ release, orgId, approvalBlocked, holdingText
         warnIfExclusionsIgnored(result.data);
 
         toast({
-          title: 'Release queued for sending',
-          description: `Your press release will be sent to ${result.data.totalRecipients} recipients.`,
+          title: `Email queued for ${result.data.totalRecipients} recipient${result.data.totalRecipients !== 1 ? 's' : ''}`,
+          description: 'Sending starts shortly. Send History shows what was accepted, delivered or bounced.',
         });
       }
 

@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { getTierPriceMonthly } from './tiers';
 import { sendWelcomeEmail } from './welcome-email';
+import { ensureMediaOpportunitiesDefault } from './media-opportunity-defaults';
 import { getStripe, STRIPE_SECRET_KEY } from './stripe';
 
 const db = admin.firestore();
@@ -139,6 +140,7 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
       orgData.ancestorOrgIds = ancestorOrgIds;
     }
     await orgRef.set(orgData);
+    await ensureMediaOpportunitiesDefault(orgSlug, tier);
 
     // 2. Create the Firebase Auth user for the first admin
     let userRecord: admin.auth.UserRecord;
@@ -149,7 +151,8 @@ export const provisionNewOrg = functions.https.onCall(async (data, context) => {
         displayName: adminName,
       });
     } catch (err: any) {
-      // Roll back org doc if user creation fails
+      // Roll back org doc (and the auto-created settings doc) if user creation fails
+      await orgRef.collection('mediaOpportunitySettings').doc('config').delete().catch(() => undefined);
       await orgRef.delete();
       if (err.code === 'auth/email-already-exists') {
         throw new functions.https.HttpsError(
@@ -855,6 +858,9 @@ export const updateOrgLimits = functions.https.onCall(async (data, context) => {
   }
 
   await orgRef.update(update);
+  if (typeof update.tier === 'string') {
+    await ensureMediaOpportunitiesDefault(orgId, update.tier);
+  }
 
   console.log(`Org limits updated: ${orgId} | maxPartners=${maxPartners ?? 'unlimited'} | maxUsers=${maxUsers ?? 'unlimited'} | tier=${tier ?? 'none'} | contractValueMonthly=${contractValueMonthly ?? 'unchanged/none'} | canProvisionChildOrgs=${canProvisionChildOrgs ?? 'unchanged'} | maxChildOrgs=${maxChildOrgs ?? 'unchanged/none'} | childOrgDefaultTier=${childOrgDefaultTier ?? 'unchanged/none'} | billingLockOverride=${billingLockOverride ?? 'unchanged/none'}`);
 

@@ -119,6 +119,59 @@ async function isNetworkSourcedRecipient(
 }
 
 /**
+ * Day-1 fix (QW-07): moves one recipient to a terminal-ish delivery state and, only on
+ * the FIRST transition into that state, rolls the count up onto the send job
+ * (deliveredCount / bouncedCount) and the release (deliverySummary.delivered / .bounced).
+ *
+ * Runs in a transaction against the recipient doc, so duplicate or concurrent webhooks
+ * for the same message increment at most once. 'delivered' advances only from pending or
+ * bounced_soft; 'bounced_hard' / 'failed' never overwrite delivered, bounced_hard or failed.
+ * Soft bounces stay interim and are not counted. No email address is written anywhere here.
+ */
+async function applyRecipientTransition(
+  orgId: string,
+  sendJobId: string,
+  recipientRef: FirebaseFirestore.DocumentReference,
+  releaseId: string | undefined,
+  newStatus: 'delivered' | 'bounced_hard' | 'failed',
+  extra: Record<string, unknown>
+): Promise<void> {
+  const jobRef = db.collection('orgs').doc(orgId).collection('sendJobs').doc(sendJobId);
+  await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(recipientRef);
+    if (!fresh.exists) return;
+    const current = fresh.data()!.deliveryStatus;
+    const allowed =
+      newStatus === 'delivered'
+        ? current === 'pending' || current === 'bounced_soft'
+        : current !== 'delivered' && current !== 'bounced_hard' && current !== 'failed';
+    if (!allowed) return;
+
+    const jobSnap = await tx.get(jobRef);
+    const effectiveReleaseId = releaseId || (jobSnap.data()?.releaseId as string | undefined);
+    const releaseRef = effectiveReleaseId
+      ? db.collection('orgs').doc(orgId).collection('releases').doc(effectiveReleaseId)
+      : null;
+    const releaseSnap = releaseRef ? await tx.get(releaseRef) : null;
+
+    tx.update(recipientRef, {
+      deliveryStatus: newStatus,
+      ...extra,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const inc = admin.firestore.FieldValue.increment(1);
+    const isDelivered = newStatus === 'delivered';
+    if (jobSnap.exists) {
+      tx.update(jobRef, isDelivered ? { deliveredCount: inc } : { bouncedCount: inc });
+    }
+    if (releaseRef && releaseSnap?.exists) {
+      tx.update(releaseRef, isDelivered ? { 'deliverySummary.delivered': inc } : { 'deliverySummary.bounced': inc });
+    }
+  });
+}
+
+/**
  * Smart Distribution (Phase 4): updates the per-recipient `SendJobRecipient` doc for a
  * SendGrid delivery/bounce event and, for a hard bounce or dropped message on a
  * network-sourced recipient that was actually charged, issues the automatic refund
@@ -139,7 +192,8 @@ async function handleSmartDistributionRecipientEvent(
   orgId: string,
   sendJobId: string,
   sendJobRecipientId: string,
-  event: any
+  event: any,
+  releaseId?: string
 ): Promise<void> {
   try {
     const recipientRef = db
@@ -165,9 +219,9 @@ async function handleSmartDistributionRecipientEvent(
       // protect the true terminal states (bounced_hard, failed) and an existing delivered
       // from being overwritten by a stale, out-of-order 'delivered' webhook — same intent
       // as the original guard.
-      if (recipient.deliveryStatus === 'pending' || recipient.deliveryStatus === 'bounced_soft') {
-        await recipientRef.update({ deliveryStatus: 'delivered', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      }
+      // Day-1 fix (QW-07): the transition and the delivered roll-up happen in one
+      // transaction, so a duplicate 'delivered' webhook can never count twice.
+      await applyRecipientTransition(orgId, sendJobId, recipientRef, releaseId, 'delivered', {});
       return;
     }
 
@@ -201,6 +255,10 @@ async function handleSmartDistributionRecipientEvent(
         !!recipient.creditTransactionId &&
         !recipient.refundTransactionId;
 
+      // The refund stays outside the transaction (it has its own idempotency key,
+      // refund_${sendJobRecipientId}), and runs first exactly as before so a failure
+      // leaves the recipient non-terminal and a webhook retry can try again.
+      const extra: Record<string, unknown> = {};
       if (canRefund) {
         const refund = await refundSmartDistributionCredit({
           orgId,
@@ -209,14 +267,9 @@ async function handleSmartDistributionRecipientEvent(
           sendJobRecipientId,
           reasonCode: event.event === 'dropped' ? 'delivery_failure_auto_refund' : 'hard_bounce_auto_refund',
         });
-        await recipientRef.update({
-          deliveryStatus: newStatus,
-          refundTransactionId: refund.id,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      } else {
-        await recipientRef.update({ deliveryStatus: newStatus, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        extra.refundTransactionId = refund.id;
       }
+      await applyRecipientTransition(orgId, sendJobId, recipientRef, releaseId, newStatus, extra);
     }
   } catch (err) {
     console.error(`[webhook] Failed to process Smart Distribution recipient event for ${sendJobRecipientId}:`, err);
@@ -396,7 +449,7 @@ export const handleSendGridWebhook = functions
         sendJobRecipientId &&
         (event.event === 'delivered' || event.event === 'bounce' || event.event === 'dropped')
       ) {
-        await handleSmartDistributionRecipientEvent(orgId, sendJobId, sendJobRecipientId, event);
+        await handleSmartDistributionRecipientEvent(orgId, sendJobId, sendJobRecipientId, event, releaseId);
       }
 
       // QA fix (2026-08-20): a network-sourced Smart Distribution contact's raw email
