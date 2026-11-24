@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { ensureMediaOpportunitiesDefault } from './media-opportunity-defaults';
 
 const db = admin.firestore();
 
@@ -121,6 +122,7 @@ export const createChildOrg = functions.https.onCall(async (data, context) => {
       provisionedBy: context.auth.uid,
       provisionedViaSelfService: true,
     });
+    await ensureMediaOpportunitiesDefault(orgSlug, childTier);
 
     let userRecord: admin.auth.UserRecord;
     try {

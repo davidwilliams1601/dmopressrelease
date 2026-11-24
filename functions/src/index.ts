@@ -73,6 +73,89 @@ type MergedSendEntry = {
 };
 
 /**
+ * Writes a completed send job's real outcome onto its release (QW-05).
+ *
+ * - sentCount > 0: status 'Sent' (the legacy field every dashboard, report and newsroom
+ *   query still keys on), sends += sentCount, sentAt on first successful dispatch only,
+ *   distributionStatus 'sent' (or 'partially_sent' if some recipients failed), and
+ *   deliverySummary.accepted / .failed incremented. Delivered / bounced counts are rolled
+ *   up later by the SendGrid webhook (handleSmartDistributionRecipientEvent).
+ * - sentCount === 0: distributionStatus 'failed'. A release that was only ever
+ *   'Scheduled' goes back to 'Ready'; a release that was already 'Sent' by an earlier
+ *   job stays 'Sent'.
+ *
+ * Only the release's latest job may set distributionStatus, so an older job finishing
+ * late can't overwrite a newer one. Counts are always applied.
+ */
+async function applySendJobOutcomeToRelease(
+  releaseRef: FirebaseFirestore.DocumentReference,
+  jobId: string,
+  sentCount: number,
+  failedCount: number
+): Promise<void> {
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(releaseRef);
+    if (!snap.exists) return;
+    const release = snap.data() || {};
+    const isLatest = !release.latestSendJobId || release.latestSendJobId === jobId;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const update: Record<string, any> = {
+      'deliverySummary.accepted': admin.firestore.FieldValue.increment(sentCount),
+      'deliverySummary.failed': admin.firestore.FieldValue.increment(failedCount),
+      updatedAt: now,
+    };
+    if (sentCount > 0) {
+      update.status = 'Sent';
+      update.sends = admin.firestore.FieldValue.increment(sentCount);
+      if (!release.sentAt) update.sentAt = now;
+      if (isLatest) update.distributionStatus = failedCount > 0 ? 'partially_sent' : 'sent';
+    } else {
+      if (isLatest) update.distributionStatus = 'failed';
+      if (release.status === 'Scheduled') update.status = 'Ready';
+    }
+    tx.update(releaseRef, update);
+  });
+}
+
+/**
+ * Marks a release's distribution as failed when its latest job threw before completing.
+ * Never throws: this runs inside error handlers.
+ */
+async function markReleaseDistributionFailed(orgId: string, releaseId: string | undefined, jobId: string): Promise<void> {
+  if (!releaseId) return;
+  try {
+    const ref = db.collection('orgs').doc(orgId).collection('releases').doc(releaseId);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists || snap.data()?.latestSendJobId !== jobId) return;
+      const update: Record<string, any> = {
+        distributionStatus: 'failed',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (snap.data()?.status === 'Scheduled') update.status = 'Ready';
+      tx.update(ref, update);
+    });
+  } catch (err) {
+    console.error(`markReleaseDistributionFailed ${orgId}/${releaseId} (${jobId}) failed:`, err);
+  }
+}
+
+/** Marks the release 'sending' once its latest job has been claimed. Never throws. */
+async function markReleaseSending(orgId: string, releaseId: string | undefined, jobId: string, kind?: string): Promise<void> {
+  if (!releaseId || kind === 'alternative_contact') return;
+  try {
+    const ref = db.collection('orgs').doc(orgId).collection('releases').doc(releaseId);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists || snap.data()?.latestSendJobId !== jobId) return;
+      tx.update(ref, { distributionStatus: 'sending', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    });
+  } catch (err) {
+    console.error(`markReleaseSending ${orgId}/${releaseId} (${jobId}) failed:`, err);
+  }
+}
+
+/**
  * Core sending logic extracted for reuse by both immediate and scheduled sends.
  *
  * Smart Distribution (Phase 4): when `sendJob.includeSmartDistributionRecommendations
@@ -149,6 +232,7 @@ async function executeSendJob(
     });
     await releaseDoc.ref.update({
       status: 'Sent',
+      distributionStatus: 'delivered',
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -484,28 +568,19 @@ async function executeSendJob(
     completedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // Bug fix (2026-09-09): for an immediate send, the callable that creates the
-  // sendJob (sendRelease) already sets release.status = 'Sent' and increments
-  // release.sends *before* this function ever runs. But for a "send later" job,
-  // that callable only sets status = 'Scheduled' and deliberately skips the sends
-  // increment (the real recipient count isn't known yet, and totalRecipients may
-  // still change once Smart Distribution merging/exclusions run in here). Nothing
-  // downstream of that ever revisited the release doc once the scheduled job
-  // actually executed and completed — so scheduled releases stayed stuck showing
-  // status "Scheduled" with Sends permanently at 0 on both the release page and
-  // the dashboard aggregate (which only sums releases where status === 'Sent'),
-  // even though Send History correctly showed the job as completed and Opens/
-  // Clicks kept incrementing fine via the SendGrid webhook (which updates the
-  // release doc directly, independent of status). Guard on sendJob.scheduledAt
-  // (only ever set for the scheduled-send path) so this never double-counts the
-  // sends already applied at creation time for immediate sends.
-  if (sendJob.scheduledAt) {
-    await releaseDoc.ref.update({
-      status: 'Sent',
-      sends: admin.firestore.FieldValue.increment(sentCount),
-      sentAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+  // Day-1 fix (QW-05): this is now the ONLY place a release becomes 'Sent', for both
+  // immediate and scheduled jobs. createSendJob used to set status 'Sent' and add the
+  // pre-exclusion recipient estimate to `sends` the moment the job was queued, so a
+  // job that then failed (or had recipients excluded) left a misleading Sent badge and
+  // an overstated count. The release now moves queued -> sending -> sent here, using
+  // the real sentCount.
+  //
+  // Follow-up jobs (kind === 'alternative_contact', created by approachAlternativeContact)
+  // are single-recipient sends to an alternative journalist. They never touched the
+  // release doc before this change and still don't: they must not reset sentAt,
+  // re-mark the release, or change its distribution status.
+  if (sendJob.kind !== 'alternative_contact') {
+    await applySendJobOutcomeToRelease(releaseDoc.ref, jobId, sentCount, failedCount);
   }
 
   console.log(`Send job ${jobId} completed: ${sentCount} sent, ${failedCount} failed`);
@@ -609,6 +684,8 @@ export const processSendJob = functions
       return;
     }
 
+    await markReleaseSending(orgId, sendJob.releaseId, jobId, sendJob.kind);
+
     try {
       await executeSendJob(orgId, jobId, snap.ref, sendJob);
     } catch (error: any) {
@@ -620,6 +697,9 @@ export const processSendJob = functions
         error: error.message || 'Unknown error',
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      if (sendJob.kind !== 'alternative_contact') {
+        await markReleaseDistributionFailed(orgId, sendJob.releaseId, jobId);
+      }
     }
   });
 
@@ -650,19 +730,25 @@ export const processScheduledSendJobs = functions
       const orgId = jobData.orgId;
 
       // Atomically claim the job to prevent double-processing
+      let claimed = false;
       try {
-        await db.runTransaction(async (txn) => {
+        claimed = await db.runTransaction(async (txn) => {
           const freshDoc = await txn.get(jobRef);
           if (freshDoc.data()?.status !== 'scheduled') {
             console.log(`Job ${doc.id} already claimed, skipping`);
-            return;
+            return false;
           }
           txn.update(jobRef, { status: 'processing' });
+          return true;
         });
       } catch (err) {
         console.warn(`Failed to claim job ${doc.id}, skipping:`, err);
         continue;
       }
+      // Bug fix: previously an already-claimed job fell through and was executed anyway.
+      if (!claimed) continue;
+
+      await markReleaseSending(orgId, jobData.releaseId, doc.id, jobData.kind);
 
       // Execute the send
       try {
@@ -670,6 +756,9 @@ export const processScheduledSendJobs = functions
       } catch (err) {
         console.error(`Failed to execute scheduled job ${doc.id}:`, err);
         await jobRef.update({ status: 'failed', error: (err as Error).message });
+        if (jobData.kind !== 'alternative_contact') {
+          await markReleaseDistributionFailed(orgId, jobData.releaseId, doc.id);
+        }
       }
     }
   });
@@ -755,7 +844,10 @@ export const cancelScheduledSend = functions.https.onCall(async (data, context) 
 
   const releaseDoc = await releaseRef.get();
   if (releaseDoc.exists && releaseDoc.data()?.status === 'Scheduled') {
-    await releaseRef.update({ status: 'Ready' });
+    await releaseRef.update({ status: 'Ready', distributionStatus: 'not_sent' });
+  } else if (releaseDoc.exists && releaseDoc.data()?.latestSendJobId === sendJobId) {
+    // Already sent by an earlier job: keep 'Sent', just drop the 'scheduled' marker.
+    await releaseRef.update({ distributionStatus: releaseDoc.data()?.sends > 0 ? 'sent' : 'not_sent' });
   }
 
   console.log(`Send job ${sendJobId} cancelled by user ${context.auth.uid}`);
@@ -938,13 +1030,21 @@ export const createSendJob = functions.https.onCall(async (data, context) => {
 
   const jobRef = await db.collection('orgs').doc(orgId).collection('sendJobs').add(jobData);
 
+  // Day-1 fix (QW-05): queueing a job no longer marks the release Sent or adds the
+  // recipient estimate to `sends`. executeSendJob does both, with real counts, once the
+  // job has actually run (applySendJobOutcomeToRelease). A release that was already
+  // Sent by an earlier job keeps its status; it is never downgraded to Scheduled.
   if (sendMode === 'scheduled') {
-    await releaseRef.update({ status: 'Scheduled', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    await releaseRef.update({
+      ...(release.status === 'Sent' ? {} : { status: 'Scheduled' }),
+      distributionStatus: 'scheduled',
+      latestSendJobId: jobRef.id,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
   } else {
     await releaseRef.update({
-      status: 'Sent',
-      sends: (release.sends || 0) + totalRecipients,
-      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      distributionStatus: 'queued',
+      latestSendJobId: jobRef.id,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }
@@ -1171,6 +1271,7 @@ export * from './follow-ups';
 // Read-only and recommendation-only by design: nothing in this module sends anything.
 // See docs/media-opportunities-mvp.md.
 export * from './media-opportunities';
+export { auditMediaOpportunitiesDefaults } from './media-opportunity-defaults';
 
 // Export Destination Brief functions (superadmin sales artefact built from the same
 // ingested pool as Media Opportunities). See docs/destination-briefs.md.

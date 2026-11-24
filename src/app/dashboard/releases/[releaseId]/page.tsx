@@ -100,7 +100,11 @@ export default function ReleaseDetailPage() {
         <FollowUpCard release={releaseDoc.data} orgId={orgId!} organization={organization} />
       )}
 
-      {releaseDoc.data.status === 'Sent' && <ReleaseCoverageCard release={releaseDoc.data} orgId={orgId!} />}
+      {(releaseDoc.data.status === 'Sent' ||
+        releaseDoc.data.newsroomVisible === true ||
+        (releaseDoc.data.distributionStatus && releaseDoc.data.distributionStatus !== 'not_sent')) && (
+        <ReleaseCoverageCard release={releaseDoc.data} orgId={orgId!} />
+      )}
 
       {/* Analytics Section - Only show for sent releases */}
       {releaseDoc.data.status === 'Sent' && (

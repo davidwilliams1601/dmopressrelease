@@ -9,6 +9,7 @@ import {
   STRIPE_WEBHOOK_SECRET,
 } from './stripe';
 import { TIER_LIMITS, isSelfServeTierId, DEFAULT_TIER, type SelfServeTierId } from './tiers';
+import { ensureMediaOpportunitiesDefault } from './media-opportunity-defaults';
 
 const APP_URL = 'https://app.press-pilot.com';
 
@@ -147,6 +148,8 @@ export const createOrgWithTrial = functions
       if (limits.maxPartners != null) orgData.maxPartners = limits.maxPartners;
       if (limits.maxUsers != null) orgData.maxUsers = limits.maxUsers;
       await db.collection('orgs').doc(slug).set(orgData);
+      // Professional+ includes Media Opportunities: switch it on so the org doesn't land on an inactive screen.
+      await ensureMediaOpportunitiesDefault(slug, plan);
 
       // Private billing state — kept out of the publicly-readable org doc.
       await billingRef(slug).set({
@@ -184,6 +187,7 @@ export const createOrgWithTrial = functions
       console.error('createOrgWithTrial failed, rolling back:', error);
       await admin.auth().deleteUser(userRecord.uid).catch(() => undefined);
       await billingRef(slug).delete().catch(() => undefined);
+      await db.collection('orgs').doc(slug).collection('mediaOpportunitySettings').doc('config').delete().catch(() => undefined);
       await db.collection('orgs').doc(slug).delete().catch(() => undefined);
       if (subscriptionId) {
         await getStripe().subscriptions.cancel(subscriptionId).catch(() => undefined);
@@ -345,6 +349,7 @@ async function syncSubscription(sub: Stripe.Subscription): Promise<void> {
       },
       { merge: true }
     );
+    await ensureMediaOpportunitiesDefault(orgId, tier);
   }
   console.log(`[stripeWebhook] Synced ${orgId}: status=${sub.status}, tier=${tier ?? 'unchanged'}`);
 }

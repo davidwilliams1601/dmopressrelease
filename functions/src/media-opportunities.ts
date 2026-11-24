@@ -782,6 +782,9 @@ export const updateMediaOpportunitySettings = functions.https.onCall(async (data
     }
   }
 
+  const configRef = db.collection('orgs').doc(orgId).collection('mediaOpportunitySettings').doc('config');
+  const existing = (await configRef.get()).data() as Record<string, unknown> | undefined;
+
   if (data?.enabled === true) {
     const orgSnap = await db.collection('orgs').doc(orgId).get();
     if (!tierHasFeature(orgSnap.data()?.tier, 'mediaOpportunities')) {
@@ -790,6 +793,20 @@ export const updateMediaOpportunitySettings = functions.https.onCall(async (data
         'Media Opportunities is available on the Professional plan and above.'
       );
     }
+    // Press Pilot has deliberately paused this org. Only a Super Admin can lift that.
+    if (existing?.adminDisabledOverride === true && !caller.isSuperAdmin) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Media Opportunities has been paused for your organisation. Please contact Press Pilot support.'
+      );
+    }
+  }
+
+  // adminDisabledOverride is Super Admin only. An org Admin sending it is ignored, not an error,
+  // so an older client that echoes the field back cannot fail a save.
+  const overrideUpdate: Record<string, unknown> = {};
+  if (caller.isSuperAdmin && typeof data?.adminDisabledOverride === 'boolean') {
+    overrideUpdate.adminDisabledOverride = data.adminDisabledOverride;
   }
 
   const clean = (arr: unknown, max: number) =>
@@ -797,15 +814,16 @@ export const updateMediaOpportunitySettings = functions.https.onCall(async (data
       ? [...new Set(arr.filter((v): v is string => typeof v === 'string').map((v) => v.trim()).filter(Boolean))].slice(0, max)
       : [];
 
-  await db
-    .collection('orgs')
-    .doc(orgId)
-    .collection('mediaOpportunitySettings')
-    .doc('config')
+  const enabled = data?.enabled === true && overrideUpdate.adminDisabledOverride !== true;
+  await configRef
     .set(
       {
         orgId,
-        enabled: data?.enabled === true,
+        enabled,
+        // Remembered so lifecycle auto-enable (ensureMediaOpportunitiesDefault) never
+        // silently switches back on something an org Admin chose to pause.
+        pausedByOrgAdmin: !enabled && !caller.isSuperAdmin ? true : enabled ? false : existing?.pausedByOrgAdmin === true,
+        ...overrideUpdate,
         priorityTopics: clean(data?.priorityTopics, 20),
         priorityGeographies: clean(data?.priorityGeographies, 8),
         watchlistTerms: clean(data?.watchlistTerms, 30),

@@ -8,12 +8,16 @@
  * anything and offers no route to a distribution send: see docs/media-opportunities-mvp.md.
  *
  * Three states matter and all three are handled explicitly:
- *  - Add-on not enabled  -> an honest explanation of what the add-on does, no fake data.
+ *  - Included but off   -> plan-included wording, an Admin "Enable" button, no fake data
+ *                           (or a plain paused notice if Press Pilot has paused it).
  *  - Enabled, nothing found -> "a quiet week" is a legitimate, deliberate result.
  *  - Enabled, 1-5 cards  -> precision over volume; a long list would be the bug.
  */
 
 import { useMemo, useState } from 'react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { collection, doc, orderBy, query } from 'firebase/firestore';
 import { useUserData } from '@/hooks/use-user-data';
 import { useFirebase, useCollection, useDoc, useMemoFirebase } from '@/firebase';
@@ -36,9 +40,11 @@ import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
 export const dynamic = 'force-dynamic';
 
 export default function OpportunitiesPage() {
-  const { orgId, isLoading: isUserLoading } = useUserData();
+  const { orgId, role, isLoading: isUserLoading } = useUserData();
   const { firestore } = useFirebase();
+  const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>('open');
+  const [isEnabling, setIsEnabling] = useState(false);
 
   const settingsRef = useMemoFirebase(() => {
     if (!orgId) return null;
@@ -77,6 +83,30 @@ export default function OpportunitiesPage() {
   }
 
   const isEnabled = settings?.enabled === true;
+  const isPausedByPressPilot = settings?.adminDisabledOverride === true;
+  const isAdmin = role === 'Admin';
+
+  async function enable() {
+    if (!orgId) return;
+    setIsEnabling(true);
+    try {
+      const call = httpsCallable(getFunctions(), 'updateMediaOpportunitySettings');
+      await call({
+        orgId,
+        enabled: true,
+        // Echo saved settings back so switching on never clears a watchlist.
+        priorityTopics: settings?.priorityTopics || [],
+        priorityGeographies: settings?.priorityGeographies || [],
+        watchlistTerms: settings?.watchlistTerms || [],
+        mutedTopics: settings?.mutedTopics || [],
+      });
+      toast({ title: 'Media Opportunities switched on', description: 'New themes appear after the next daily run.' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Could not switch on', description: err?.message || 'Please try again.' });
+    } finally {
+      setIsEnabling(false);
+    }
+  }
 
   if (!canUseOpportunities) {
     return (
@@ -121,13 +151,14 @@ export default function OpportunitiesPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Radar className="h-5 w-5" />
-              Media Opportunities is not switched on for your organisation
+              {isPausedByPressPilot
+                ? 'Media Opportunities is paused for your organisation'
+                : 'Media Opportunities is included in your plan'}
             </CardTitle>
             <CardDescription>
-              An add-on to your Press Pilot subscription. It monitors a curated set of
-              travel-trade, regional, sector and official sources, groups related coverage into
-              themes, and shows you only the themes where your own approved stories give you a
-              credible contribution.
+              It monitors a curated set of travel-trade, regional, sector and official sources,
+              groups related coverage into themes, and shows you only the themes where your own
+              approved stories give you a credible contribution.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
@@ -135,10 +166,18 @@ export default function OpportunitiesPage() {
               It is a recommendation service. It does not contact anyone on your behalf and it
               does not publish or send anything.
             </p>
-            <p>
-              Speak to us about enabling it, and we will set up your themes and watchlist with
-              you.
-            </p>
+            {isPausedByPressPilot ? (
+              <p>Press Pilot has paused it for now. Contact Press Pilot support to switch it back on.</p>
+            ) : isAdmin ? (
+              <>
+                <p>Switch it on to start receiving sector themes. You can tune topics and your watchlist in Settings.</p>
+                <Button onClick={enable} disabled={isEnabling}>
+                  {isEnabling ? 'Switching on…' : 'Enable Media Opportunities'}
+                </Button>
+              </>
+            ) : (
+              <p>Ask an Admin in your organisation to switch it on to start receiving sector themes.</p>
+            )}
           </CardContent>
         </Card>
       ) : (

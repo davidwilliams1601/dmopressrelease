@@ -195,6 +195,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "releases",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "newsroomVisible",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

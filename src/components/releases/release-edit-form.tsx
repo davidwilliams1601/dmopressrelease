@@ -49,6 +49,7 @@ import { AiToneEnhancer } from './ai-tone-enhancer';
 import { SocialPostGenerator } from './social-post-generator';
 import { SendReleaseDialog } from './send-release-dialog';
 import { SendJobsCard } from './send-jobs-card';
+import { ReleasePublishCard } from './release-publish-card';
 import { ImageUpload } from './image-upload';
 import { SubmissionVideoPicker, type PickedVideo } from './submission-video-picker';
 import { ApprovalWorkflowCard } from './approval-workflow-card';
@@ -120,7 +121,12 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
         bodyCopy: formData.get('bodyCopy') as string || '',
         notesToEditors: ((formData.get('notesToEditors') as string) || '').trim() || null,
         hasHoldingText,
-        status: formData.get('status') as string,
+        // Sent and Scheduled are set by the send pipeline, never by this form: keep the
+        // live value so a stale form can't revert a release that was sent while open.
+        status:
+          release.status === 'Sent' || release.status === 'Scheduled'
+            ? release.status
+            : (formData.get('status') as string),
         imageUrl: imageUrl || null,
         imageStoragePath: imageStoragePath || null,
         imageMetadata: imageMetadata || null,
@@ -293,8 +299,11 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
                   <SelectContent>
                     <SelectItem value="Draft">Draft</SelectItem>
                     <SelectItem value="Ready">Ready</SelectItem>
-                    <SelectItem value="Scheduled">Scheduled</SelectItem>
-                    <SelectItem value="Sent">Sent</SelectItem>
+                    {/* Scheduled and Sent come from the send pipeline only. Shown (disabled)
+                        so a release already in that state still displays its value. To make
+                        a release public without emailing, use "Publish to newsroom". */}
+                    <SelectItem value="Scheduled" disabled>Scheduled</SelectItem>
+                    <SelectItem value="Sent" disabled>Sent</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -507,6 +516,9 @@ export function ReleaseEditForm({ release, orgId, organization }: ReleaseEditFor
             </CardContent>
           </Card>
         )}
+
+        {/* Newsroom vs email state (two separate facts) */}
+        <ReleasePublishCard release={release} orgId={orgId} />
 
         {/* Send History */}
         <SendJobsCard orgId={orgId} releaseId={release.id} />

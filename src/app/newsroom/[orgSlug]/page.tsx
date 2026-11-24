@@ -93,17 +93,22 @@ export default function NewsroomPage() {
           tier: orgData.tier ?? undefined,
         });
 
-        // Fetch sent releases
-        const releasesSnap = await getDocs(
-          query(
-            collection(db, 'orgs', orgDoc.id, 'releases'),
-            where('status', '==', 'Sent'),
-            orderBy('createdAt', 'desc')
-          )
+        // Public releases: legacy Sent, plus anything published to the newsroom
+        // (newsroomVisible) without an email send. Two queries because each must match
+        // a public-read rule on its own; merged, de-duplicated and re-sorted here.
+        const releasesCol = collection(db, 'orgs', orgDoc.id, 'releases');
+        const [sentSnap, publishedSnap] = await Promise.all([
+          getDocs(query(releasesCol, where('status', '==', 'Sent'), orderBy('createdAt', 'desc'))),
+          getDocs(query(releasesCol, where('newsroomVisible', '==', true), orderBy('createdAt', 'desc'))),
+        ]);
+        const byId = new Map<string, (typeof sentSnap.docs)[number]>();
+        [...sentSnap.docs, ...publishedSnap.docs].forEach((d) => byId.set(d.id, d));
+        const publicDocs = [...byId.values()].sort(
+          (a, b) => (b.data().createdAt?.toMillis?.() ?? 0) - (a.data().createdAt?.toMillis?.() ?? 0)
         );
 
         setReleases(
-          releasesSnap.docs.map((doc) => {
+          publicDocs.map((doc) => {
             const d = doc.data();
             return {
               id: doc.id,

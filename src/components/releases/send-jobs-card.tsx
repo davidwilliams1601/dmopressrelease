@@ -106,6 +106,17 @@ export function SendJobsCard({ orgId, releaseId }: SendJobsCardProps) {
     }
   };
 
+  // Plain-English job states. "Queued" and "Sending" are deliberately not "Sent":
+  // only a completed job has actually handed emails to SendGrid.
+  const STATUS_LABELS: Record<SendJob['status'], string> = {
+    pending: 'Queued',
+    processing: 'Sending',
+    completed: 'Completed',
+    failed: 'Failed',
+    scheduled: 'Scheduled',
+    cancelled: 'Cancelled',
+  };
+
   const getStatusBadge = (status: SendJob['status']) => {
     const variants: Record<SendJob['status'], 'default' | 'destructive' | 'secondary' | 'outline'> = {
       completed: 'default',
@@ -127,7 +138,7 @@ export function SendJobsCard({ orgId, releaseId }: SendJobsCardProps) {
         className={`gap-1 ${extraClasses[status] || ''}`}
       >
         {getStatusIcon(status)}
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {STATUS_LABELS[status] ?? status}
       </Badge>
     );
   };
@@ -176,8 +187,20 @@ export function SendJobsCard({ orgId, releaseId }: SendJobsCardProps) {
                     <>
                       {' \u2022 '}
                       <span className="text-green-600">
-                        {job.sentCount} sent
+                        {job.sentCount} accepted
                       </span>
+                      {typeof job.deliveredCount === 'number' && (
+                        <>
+                          {' \u2022 '}
+                          <span className="text-green-700">{job.deliveredCount} delivered</span>
+                        </>
+                      )}
+                      {(job.bouncedCount ?? 0) > 0 && (
+                        <>
+                          {' \u2022 '}
+                          <span className="text-amber-700">{job.bouncedCount} bounced</span>
+                        </>
+                      )}
                       {job.failedCount > 0 && (
                         <>
                           {' \u2022 '}

@@ -83,16 +83,19 @@ export default function PublicReleasePage() {
         };
         setOrg(orgObj);
 
-        const releaseSnap = await getDocs(
-          query(
-            collection(db, 'orgs', orgObj.id, 'releases'),
-            where('slug', '==', releaseSlug),
-            limit(1)
-          )
-        );
-        if (releaseSnap.empty) { setNotFound(true); return; }
+        // Firestore rules are not filters: a logged-out visitor's query is only allowed if
+        // it can only ever return publicly readable releases. A slug-only query could also
+        // match a Draft/Ready release, so it was rejected outright for every anonymous
+        // journalist. Query each public path explicitly (legacy Sent, or published to the
+        // newsroom) and take the first hit.
+        const releasesCol = collection(db, 'orgs', orgObj.id, 'releases');
+        const [sentSnap, publishedSnap] = await Promise.all([
+          getDocs(query(releasesCol, where('slug', '==', releaseSlug), where('status', '==', 'Sent'), limit(1))),
+          getDocs(query(releasesCol, where('slug', '==', releaseSlug), where('newsroomVisible', '==', true), limit(1))),
+        ]);
+        const relDoc = sentSnap.docs[0] ?? publishedSnap.docs[0];
+        if (!relDoc) { setNotFound(true); return; }
 
-        const relDoc = releaseSnap.docs[0];
         const relData = relDoc.data();
         const rel: ReleaseData = {
           id: relDoc.id,
@@ -109,7 +112,8 @@ export default function PublicReleasePage() {
           createdAt: relData.createdAt ?? null,
         };
 
-        if (rel.status !== 'Ready' && rel.status !== 'Sent') {
+        // Only Sent or newsroom-published releases are public. 'Ready' is internal.
+        if (rel.status !== 'Sent' && relData.newsroomVisible !== true) {
           setNotFound(true);
           return;
         }
